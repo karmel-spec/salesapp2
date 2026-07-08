@@ -78,6 +78,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
         <StaleBadge lead={lead} />
         <RepBadge rep={lead.effectiveRep} />
         <span className="spacer" />
+        {lead.phoneDialable && <CallButton leadId={lead.id} onFlash={setFlash} onDone={load} />}
         <button className="btn" onClick={askArnold} disabled={asking}>
           {asking ? "Asking Arnold…" : "🤖 Ask Arnold for a draft"}
         </button>
@@ -182,6 +183,55 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
         </div>
       </div>
     </>
+  );
+}
+
+function CallButton({ leadId, onFlash, onDone }: { leadId: string; onFlash: (s: string) => void; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [repPhone, setRepPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setRepPhone(localStorage.getItem("blp_rep_phone") || "");
+  }, []);
+
+  async function call() {
+    setBusy(true);
+    try {
+      localStorage.setItem("blp_rep_phone", repPhone);
+      const r = await api<{ detail: string }>(`/api/leads/${encodeURIComponent(leadId)}/call`, {
+        method: "POST",
+        body: JSON.stringify({ repPhone }),
+      });
+      onFlash(`📞 ${r.detail}`);
+      setOpen(false);
+      onDone();
+    } catch (e) {
+      onFlash(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button className="btn ghost" onClick={() => setOpen(true)}>📞 Call</button>
+    );
+  }
+  return (
+    <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+      <input
+        style={{ width: 170 }}
+        placeholder="Your cell (rings first)"
+        value={repPhone}
+        onChange={(e) => setRepPhone(e.target.value)}
+        autoFocus
+      />
+      <button className="btn small" onClick={call} disabled={busy || repPhone.replace(/\D/g, "").length < 10}>
+        {busy ? "Dialing…" : "Start call"}
+      </button>
+      <button className="btn ghost small" onClick={() => setOpen(false)}>✕</button>
+    </span>
   );
 }
 

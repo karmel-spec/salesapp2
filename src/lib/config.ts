@@ -26,7 +26,9 @@ export const config = {
   // Outbound comms
   twilioAccountSid: process.env.TWILIO_ACCOUNT_SID || "",
   twilioAuthToken: process.env.TWILIO_AUTH_TOKEN || "",
-  twilioFrom: process.env.TWILIO_FROM_NUMBER || "", // Karmel is locating this
+  twilioFrom: process.env.TWILIO_FROM_NUMBER || "", // texting number (801-769-0054)
+  // Verified caller ID shown to customers on bridge calls — the public store line.
+  twilioCallerId: process.env.TWILIO_CALLER_ID_NUMBER || "+18017010113",
   smtpHost: process.env.SMTP_HOST || "smtp.gmail.com",
   smtpPort: Number(process.env.SMTP_PORT || 465),
   smtpUser: process.env.SMTP_USER || "info@brighamlarsonpianos.com",
