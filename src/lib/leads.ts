@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { config } from "./config";
-import { readRows, writeCells, appendRow, canWrite } from "./sheets";
+import { readRows, writeCells, appendRow, canWrite, expandColumns } from "./sheets";
 
 /**
  * Lead domain model over the Leads Log spreadsheet.
@@ -297,6 +297,7 @@ export async function ensureAppColumns(shape: SheetShape): Promise<SheetShape> {
   if (!missing.length || !canWrite()) return shape;
   let next = shape.header.length;
   const cells = missing.map((k) => ({ row: 1, col: next++, value: COLS[k] }));
+  await expandColumns(next);
   await writeCells(cells);
   invalidateCache();
   const { shape: fresh } = await getLeads(true);

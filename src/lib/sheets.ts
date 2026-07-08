@@ -125,6 +125,34 @@ export function colLetter(i: number): string {
 }
 
 /**
+ * Ensure the sheet grid has at least `minCols` columns, appending columns if
+ * needed (writing past the grid edge is rejected by the API otherwise).
+ */
+export async function expandColumns(minCols: number): Promise<void> {
+  if (!canWrite()) throw new SheetsReadOnlyError();
+  const tab = await getTabName();
+  const meta = await api("?fields=sheets(properties(sheetId,title,gridProperties(columnCount)))");
+  const sheet =
+    meta.sheets.find((s: any) => s.properties.title === tab) || meta.sheets[0];
+  const current = sheet.properties.gridProperties.columnCount as number;
+  if (current >= minCols) return;
+  await api(":batchUpdate", {
+    method: "POST",
+    body: JSON.stringify({
+      requests: [
+        {
+          appendDimension: {
+            sheetId: sheet.properties.sheetId,
+            dimension: "COLUMNS",
+            length: minCols - current,
+          },
+        },
+      ],
+    }),
+  });
+}
+
+/**
  * Write individual cells. `rowNumber` is the 1-based sheet row.
  * Cells: [{ row, col, value }] with col 0-based.
  */
