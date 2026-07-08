@@ -175,8 +175,13 @@ function rowToLead(row: string[], rowNumber: number, shape: SheetShape, now: Dat
   const lastContact = get("lastContact");
 
   const timeline = safeJson<TimelineEvent[]>(get("timelineJson"), []);
-  // Last touch = explicit last-contact date, else newest timeline event, else date added.
+  // Last touch = explicit last-contact date, else newest CONTACT event, else
+  // date added. Drafts, notes, edits, and assignments are app housekeeping —
+  // they must not reset the stale clock (or Arnold drafting a lead would
+  // un-assign it from himself).
+  const CONTACT_KINDS = ["sms_out", "email_out", "call", "inbound", "meeting", "visit"];
   const timelineDates = timeline
+    .filter((e) => CONTACT_KINDS.includes(e.kind))
     .map((e) => new Date(e.at))
     .filter((d) => !isNaN(d.getTime()));
   const candidates = [
