@@ -72,6 +72,11 @@ async function api(path: string, init?: RequestInit): Promise<any> {
       },
     }
   );
+  if (res.status === 403) {
+    throw new Error(
+      `Google says the service account lacks permission (403). Share the Leads Log with ${config.googleClientEmail} as Editor, then retry.`
+    );
+  }
   if (!res.ok) throw new Error(`Sheets API ${path} failed (${res.status}): ${await res.text()}`);
   return res.json();
 }

@@ -124,7 +124,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
 
           <div className="card">
             <h2>Activity</h2>
-            <form onSubmit={logActivity} style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+            <form onSubmit={logActivity} style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
               <select value={noteKind} onChange={(e) => setNoteKind(e.target.value)}>
                 <option value="note">Note</option>
                 <option value="call">Call</option>
