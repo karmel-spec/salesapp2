@@ -152,6 +152,32 @@ function safeJson<T>(raw: string, fallback: T): T {
   }
 }
 
+/**
+ * Timeline entries written by the old sales console used
+ * {date, type, text, direction} — normalize everything to {at, who, kind, text}.
+ */
+function normalizeTimeline(raw: unknown[]): TimelineEvent[] {
+  return raw
+    .map((entry) => {
+      const e = (entry ?? {}) as Record<string, unknown>;
+      if (typeof e.at === "string" && typeof e.kind === "string") {
+        return { at: e.at, who: String(e.who ?? "team"), kind: e.kind, text: String(e.text ?? "") };
+      }
+      const at = typeof e.at === "string" ? e.at : typeof e.date === "string" ? e.date : "";
+      const type = String(e.type ?? e.kind ?? "note").toLowerCase();
+      const inbound = e.direction === "inbound";
+      const kind = inbound
+        ? "inbound"
+        : type === "text" || type === "sms"
+          ? "sms_out"
+          : type === "email"
+            ? "email_out"
+            : type;
+      return { at, who: String(e.who ?? (inbound ? "customer" : "team")), kind, text: String(e.text ?? "") };
+    })
+    .filter((e) => e.text || e.at);
+}
+
 export function shapeFromHeader(header: string[]): SheetShape {
   const col = {} as SheetShape["col"];
   const lower = header.map((h) => h.trim().toLowerCase());
@@ -174,7 +200,7 @@ function rowToLead(row: string[], rowNumber: number, shape: SheetShape, now: Dat
   const dateAdded = get("dateAdded");
   const lastContact = get("lastContact");
 
-  const timeline = safeJson<TimelineEvent[]>(get("timelineJson"), []);
+  const timeline = normalizeTimeline(safeJson<unknown[]>(get("timelineJson"), []));
   // Last touch = explicit last-contact date, else newest CONTACT event, else
   // date added. Drafts, notes, edits, and assignments are app housekeeping —
   // they must not reset the stale clock (or Arnold drafting a lead would
