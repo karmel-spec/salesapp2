@@ -52,7 +52,8 @@ export async function notifyArnoldWebhook(payload: {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-BLP-Signature": hmacSign(body, config.arnoldWebhookSecret),
+      // Hermes validates GitHub-style HMAC signatures.
+      "X-Hub-Signature-256": `sha256=${hmacSign(body, config.arnoldWebhookSecret)}`,
     },
     body,
   });
