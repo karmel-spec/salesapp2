@@ -129,7 +129,9 @@ export async function generateDraftsViaApi(lead: Lead): Promise<{
       "strip tracking query params. Never use markdown links in texts (SMS is plain text). When a lead seems " +
       "ready to talk (hot, complex restoration, asking questions), suggest booking a call with Brigham: in " +
       "emails link [grab a time on Brigham's calendar](https://calendly.com/BrighamLarson); in texts say " +
-      "'you can grab a time with Brigham at calendly.com/BrighamLarson'.",
+      "'you can grab a time with Brigham at calendly.com/BrighamLarson'. Especially: whenever the draft's " +
+      "closing question is an offer to talk ('want to talk it through?', 'should we discuss?'), include the " +
+      "Calendly link as the easy way to say yes.",
     messages: [
       {
         role: "user",

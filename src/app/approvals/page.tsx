@@ -11,6 +11,7 @@ export default function ApprovalsPage() {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [error, setError] = useState("");
   const [flash, setFlash] = useState<{ kind: "good" | "bad"; text: string } | null>(null);
+  const [repFilter, setRepFilter] = useState("all");
 
   const load = () => fetchLeads(true).then((r) => setLeads(r.leads)).catch((e) => setError(e.message));
   useEffect(() => {
@@ -23,6 +24,23 @@ export default function ApprovalsPage() {
       .map((lead) => ({ lead, drafts: lead.drafts.filter((d) => d.status === "pending") }))
       .filter((x) => x.drafts.length > 0);
   }, [leads]);
+
+  const repOptions = useMemo(
+    () => Array.from(new Set(queue.map((x) => x.lead.effectiveRep).filter(Boolean))).sort(),
+    [queue]
+  );
+
+  // Default the filter to whoever is signed in on this device.
+  useEffect(() => {
+    const me = getWho();
+    if (me !== "app" && repOptions.includes(me)) setRepFilter(me);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repOptions.join(",")]);
+
+  const visibleQueue = useMemo(
+    () => (repFilter === "all" ? queue : queue.filter((x) => x.lead.effectiveRep === repFilter)),
+    [queue, repFilter]
+  );
 
   async function act(leadId: string, createdAt: string, channel: string, action: "approve_send" | "dismiss", body: string, subject: string) {
     setFlash(null);
@@ -45,18 +63,29 @@ export default function ApprovalsPage() {
     <>
       <div className="page-head">
         <h1>Approvals</h1>
-        <span className="sub">{queue.reduce((n, x) => n + x.drafts.length, 0)} Arnold draft(s) awaiting a human</span>
+        <span className="sub">
+          {visibleQueue.reduce((n, x) => n + x.drafts.length, 0)}
+          {repFilter !== "all" ? ` of ${queue.reduce((n, x) => n + x.drafts.length, 0)}` : ""} Arnold draft(s) awaiting a human
+        </span>
+        <span className="spacer" />
+        <select value={repFilter} onChange={(e) => setRepFilter(e.target.value)} aria-label="Filter by rep">
+          <option value="all">All reps</option>
+          {repOptions.map((r) => (
+            <option key={r} value={r}>{r}&apos;s leads</option>
+          ))}
+        </select>
       </div>
       {flash && <div className={`banner ${flash.kind}`}>{flash.kind === "good" ? "✓" : "⚠"} {flash.text}</div>}
-      {queue.length === 0 && (
+      {visibleQueue.length === 0 && (
         <div className="card">
           <div className="muted">
-            The queue is clear. Open a lead and click <strong>Ask Arnold</strong> to generate the next text +
-            email suggestion, or let the stale sweep hand old leads to Arnold automatically.
+            {repFilter === "all"
+              ? "The queue is clear. Open a lead and click Ask Arnold to generate the next text + email suggestion, or let the stale sweep hand old leads to Arnold automatically."
+              : `No pending drafts on ${repFilter}'s leads. Switch to "All reps" to see the whole queue.`}
           </div>
         </div>
       )}
-      {queue.map(({ lead, drafts }) => (
+      {visibleQueue.map(({ lead, drafts }) => (
         <div key={lead.id} className="card" style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", gap: 10, alignItems: "baseline", marginBottom: 10 }}>
             <Link href={`/leads/${encodeURIComponent(lead.id)}`} className="lead-name" style={{ fontSize: 16 }}>
