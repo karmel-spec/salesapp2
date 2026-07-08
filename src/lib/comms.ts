@@ -81,16 +81,53 @@ export async function sendEmail(
     secure: config.smtpPort === 465,
     auth: { user: config.smtpUser, pass: config.smtpPass },
   });
-  const html = body
-    .split(/\n{2,}/)
-    .map((p) => `<p>${p.replace(/\n/g, "<br/>")}</p>`)
-    .join("");
   const info = await transport.sendMail({
     from: `"${config.emailFromName}" <${config.smtpUser}>`,
     to,
     subject,
-    text: body,
-    html,
+    text: emailText(body),
+    html: emailHtml(body),
   });
   return { messageId: info.messageId };
+}
+
+const MD_LINK = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+
+/** Drop Shopify search-tracking params (?_pos, _sid, _ss) from product URLs. */
+function cleanUrl(url: string): string {
+  return url
+    .replace(/([?&])_(pos|sid|ss)=[^&]*/g, "$1")
+    .replace(/[?&]+$/, "")
+    .replace(/\?&+/, "?")
+    .replace(/&{2,}/g, "&");
+}
+
+/**
+ * Render a plain-text draft as email HTML: markdown links `[label](url)`
+ * become anchors, paragraphs and line breaks are preserved, everything
+ * else is escaped.
+ */
+export function emailHtml(body: string): string {
+  const escape = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const renderParagraph = (p: string) => {
+    let out = "";
+    let last = 0;
+    for (const m of p.matchAll(MD_LINK)) {
+      out += escape(p.slice(last, m.index));
+      out += `<a href="${escape(cleanUrl(m[2]))}">${escape(m[1])}</a>`;
+      last = m.index + m[0].length;
+    }
+    out += escape(p.slice(last));
+    return out.replace(/\n/g, "<br/>");
+  };
+  return body
+    .split(/\n{2,}/)
+    .map((p) => `<p>${renderParagraph(p)}</p>`)
+    .join("");
+}
+
+/** Plain-text MIME fallback: `[label](url)` → `label (url)`. */
+export function emailText(body: string): string {
+  return body.replace(MD_LINK, (_m, label, url) => `${label} (${cleanUrl(url)})`);
 }

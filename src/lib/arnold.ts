@@ -123,7 +123,9 @@ export async function generateDraftsViaApi(lead: Lead): Promise<{
       "genuinely helpful follow-up messages to piano customers — restoration, sales, lessons, and service leads. " +
       "You sound like a friendly Utah piano shop, never like a pushy salesperson or an AI. Reference the specific " +
       "piano or situation from the lead's history. Suggest one concrete next step (a call, an in-home evaluation, " +
-      "a shop visit). Keep texts short and casual; keep emails brief and skimmable.",
+      "a shop visit). Keep texts short and casual; keep emails brief and skimmable. In EMAILS, write links as " +
+      "markdown — [1905 Steinway Upright](https://…) — with the piano name as the label, never a raw URL, and " +
+      "strip tracking query params. Never use markdown links in texts (SMS is plain text).",
     messages: [
       {
         role: "user",
