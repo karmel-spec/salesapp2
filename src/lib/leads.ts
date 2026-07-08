@@ -344,8 +344,9 @@ export async function getLeads(force = false): Promise<{ leads: Lead[]; shape: S
   const leads: Lead[] = [];
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
-    // Skip fully empty rows.
-    if (!row.some((c) => c && c.trim())) continue;
+    // Skip empty rows — including "ghost" rows whose only content is an
+    // auto-filled checkbox value (TRUE/FALSE) from the alert column.
+    if (!row.some((c) => c && c.trim() && !["TRUE", "FALSE"].includes(c.trim().toUpperCase()))) continue;
     leads.push(rowToLead(row, i + 1, shape, now));
   }
   cache = { leads, shape, at: Date.now() };
