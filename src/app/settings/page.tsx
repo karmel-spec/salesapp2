@@ -28,7 +28,7 @@ const INTEGRATIONS: { key: string; name: string; desc: string; env: string }[] =
   {
     key: "twilio",
     name: "Twilio SMS",
-    desc: "Sends approved text drafts. Karmel is locating the texting number.",
+    desc: "Sends approved text drafts from 801-769-0054 (A2P-registered).",
     env: "TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER",
   },
   {
