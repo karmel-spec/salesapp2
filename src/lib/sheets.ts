@@ -183,6 +183,40 @@ export async function appendRow(values: string[]): Promise<void> {
   });
 }
 
+/** Insert a full row at the TOP of the sheet (row 2, right under the header). */
+export async function insertRowTop(values: string[]): Promise<void> {
+  if (!canWrite()) throw new SheetsReadOnlyError();
+  const tab = await getTabName();
+  const meta = await api("?fields=sheets(properties(sheetId,title))");
+  const sheet = meta.sheets.find((s: any) => s.properties.title === tab) || meta.sheets[0];
+  await api(":batchUpdate", {
+    method: "POST",
+    body: JSON.stringify({
+      requests: [
+        {
+          insertDimension: {
+            range: { sheetId: sheet.properties.sheetId, dimension: "ROWS", startIndex: 1, endIndex: 2 },
+            inheritFromBefore: false, // inherit formatting from the data row below
+          },
+        },
+      ],
+    }),
+  });
+  await api(`/values/${encodeURIComponent(tab)}!A2?valueInputOption=RAW`, {
+    method: "PUT",
+    body: JSON.stringify({ values: [values] }),
+  });
+}
+
+/** Read a single cell's value (used to verify a row before writing to it). */
+export async function readCell(row: number, col: number): Promise<string> {
+  if (!canWrite()) throw new SheetsReadOnlyError();
+  const tab = await getTabName();
+  const a1 = `${colLetter(col)}${row}`;
+  const data = await api(`/values/${encodeURIComponent(tab)}!${a1}`);
+  return data.values?.[0]?.[0] ?? "";
+}
+
 /** Minimal RFC-4180 CSV parser (quoted fields, embedded newlines). */
 export function parseCsv(text: string): string[][] {
   const rows: string[][] = [];

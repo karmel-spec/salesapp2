@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { config } from "./config";
-import { readRows, writeCells, appendRow, canWrite, expandColumns } from "./sheets";
+import { readRows, writeCells, insertRowTop, canWrite, expandColumns, readCell } from "./sheets";
 
 /**
  * Lead domain model over the Leads Log spreadsheet.
@@ -369,14 +369,31 @@ function requireCol(shape: SheetShape, key: keyof typeof COLS): number {
   return i;
 }
 
+/**
+ * Rows shift when leads are inserted at the top, so before writing we verify
+ * the target row still belongs to this lead (via its blp_id cell). On a
+ * mismatch we re-locate the lead by id and write there instead.
+ */
+async function ensureRowCurrent(lead: Lead, shape: SheetShape): Promise<Lead> {
+  if (shape.col.blpId < 0 || !lead.id || lead.id.startsWith("row-")) return lead;
+  const cell = (await readCell(lead.row, shape.col.blpId)).trim();
+  if (cell === lead.id) return lead;
+  invalidateCache();
+  const { leads } = await getLeads(true);
+  const fresh = leads.find((l) => l.id === lead.id);
+  if (!fresh) throw new Error(`Lead ${lead.id} moved and could not be re-located — refresh and retry`);
+  return fresh;
+}
+
 /** Update simple fields on a lead's sheet row. */
 export async function updateLeadFields(
   lead: Lead,
   shape: SheetShape,
   fields: Partial<Record<keyof typeof COLS, string>>
 ): Promise<void> {
+  const target = await ensureRowCurrent(lead, shape);
   const cells = Object.entries(fields).map(([k, value]) => ({
-    row: lead.row,
+    row: target.row,
     col: requireCol(shape, k as keyof typeof COLS),
     value: value ?? "",
   }));
@@ -491,7 +508,9 @@ export async function createLead(input: {
       } satisfies TimelineEvent,
     ])
   );
-  await appendRow(row);
+  // New leads go to the TOP of the sheet (row 2), keeping the working area
+  // newest-first and the WON/LOST/SNOOZED sections undisturbed at the bottom.
+  await insertRowTop(row);
   invalidateCache();
   return id;
 }
