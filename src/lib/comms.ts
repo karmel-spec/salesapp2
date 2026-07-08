@@ -19,7 +19,16 @@ export async function sendSms(to: string, body: string): Promise<{ sid: string }
           Buffer.from(`${config.twilioAccountSid}:${config.twilioAuthToken}`).toString("base64"),
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: new URLSearchParams({ To: to, From: config.twilioFrom, Body: body }),
+      body: new URLSearchParams({
+        To: to,
+        From: config.twilioFrom,
+        Body: body,
+        // Route through the A2P-registered service for opt-out compliance;
+        // From pins the branded number (it's in the service's pool).
+        ...(config.twilioMessagingServiceSid
+          ? { MessagingServiceSid: config.twilioMessagingServiceSid }
+          : {}),
+      }),
     }
   );
   const json = (await res.json()) as any;

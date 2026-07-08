@@ -29,6 +29,10 @@ export const config = {
   twilioFrom: process.env.TWILIO_FROM_NUMBER || "", // texting number (801-769-0054)
   // Verified caller ID shown to customers on bridge calls — the public store line.
   twilioCallerId: process.env.TWILIO_CALLER_ID_NUMBER || "+18017010113",
+  // A2P-registered messaging service ("Default Messaging Service for
+  // Conversations") — sending through it adds automatic STOP/opt-out handling.
+  twilioMessagingServiceSid:
+    process.env.TWILIO_MESSAGING_SERVICE_SID || "MGe711705877a15112a65e08f6b6e8442d",
   smtpHost: process.env.SMTP_HOST || "smtp.gmail.com",
   smtpPort: Number(process.env.SMTP_PORT || 465),
   smtpUser: process.env.SMTP_USER || "info@brighamlarsonpianos.com",
