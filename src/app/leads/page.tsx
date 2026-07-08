@@ -6,16 +6,27 @@ import type { Lead } from "@/lib/leads";
 import { api, fetchLeads, getWho } from "@/lib/client";
 import { RepBadge, StaleBadge, StatusBadge, fmtDays, pendingDrafts } from "@/components/ui";
 
-const BUCKETS = ["all", "new", "active", "won", "lost", "inactive", "support"] as const;
+const BUCKETS = ["all", "open", "new", "active", "snoozed", "won", "lost", "inactive", "support"] as const;
+
+/** Initial filters from the URL (?bucket=open|won|… & ?stale=1) so dashboard tiles can deep-link. */
+function initialParams() {
+  if (typeof window === "undefined") return { bucket: "all" as (typeof BUCKETS)[number], stale: false };
+  const q = new URLSearchParams(window.location.search);
+  const b = q.get("bucket") || "all";
+  return {
+    bucket: (BUCKETS as readonly string[]).includes(b) ? (b as (typeof BUCKETS)[number]) : "all",
+    stale: q.get("stale") === "1",
+  };
+}
 
 export default function LeadsPage() {
   const router = useRouter();
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [error, setError] = useState("");
   const [q, setQ] = useState("");
-  const [bucket, setBucket] = useState<(typeof BUCKETS)[number]>("all");
+  const [bucket, setBucket] = useState<(typeof BUCKETS)[number]>(() => initialParams().bucket);
   const [rep, setRep] = useState("all");
-  const [staleOnly, setStaleOnly] = useState(false);
+  const [staleOnly, setStaleOnly] = useState(() => initialParams().stale);
   const [showNew, setShowNew] = useState(false);
 
   useEffect(() => {
@@ -24,14 +35,19 @@ export default function LeadsPage() {
 
   const reps = useMemo(() => {
     if (!leads) return [];
-    return Array.from(new Set(leads.map((l) => l.effectiveRep).filter(Boolean))).sort();
+    // Sally retired — her historical leads keep her badge, but she's not a filter option.
+    return Array.from(new Set(leads.map((l) => l.effectiveRep).filter(Boolean)))
+      .filter((r) => r !== "Sally")
+      .sort();
   }, [leads]);
 
   const filtered = useMemo(() => {
     if (!leads) return [];
     const needle = q.trim().toLowerCase();
     return leads.filter((l) => {
-      if (bucket !== "all" && l.statusBucket !== bucket) return false;
+      if (bucket === "open") {
+        if (l.statusBucket !== "new" && l.statusBucket !== "active") return false;
+      } else if (bucket !== "all" && l.statusBucket !== bucket) return false;
       if (rep !== "all" && l.effectiveRep !== rep) return false;
       if (staleOnly && !l.isStale) return false;
       if (!needle) return true;
@@ -60,7 +76,9 @@ export default function LeadsPage() {
         <input type="search" placeholder="Search name, piano, notes…" value={q} onChange={(e) => setQ(e.target.value)} />
         <select value={bucket} onChange={(e) => setBucket(e.target.value as (typeof BUCKETS)[number])}>
           {BUCKETS.map((b) => (
-            <option key={b} value={b}>{b === "all" ? "All statuses" : b[0].toUpperCase() + b.slice(1)}</option>
+            <option key={b} value={b}>
+              {b === "all" ? "All statuses" : b === "open" ? "Open (new + active)" : b[0].toUpperCase() + b.slice(1)}
+            </option>
           ))}
         </select>
         <select value={rep} onChange={(e) => setRep(e.target.value)}>

@@ -78,6 +78,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
         <StaleBadge lead={lead} />
         <RepBadge rep={lead.effectiveRep} />
         <span className="spacer" />
+        <SnoozeButton leadId={lead.id} onFlash={setFlash} onDone={load} />
         {lead.phoneDialable && <CallButton leadId={lead.id} onFlash={setFlash} onDone={load} />}
         <button className="btn" onClick={askArnold} disabled={asking}>
           {asking ? "Asking Arnold…" : "🤖 Ask Arnold for a draft"}
@@ -85,6 +86,18 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
       </div>
 
       {flash && <div className="banner info">🤖 {flash}</div>}
+      {lead.statusBucket === "snoozed" && (
+        <div className="banner info">
+          💤 Snoozed{lead.snoozeUntil ? ` until ${lead.snoozeUntil}` : ""} — this lead sleeps (no stale rule)
+          and wakes to Active automatically when the date arrives.
+        </div>
+      )}
+      {lead.snoozeWoke && (
+        <div className="banner warn">
+          ⏰ This lead's snooze{lead.snoozeUntil ? ` (until ${lead.snoozeUntil})` : ""} has ended — it's back in
+          the active pipeline. The next sweep writes the wake-up to the sheet.
+        </div>
+      )}
       {lead.isStale && lead.rep !== "Arnold" && (
         <div className="banner warn">
           ⏰ {lead.daysSinceContact} days since last contact — this lead now belongs to Arnold by the 30-day
@@ -183,6 +196,50 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
         </div>
       </div>
     </>
+  );
+}
+
+function SnoozeButton({ leadId, onFlash, onDone }: { leadId: string; onFlash: (s: string) => void; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [until, setUntil] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function snooze() {
+    setBusy(true);
+    try {
+      const [y, m, d] = until.split("-").map(Number);
+      const pretty = `${m}/${d}/${y}`;
+      await api(`/api/leads/${encodeURIComponent(leadId)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ fields: { status: `Snoozed until ${pretty}` }, who: getWho() }),
+      });
+      await api(`/api/leads/${encodeURIComponent(leadId)}/timeline`, {
+        method: "POST",
+        body: JSON.stringify({ kind: "note", text: `💤 Snoozed until ${pretty} — will wake to Active automatically.`, who: getWho() }),
+      });
+      onFlash(`Snoozed until ${pretty}. It will wake to Active on its own.`);
+      setOpen(false);
+      onDone();
+    } catch (e) {
+      onFlash(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button className="btn ghost" onClick={() => setOpen(true)}>💤 Snooze</button>
+    );
+  }
+  return (
+    <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+      <input type="date" value={until} onChange={(e) => setUntil(e.target.value)} autoFocus />
+      <button className="btn small" onClick={snooze} disabled={busy || !until}>
+        {busy ? "Snoozing…" : "Snooze until"}
+      </button>
+      <button className="btn ghost small" onClick={() => setOpen(false)}>✕</button>
+    </span>
   );
 }
 

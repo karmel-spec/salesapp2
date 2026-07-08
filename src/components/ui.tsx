@@ -6,6 +6,7 @@ export function StatusBadge({ lead }: { lead: Lead }) {
   const labels: Record<Lead["statusBucket"], string> = {
     new: "New",
     active: "Active",
+    snoozed: "💤 Snoozed",
     won: "Won",
     lost: "Lost",
     inactive: "Inactive",

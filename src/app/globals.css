@@ -148,6 +148,8 @@ h2 {
 }
 .tile .hint { font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
 .tile.alert .value { color: var(--crimson); }
+.tile.linky { display: block; }
+.tile.linky:hover { border-color: var(--crimson); box-shadow: 0 1px 6px rgba(158, 32, 32, 0.12); }
 
 /* Single-hue magnitude bars (pipeline breakdown) */
 .mag-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
@@ -178,6 +180,8 @@ h2 {
 .badge.lost { background: #eeeae5; color: var(--ink-3); }
 .badge.inactive { background: #eeeae5; color: var(--ink-3); }
 .badge.support { background: var(--info-soft); color: var(--info); }
+.badge.snoozed { background: var(--info-soft); color: var(--info); }
+.badge.woke { background: var(--warn-soft); color: var(--warn); }
 .badge.stale { background: var(--bad-soft); color: var(--bad); }
 .badge.rep { background: #efece7; color: var(--ink-2); }
 .badge.rep.arnold { background: var(--crimson-soft); color: var(--crimson); }

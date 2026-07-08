@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { applyStaleAssignments, getLeads } from "@/lib/leads";
+import { applyStaleAssignments, wakeExpiredSnoozes, getLeads } from "@/lib/leads";
 import { canWrite } from "@/lib/sheets";
 import { integrationStatus, config } from "@/lib/config";
 import { notifyTelegram } from "@/lib/arnold";
@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
   const guard = requireSession(req);
   if (guard) return guard;
   try {
+    const woken = await wakeExpiredSnoozes();
     const reassigned = await applyStaleAssignments();
     if (reassigned.length) {
       notifyTelegram(
@@ -43,7 +44,16 @@ export async function POST(req: NextRequest) {
           reassigned.map((l) => `• ${l.name} — ${l.headline || l.leadType}`).join("\n")
       ).catch(() => {});
     }
-    return NextResponse.json({ reassigned: reassigned.map((l) => ({ id: l.id, name: l.name })) });
+    if (woken.length) {
+      notifyTelegram(
+        `⏰ <b>${woken.length} snoozed lead(s) woke up</b> and are active again:\n` +
+          woken.map((l) => `• ${l.name} — ${l.headline || l.leadType}`).join("\n")
+      ).catch(() => {});
+    }
+    return NextResponse.json({
+      reassigned: reassigned.map((l) => ({ id: l.id, name: l.name })),
+      woken: woken.map((l) => ({ id: l.id, name: l.name })),
+    });
   } catch (err) {
     return jsonError(err);
   }

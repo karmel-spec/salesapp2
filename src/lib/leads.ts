@@ -38,7 +38,7 @@ export const COLS = {
   arnoldDraftJson: "arnold_draft_json",
 } as const;
 
-export type StatusBucket = "new" | "active" | "won" | "lost" | "inactive" | "support";
+export type StatusBucket = "new" | "active" | "snoozed" | "won" | "lost" | "inactive" | "support";
 
 export interface DraftMessage {
   channel: "sms" | "email";
@@ -68,6 +68,8 @@ export interface Lead {
   lastTouchISO: string | null; // resolved last-touch date used by stale rule
   daysSinceContact: number | null;
   isStale: boolean; // no contact in >= staleDays and still open
+  snoozeUntil: string | null; // raw date parsed from a "Snoozed until …" status
+  snoozeWoke: boolean; // snooze date has passed — lead is treated as active again
   rep: string; // normalized: Brigham | Karmel | Sally | Melissa | Arnold | other raw
   repRaw: string;
   effectiveRep: string; // rep after stale rule (stale open leads → Arnold)
@@ -105,7 +107,8 @@ function normStatus(raw: string): StatusBucket {
   if (s.startsWith("won")) return "won";
   if (s.startsWith("lost")) return "lost";
   if (s.includes("support")) return "support";
-  if (s.includes("inactive") || s.includes("snooze") || s.includes("past 30")) return "inactive";
+  if (s.includes("snooze")) return "snoozed";
+  if (s.includes("inactive") || s.includes("past 30")) return "inactive";
   if (s.includes("active") || s.includes("working") || s.includes("open")) return "active";
   return "active";
 }
@@ -194,7 +197,19 @@ function rowToLead(row: string[], rowNumber: number, shape: SheetShape, now: Dat
   };
 
   const statusRaw = get("status");
-  const bucket = normStatus(statusRaw);
+  let bucket = normStatus(statusRaw);
+  // Snooze: "Snoozed until 1/15/2027" sleeps the lead; past the date it wakes.
+  let snoozeUntil: string | null = null;
+  let snoozeWoke = false;
+  if (bucket === "snoozed") {
+    const m = statusRaw.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})/);
+    snoozeUntil = m ? m[1] : null;
+    const until = snoozeUntil ? parseUSDate(snoozeUntil) : null;
+    if (!until || until <= now) {
+      snoozeWoke = true;
+      bucket = "active"; // wakes: back in the open pipeline (and the stale rule)
+    }
+  }
   const repRaw = get("rep");
   const rep = normRep(repRaw);
   const dateAdded = get("dateAdded");
@@ -239,6 +254,8 @@ function rowToLead(row: string[], rowNumber: number, shape: SheetShape, now: Dat
     lastTouchISO: lastTouch ? lastTouch.toISOString() : null,
     daysSinceContact: daysSince,
     isStale,
+    snoozeUntil,
+    snoozeWoke,
     rep,
     repRaw,
     // Stale open leads are Arnold's by rule; brand-new unassigned leads default to Brigham.
@@ -426,6 +443,34 @@ export async function createLead(input: {
   await appendRow(row);
   invalidateCache();
   return id;
+}
+
+/**
+ * Wake sweep: leads whose snooze date has passed get their sheet status
+ * flipped back to Active so the sheet matches what the app shows.
+ */
+export async function wakeExpiredSnoozes(): Promise<Lead[]> {
+  const { leads, shape } = await getLeads(true);
+  const targets = leads.filter((l) => l.snoozeWoke);
+  if (!targets.length) return [];
+  const statusCol = requireCol(shape, "status");
+  await writeCells(
+    targets.map((l) => ({
+      row: l.row,
+      col: statusCol,
+      value: `Active (snooze ended${l.snoozeUntil ? " " + l.snoozeUntil : ""})`,
+    }))
+  );
+  for (const l of targets) {
+    await appendTimeline(l, shape, {
+      at: new Date().toISOString(),
+      who: "app",
+      kind: "assign",
+      text: `⏰ Snooze ended${l.snoozeUntil ? ` (${l.snoozeUntil})` : ""} — lead is active again`,
+    });
+  }
+  invalidateCache();
+  return targets;
 }
 
 /**

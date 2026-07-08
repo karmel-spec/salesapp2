@@ -31,7 +31,7 @@ export default function Dashboard() {
     const stale = leads.filter((l) => l.isStale);
     const approvals = leads.reduce((n, l) => n + pendingDrafts(l).length, 0);
     const won = leads.filter((l) => l.statusBucket === "won");
-    const byBucket: [string, number][] = (["new", "active", "won", "lost", "inactive", "support"] as const)
+    const byBucket: [string, number][] = (["new", "active", "snoozed", "won", "lost", "inactive", "support"] as const)
       .map((b) => [b, leads.filter((l) => l.statusBucket === b).length] as [string, number])
       .filter(([, n]) => n > 0);
     return { open, stale, approvals, won, byBucket, arnoldQueue: leads.filter((l) => l.effectiveRep === "Arnold" && (l.statusBucket === "new" || l.statusBucket === "active")) };
@@ -41,12 +41,11 @@ export default function Dashboard() {
     setSweeping(true);
     setSweepResult("");
     try {
-      const r = await api<{ reassigned: { name: string }[] }>("/api/sync", { method: "POST" });
-      setSweepResult(
-        r.reassigned.length
-          ? `Reassigned ${r.reassigned.length} stale lead(s) to Arnold: ${r.reassigned.map((x) => x.name).join(", ")}`
-          : "No stale leads needed reassignment — the sheet is up to date."
-      );
+      const r = await api<{ reassigned: { name: string }[]; woken?: { name: string }[] }>("/api/sync", { method: "POST" });
+      const parts: string[] = [];
+      if (r.reassigned.length) parts.push(`Reassigned ${r.reassigned.length} stale lead(s) to Arnold: ${r.reassigned.map((x) => x.name).join(", ")}`);
+      if (r.woken?.length) parts.push(`⏰ Woke ${r.woken.length} snoozed lead(s): ${r.woken.map((x) => x.name).join(", ")}`);
+      setSweepResult(parts.join(" · ") || "Nothing to do — the sheet is already up to date.");
       load();
     } catch (e) {
       setSweepResult(e instanceof Error ? e.message : String(e));
@@ -81,28 +80,26 @@ export default function Dashboard() {
       {sweepResult && <div className="banner info">🤖 {sweepResult}</div>}
 
       <div className="grid tiles" style={{ marginBottom: 18 }}>
-        <div className="card tile">
+        <Link href="/leads?bucket=open" className="card tile linky">
           <div className="label">Open leads</div>
           <div className="value">{stats.open.length}</div>
-          <div className="hint">new + active pipeline</div>
-        </div>
-        <div className={`card tile ${stats.stale.length ? "alert" : ""}`}>
+          <div className="hint">new + active pipeline →</div>
+        </Link>
+        <Link href="/leads?stale=1" className={`card tile linky ${stats.stale.length ? "alert" : ""}`}>
           <div className="label">Stale (30d+)</div>
           <div className="value">{stats.stale.length}</div>
-          <div className="hint">auto-assigned to Arnold</div>
-        </div>
-        <div className={`card tile ${stats.approvals ? "alert" : ""}`}>
+          <div className="hint">auto-assigned to Arnold →</div>
+        </Link>
+        <Link href="/approvals" className={`card tile linky ${stats.approvals ? "alert" : ""}`}>
           <div className="label">Awaiting approval</div>
           <div className="value">{stats.approvals}</div>
-          <div className="hint">
-            <Link href="/approvals" style={{ textDecoration: "underline" }}>Arnold drafts to review</Link>
-          </div>
-        </div>
-        <div className="card tile">
+          <div className="hint">Arnold drafts to review →</div>
+        </Link>
+        <Link href="/leads?bucket=won" className="card tile linky">
           <div className="label">Won</div>
           <div className="value">{stats.won.length}</div>
-          <div className="hint">all-time on this log</div>
-        </div>
+          <div className="hint">all-time on this log →</div>
+        </Link>
       </div>
 
       <div className="two-col">
