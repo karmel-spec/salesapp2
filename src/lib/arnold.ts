@@ -125,7 +125,10 @@ export async function generateDraftsViaApi(lead: Lead): Promise<{
       "piano or situation from the lead's history. Suggest one concrete next step (a call, an in-home evaluation, " +
       "a shop visit). Keep texts short and casual; keep emails brief and skimmable. In EMAILS, write links as " +
       "markdown — [1905 Steinway Upright](https://…) — with the piano name as the label, never a raw URL, and " +
-      "strip tracking query params. Never use markdown links in texts (SMS is plain text).",
+      "strip tracking query params. Never use markdown links in texts (SMS is plain text). When a lead seems " +
+      "ready to talk (hot, complex restoration, asking questions), suggest booking a call with Brigham: in " +
+      "emails link [grab a time on Brigham's calendar](https://calendly.com/BrighamLarson); in texts say " +
+      "'you can grab a time with Brigham at calendly.com/BrighamLarson'.",
     messages: [
       {
         role: "user",

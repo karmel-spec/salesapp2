@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState, use } from "react";
 import Link from "next/link";
 import type { Lead, DraftMessage } from "@/lib/leads";
-import { api, getWho } from "@/lib/client";
-import { RepBadge, StaleBadge, StatusBadge, fmtDays } from "@/components/ui";
+import { api, getWho, REPS } from "@/lib/client";
+import { StaleBadge, StatusBadge, fmtDays } from "@/components/ui";
 
 export default function LeadDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -76,7 +76,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
         <h1>{lead.name}</h1>
         <StatusBadge lead={lead} />
         <StaleBadge lead={lead} />
-        <RepBadge rep={lead.effectiveRep} />
+        <RepSelect lead={lead} onFlash={setFlash} onDone={load} />
         <span className="spacer" />
         <SnoozeButton leadId={lead.id} onFlash={setFlash} onDone={load} />
         {lead.phoneDialable && <CallButton leadId={lead.id} onFlash={setFlash} onDone={load} />}
@@ -196,6 +196,43 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
         </div>
       </div>
     </>
+  );
+}
+
+function RepSelect({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: string) => void; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const options = Array.from(new Set([...REPS, lead.effectiveRep].filter(Boolean)));
+
+  async function reassign(rep: string) {
+    if (rep === lead.effectiveRep) return;
+    setBusy(true);
+    try {
+      await api(`/api/leads/${encodeURIComponent(lead.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ fields: { rep }, who: getWho() }),
+      });
+      onFlash(`Reassigned to ${rep}.`);
+      onDone();
+    } catch (e) {
+      onFlash(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <select
+      aria-label="Assigned rep"
+      value={lead.effectiveRep}
+      disabled={busy}
+      onChange={(e) => reassign(e.target.value)}
+      style={{ padding: "3px 8px", fontSize: 12.5, fontWeight: 600, borderRadius: 99 }}
+      title="Reassign this lead"
+    >
+      {options.map((r) => (
+        <option key={r} value={r}>{r === "Arnold" ? "🤖 Arnold" : r}</option>
+      ))}
+    </select>
   );
 }
 

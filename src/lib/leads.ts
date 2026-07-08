@@ -118,7 +118,7 @@ export function normRep(raw: string): string {
   if (!s) return "";
   if (s.includes("brigham") || /\bbl\b/.test(s)) return "Brigham";
   if (s.includes("karmel")) return "Karmel";
-  if (s.includes("sally")) return "Sally";
+  if (s.includes("sally")) return "Arnold"; // Sally retired; Arnold inherited her leads
   if (s.includes("melissa")) return "Melissa";
   if (s.includes("arnold")) return "Arnold";
   // Anything that doesn't look like a short person name (notes, dates,
@@ -446,29 +446,47 @@ export async function createLead(input: {
 }
 
 /**
+ * Cells for appending a timeline event WITHOUT writing (so sweeps can batch
+ * many leads into one API call — Sheets allows only 60 writes/min/user).
+ */
+function timelineCells(lead: Lead, shape: SheetShape, event: TimelineEvent): { row: number; col: number; value: string }[] {
+  const cells: { row: number; col: number; value: string }[] = [];
+  const stamp = new Date(event.at);
+  const line = `[${stamp.toLocaleDateString("en-US")} ${event.who} · ${event.kind}] ${event.text}`;
+  if (shape.col.timelineJson >= 0) {
+    cells.push({ row: lead.row, col: shape.col.timelineJson, value: JSON.stringify([...lead.timeline, event]) });
+  }
+  if (shape.col.appActivity >= 0) {
+    cells.push({
+      row: lead.row,
+      col: shape.col.appActivity,
+      value: lead.appActivity ? `${lead.appActivity}\n${line}` : line,
+    });
+  }
+  return cells;
+}
+
+/**
  * Wake sweep: leads whose snooze date has passed get their sheet status
  * flipped back to Active so the sheet matches what the app shows.
+ * Single batched write for any number of leads.
  */
 export async function wakeExpiredSnoozes(): Promise<Lead[]> {
-  const { leads, shape } = await getLeads(true);
+  const { leads, shape: rawShape } = await getLeads(true);
   const targets = leads.filter((l) => l.snoozeWoke);
   if (!targets.length) return [];
+  const shape = await ensureAppColumns(rawShape);
   const statusCol = requireCol(shape, "status");
-  await writeCells(
-    targets.map((l) => ({
-      row: l.row,
-      col: statusCol,
-      value: `Active (snooze ended${l.snoozeUntil ? " " + l.snoozeUntil : ""})`,
-    }))
-  );
-  for (const l of targets) {
-    await appendTimeline(l, shape, {
+  const cells = targets.flatMap((l) => [
+    { row: l.row, col: statusCol, value: `Active (snooze ended${l.snoozeUntil ? " " + l.snoozeUntil : ""})` },
+    ...timelineCells(l, shape, {
       at: new Date().toISOString(),
       who: "app",
       kind: "assign",
       text: `⏰ Snooze ended${l.snoozeUntil ? ` (${l.snoozeUntil})` : ""} — lead is active again`,
-    });
-  }
+    }),
+  ]);
+  await writeCells(cells);
   invalidateCache();
   return targets;
 }
@@ -479,19 +497,23 @@ export async function wakeExpiredSnoozes(): Promise<Lead[]> {
  * Returns the leads that were reassigned.
  */
 export async function applyStaleAssignments(): Promise<Lead[]> {
-  const { leads, shape } = await getLeads(true);
+  const { leads, shape: rawShape } = await getLeads(true);
   const targets = leads.filter((l) => l.isStale && l.rep !== config.staleRep);
   if (!targets.length) return [];
+  const shape = await ensureAppColumns(rawShape);
   const repCol = requireCol(shape, "rep");
-  await writeCells(targets.map((l) => ({ row: l.row, col: repCol, value: config.staleRep })));
-  for (const l of targets) {
-    await appendTimeline(l, shape, {
+  // One batched write for the entire sweep — per-lead writes blow through
+  // the Sheets 60-writes/minute quota with a hundred stale leads.
+  const cells = targets.flatMap((l) => [
+    { row: l.row, col: repCol, value: config.staleRep },
+    ...timelineCells(l, shape, {
       at: new Date().toISOString(),
       who: "app",
       kind: "assign",
       text: `Auto-reassigned to ${config.staleRep} (${l.daysSinceContact}d since last contact, was "${l.repRaw || "unassigned"}")`,
-    });
-  }
+    }),
+  ]);
+  await writeCells(cells);
   invalidateCache();
   return targets;
 }
