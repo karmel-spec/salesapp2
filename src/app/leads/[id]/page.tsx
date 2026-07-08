@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, use } from "react";
 import Link from "next/link";
 import type { Lead, DraftMessage } from "@/lib/leads";
 import { api, getWho, REPS } from "@/lib/client";
-import { StaleBadge, StatusBadge, fmtDays } from "@/components/ui";
+import { Linkify, StaleBadge, StatusBadge, fmtDays } from "@/components/ui";
 
 export default function LeadDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -131,7 +131,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
                 <dt>$ Value</dt><dd>{lead.value || "—"}</dd>
                 <dt>Date added</dt><dd>{lead.dateAdded || "—"}</dd>
                 <dt>Last contact</dt><dd>{lead.lastContact || "—"} <span className="muted">({fmtDays(lead)})</span></dd>
-                <dt>Notes</dt><dd>{lead.notes || "—"}</dd>
+                <dt>Notes</dt><dd>{lead.notes ? <Linkify text={lead.notes} /> : "—"}</dd>
               </dl>
             )}
           </div>
@@ -154,13 +154,13 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
                   <div className="meta">
                     {new Date(ev.at).toLocaleString()} · {ev.who} · {ev.kind}
                   </div>
-                  <div className="body">{ev.text}</div>
+                  <div className="body"><Linkify text={ev.text} /></div>
                 </li>
               ))}
               {lead.activityTimeline && (
                 <li>
                   <div className="meta">From the sheet&apos;s Activity Timeline column</div>
-                  <div className="body">{lead.activityTimeline}</div>
+                  <div className="body"><Linkify text={lead.activityTimeline} /></div>
                 </li>
               )}
               {!lead.timeline.length && !lead.activityTimeline && <li className="muted">No activity yet.</li>}
@@ -230,7 +230,7 @@ function RepSelect({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: string)
       title="Reassign this lead"
     >
       {options.map((r) => (
-        <option key={r} value={r}>{r === "Arnold" ? "🤖 Arnold" : r}</option>
+        <option key={r} value={r}>{r}</option>
       ))}
     </select>
   );

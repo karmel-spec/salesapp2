@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { Lead } from "@/lib/leads";
 import { fetchLeads } from "@/lib/client";
+import { Linkify } from "@/components/ui";
 
 type Row = {
   at: string;
@@ -131,7 +132,7 @@ export default function ActivityPage() {
                   </Link>
                   {r.headline && <span className="muted"> — {r.headline}</span>}
                 </div>
-                <div className="body">{r.text}</div>
+                <div className="body"><Linkify text={r.text} /></div>
               </li>
             );
           })}

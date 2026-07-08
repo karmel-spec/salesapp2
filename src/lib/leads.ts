@@ -107,6 +107,7 @@ function normStatus(raw: string): StatusBucket {
   if (s.startsWith("won")) return "won";
   if (s.startsWith("lost")) return "lost";
   if (s.includes("support")) return "support";
+  if (s.startsWith("active")) return "active"; // e.g. "Active (snooze ended)"
   if (s.includes("snooze")) return "snoozed";
   if (s.includes("inactive") || s.includes("past 30")) return "inactive";
   if (s.includes("active") || s.includes("working") || s.includes("open")) return "active";
@@ -120,11 +121,50 @@ export function normRep(raw: string): string {
   if (s.includes("karmel")) return "Karmel";
   if (s.includes("sally")) return "Arnold"; // Sally retired; Arnold inherited her leads
   if (s.includes("melissa")) return "Melissa";
+  if (s.includes("alisa")) return "Alisa";
   if (s.includes("arnold")) return "Arnold";
   // Anything that doesn't look like a short person name (notes, dates,
   // "O:/W:/C:" scribbles) is treated as unassigned rather than a rep.
   if (/[\d:@/]/.test(s) || s.split(" ").length > 3 || s.length > 24) return "";
   return s.replace(/(^|\s)\w/g, (c) => c.toUpperCase());
+}
+
+const MONTHS = ["january","february","march","april","may","june","july","august","september","october","november","december"];
+const SEASONS: Record<string, [number, number]> = {
+  spring: [2, 20], summer: [5, 21], fall: [8, 22], autumn: [8, 22], winter: [11, 21],
+};
+
+/**
+ * Parse the wake date out of a snooze status. Handles the formats reps
+ * actually write: "12/1/26", "1/2027", "October 1, 2026", "May 2027",
+ * "summer of 2027", "fall?" (no year → next occurrence).
+ */
+export function parseSnoozeDate(raw: string, now: Date): Date | null {
+  const s = raw.toLowerCase();
+  let m = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (m) {
+    const year = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+    return new Date(year, Number(m[1]) - 1, Number(m[2]));
+  }
+  m = s.match(/(\d{1,2})\/(\d{4})/);
+  if (m) return new Date(Number(m[2]), Number(m[1]) - 1, 1);
+  // (?!\d) keeps the day capture from swallowing the first digits of a year.
+  m = s.match(new RegExp(`(${MONTHS.join("|")})\\s*(\\d{1,2}(?!\\d))?(?:,)?\\s*(\\d{4})?`));
+  if (m) {
+    const month = MONTHS.indexOf(m[1]);
+    const day = m[2] ? Number(m[2]) : 1;
+    let year = m[3] ? Number(m[3]) : now.getFullYear();
+    if (!m[3] && new Date(year, month, day) <= now) year += 1;
+    return new Date(year, month, day);
+  }
+  m = s.match(/(spring|summer|fall|autumn|winter)\s*(?:of\s*)?(\d{4})?/);
+  if (m) {
+    const [month, day] = SEASONS[m[1]];
+    let year = m[2] ? Number(m[2]) : now.getFullYear();
+    if (!m[2] && new Date(year, month, day) <= now) year += 1;
+    return new Date(year, month, day);
+  }
+  return null;
 }
 
 function parseUSDate(raw: string): Date | null {
@@ -202,10 +242,11 @@ function rowToLead(row: string[], rowNumber: number, shape: SheetShape, now: Dat
   let snoozeUntil: string | null = null;
   let snoozeWoke = false;
   if (bucket === "snoozed") {
-    const m = statusRaw.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})/);
-    snoozeUntil = m ? m[1] : null;
-    const until = snoozeUntil ? parseUSDate(snoozeUntil) : null;
-    if (!until || until <= now) {
+    const until = parseSnoozeDate(statusRaw, now);
+    snoozeUntil = until ? until.toLocaleDateString("en-US") : null;
+    // Only a PAST parseable date wakes the lead; an unparseable snooze
+    // sleeps indefinitely rather than being kicked awake.
+    if (until && until <= now) {
       snoozeWoke = true;
       bucket = "active"; // wakes: back in the open pipeline (and the stale rule)
     }
@@ -238,7 +279,12 @@ function rowToLead(row: string[], rowNumber: number, shape: SheetShape, now: Dat
     : null;
 
   const openBucket = bucket === "new" || bucket === "active";
-  const isStale = openBucket && daysSince !== null && daysSince >= config.staleDays;
+  const phoneDialable = extractPhone(get("phone"));
+  const emailClean = extractEmail(get("email"));
+  // Arnold works leads by text/email — a lead with neither stays with its
+  // human rep (e.g. social-media-only leads assigned to Alisa).
+  const arnoldReachable = Boolean(phoneDialable || emailClean);
+  const isStale = openBucket && daysSince !== null && daysSince >= config.staleDays && arnoldReachable;
 
   const first = get("firstName").trim();
   const last = get("lastName").trim();
@@ -268,9 +314,9 @@ function rowToLead(row: string[], rowNumber: number, shape: SheetShape, now: Dat
     activityTimeline: get("activityTimeline"),
     notes: get("notes"),
     phone: get("phone"),
-    phoneDialable: extractPhone(get("phone")),
+    phoneDialable,
     email: get("email"),
-    emailClean: extractEmail(get("email")),
+    emailClean,
     social: get("social").trim(),
     source: get("source").trim(),
     inquiryMethod: get("inquiryMethod").trim(),

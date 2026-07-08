@@ -34,3 +34,27 @@ export function fmtDays(lead: Lead): string {
 export function pendingDrafts(lead: Lead) {
   return lead.drafts.filter((d) => d.status === "pending");
 }
+
+/** Render text with bare URLs as clickable links (opens in a new tab). */
+export function Linkify({ text }: { text: string }) {
+  const parts = text.split(/(https?:\/\/[^\s)"'<>]+)/g);
+  return (
+    <>
+      {parts.map((part, i) =>
+        /^https?:\/\//.test(part) ? (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noreferrer"
+            style={{ textDecoration: "underline", color: "var(--info)", overflowWrap: "anywhere" }}
+          >
+            {part.length > 64 ? part.slice(0, 61) + "…" : part}
+          </a>
+        ) : (
+          part
+        )
+      )}
+    </>
+  );
+}
