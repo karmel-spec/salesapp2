@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Lead } from "@/lib/leads";
-import { api, fetchLeads } from "@/lib/client";
+import { api, fetchLeads, getWho } from "@/lib/client";
 import { RepBadge, StaleBadge, StatusBadge, fmtDays, pendingDrafts } from "@/components/ui";
 
 const BUCKETS = ["all", "new", "active", "won", "lost", "inactive", "support"] as const;
@@ -116,7 +116,7 @@ function NewLeadForm({ onDone }: { onDone: () => void }) {
     setSaving(true);
     setError("");
     try {
-      await api("/api/leads", { method: "POST", body: JSON.stringify(f) });
+      await api("/api/leads", { method: "POST", body: JSON.stringify({ ...f, capturedBy: f.capturedBy || getWho() }) });
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

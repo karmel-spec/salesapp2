@@ -19,3 +19,11 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 export async function fetchLeads(refresh = false) {
   return api<{ leads: Lead[]; writeEnabled: boolean }>(`/api/leads${refresh ? "?refresh=1" : ""}`);
 }
+
+export const REPS = ["Brigham", "Karmel", "Sally", "Melissa"] as const;
+
+/** The signed-in rep's name (chosen in the sidebar, kept per device). */
+export function getWho(): string {
+  if (typeof window === "undefined") return "app";
+  return localStorage.getItem("blp_rep_name") || "app";
+}

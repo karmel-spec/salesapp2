@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { Lead } from "@/lib/leads";
-import { api, fetchLeads } from "@/lib/client";
+import { api, fetchLeads, getWho } from "@/lib/client";
 import { RepBadge, StaleBadge } from "@/components/ui";
 
 /** Approval queue: every pending Arnold draft across all leads. */
@@ -29,7 +29,7 @@ export default function ApprovalsPage() {
     try {
       const r = await api<{ detail?: string; status: string }>(`/api/leads/${encodeURIComponent(leadId)}/drafts`, {
         method: "POST",
-        body: JSON.stringify({ createdAt, channel, action, body, subject }),
+        body: JSON.stringify({ createdAt, channel, action, body, subject, who: getWho() }),
       });
       setFlash(r.detail || `Draft ${r.status}`);
       load();

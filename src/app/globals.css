@@ -93,6 +93,11 @@ a { color: inherit; text-decoration: none; }
   font-size: 11px;
   padding: 1px 8px;
 }
+.who-wrap { margin-top: auto; padding: 8px 2px 2px; }
+@media (max-width: 760px) {
+  .who-wrap { margin-top: 0; margin-left: auto; padding: 0 0 0 8px; flex-shrink: 0; align-self: center; min-width: 118px; }
+}
+
 .sidebar-foot {
   padding: 14px 20px;
   font-size: 11.5px;

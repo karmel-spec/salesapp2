@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, use } from "react";
 import Link from "next/link";
 import type { Lead, DraftMessage } from "@/lib/leads";
-import { api } from "@/lib/client";
+import { api, getWho } from "@/lib/client";
 import { RepBadge, StaleBadge, StatusBadge, fmtDays } from "@/components/ui";
 
 export default function LeadDetail({ params }: { params: Promise<{ id: string }> }) {
@@ -53,7 +53,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
     try {
       await api(`/api/leads/${encodeURIComponent(id)}/timeline`, {
         method: "POST",
-        body: JSON.stringify({ kind: noteKind, text: note }),
+        body: JSON.stringify({ kind: noteKind, text: note, who: getWho() }),
       });
       setNote("");
       await load();
@@ -201,7 +201,7 @@ function CallButton({ leadId, onFlash, onDone }: { leadId: string; onFlash: (s: 
       localStorage.setItem("blp_rep_phone", repPhone);
       const r = await api<{ detail: string }>(`/api/leads/${encodeURIComponent(leadId)}/call`, {
         method: "POST",
-        body: JSON.stringify({ repPhone }),
+        body: JSON.stringify({ repPhone, who: getWho() }),
       });
       onFlash(`📞 ${r.detail}`);
       setOpen(false);
@@ -247,7 +247,7 @@ function DraftCard({ leadId, draft, lead, onDone }: { leadId: string; draft: Dra
     try {
       await api(`/api/leads/${encodeURIComponent(leadId)}/drafts`, {
         method: "POST",
-        body: JSON.stringify({ createdAt: draft.createdAt, channel: draft.channel, action, body, subject }),
+        body: JSON.stringify({ createdAt: draft.createdAt, channel: draft.channel, action, body, subject, who: getWho() }),
       });
       onDone();
     } catch (e) {
@@ -304,7 +304,7 @@ function EditForm({ lead, onSaved }: { lead: Lead; onSaved: () => void }) {
     try {
       await api(`/api/leads/${encodeURIComponent(lead.id)}`, {
         method: "PATCH",
-        body: JSON.stringify({ fields: f }),
+        body: JSON.stringify({ fields: f, who: getWho() }),
       });
       onSaved();
     } catch (error) {
