@@ -67,7 +67,7 @@ export default function Dashboard() {
         <span className="spacer" />
         <button className="btn ghost small" onClick={() => load()}>↻ Refresh</button>
         <button className="btn small" onClick={runSweep} disabled={sweeping || !writeEnabled} title={writeEnabled ? "Persist the 30-day rule to the sheet" : "Read-only mode — connect the Google service account to enable"}>
-          {sweeping ? "Sweeping…" : "🤖 Run Arnold stale sweep"}
+          {sweeping ? "Sweeping…" : "Run Arnold stale sweep"}
         </button>
       </div>
 
@@ -77,7 +77,7 @@ export default function Dashboard() {
           account credentials (see Settings) to enable two-way sync.
         </div>
       )}
-      {sweepResult && <div className="banner info">🤖 {sweepResult}</div>}
+      {sweepResult && <div className="banner info">{sweepResult}</div>}
 
       <div className="grid tiles" style={{ marginBottom: 18 }}>
         <Link href="/leads?bucket=open" className="card tile linky">

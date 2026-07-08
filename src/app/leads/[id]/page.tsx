@@ -81,11 +81,11 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
         <SnoozeButton leadId={lead.id} onFlash={setFlash} onDone={load} />
         {lead.phoneDialable && <CallButton leadId={lead.id} onFlash={setFlash} onDone={load} />}
         <button className="btn" onClick={askArnold} disabled={asking}>
-          {asking ? "Asking Arnold…" : "🤖 Ask Arnold for a draft"}
+          {asking ? "Asking Arnold…" : "Ask Arnold for a draft"}
         </button>
       </div>
 
-      {flash && <div className="banner info">🤖 {flash}</div>}
+      {flash && <div className="banner info">{flash}</div>}
       {lead.statusBucket === "snoozed" && (
         <div className="banner info">
           💤 Snoozed{lead.snoozeUntil ? ` until ${lead.snoozeUntil}` : ""} — this lead sleeps (no stale rule)

@@ -22,7 +22,7 @@ const KIND_META: Record<string, { label: string; icon: string }> = {
   inbound: { label: "Customer replied", icon: "📥" },
   call: { label: "Call", icon: "📞" },
   call_attempt: { label: "Call started", icon: "📞" },
-  draft: { label: "Arnold drafted", icon: "🤖" },
+  draft: { label: "Arnold drafted", icon: "✍️" },
   note: { label: "Note", icon: "📝" },
   edit: { label: "Edited", icon: "✎" },
   assign: { label: "Reassigned", icon: "↪" },

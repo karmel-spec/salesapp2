@@ -17,7 +17,7 @@ export function StatusBadge({ lead }: { lead: Lead }) {
 
 export function RepBadge({ rep }: { rep: string }) {
   if (!rep) return <span className="muted">—</span>;
-  return <span className={`badge rep ${rep === "Arnold" ? "arnold" : ""}`}>{rep === "Arnold" ? "🤖 Arnold" : rep}</span>;
+  return <span className={`badge rep ${rep === "Arnold" ? "arnold" : ""}`}>{rep}</span>;
 }
 
 export function StaleBadge({ lead }: { lead: Lead }) {
