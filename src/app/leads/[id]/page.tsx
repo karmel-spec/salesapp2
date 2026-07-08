@@ -217,6 +217,7 @@ function DraftCard({ leadId, draft, lead, onDone }: { leadId: string; draft: Dra
         <span style={{ marginLeft: "auto" }}>by {draft.createdBy === "arnold-api" ? "Arnold (AI)" : draft.createdBy}</span>
       </div>
       {err && <div className="banner bad">⚠ {err}</div>}
+      {draft.note && <div className="muted" style={{ marginBottom: 8 }}>💡 {draft.note}</div>}
       {draft.channel === "email" && (
         <input style={{ width: "100%", marginBottom: 8 }} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" />
       )}

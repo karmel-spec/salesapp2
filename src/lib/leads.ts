@@ -44,6 +44,7 @@ export interface DraftMessage {
   channel: "sms" | "email";
   subject?: string;
   body: string;
+  note?: string; // Arnold's one-line reasoning, shown to the rep
   status: "pending" | "approved" | "sent" | "dismissed";
   createdAt: string;
   createdBy: string; // "arnold" | "arnold-api" | rep name

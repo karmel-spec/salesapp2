@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLead, updateLeadFields, appendTimeline, COLS } from "@/lib/leads";
 import { requireSession, jsonError } from "@/lib/api";
+import { isValidArnoldKey } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  // Arnold's draft-only key grants read access (he re-reads leads pre-draft).
   const guard = requireSession(req);
-  if (guard) return guard;
+  if (guard && !isValidArnoldKey(req.headers.get("x-blp-key"))) return guard;
   try {
     const { id } = await ctx.params;
     const found = await getLead(id);

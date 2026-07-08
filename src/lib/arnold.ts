@@ -40,7 +40,14 @@ export async function notifyArnoldWebhook(payload: {
   if (!config.arnoldWebhookUrl) {
     return { ok: false, detail: "ARNOLD_WEBHOOK_URL not configured" };
   }
-  const body = JSON.stringify({ ...payload, source: "blp-sales-app", at: new Date().toISOString() });
+  const body = JSON.stringify({
+    ...payload,
+    // Top-level leadId + channel match the shape Arnold's handler already knows.
+    leadId: payload.lead?.id,
+    channel: "auto",
+    source: "blp-sales-app",
+    at: new Date().toISOString(),
+  });
   const res = await fetch(config.arnoldWebhookUrl, {
     method: "POST",
     headers: {

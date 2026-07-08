@@ -85,7 +85,7 @@ function QueueDraft({
   targetLabel,
   onAct,
 }: {
-  draft: { channel: string; body: string; subject?: string; createdBy: string };
+  draft: { channel: string; body: string; subject?: string; note?: string; createdBy: string };
   targetLabel: string;
   onAct: (action: "approve_send" | "dismiss", body: string, subject: string) => Promise<void>;
 }) {
@@ -105,6 +105,7 @@ function QueueDraft({
         <strong>{draft.channel === "sms" ? "📱 Text" : "✉️ Email"}</strong>
         <span>→ {targetLabel}</span>
       </div>
+      {draft.note && <div className="muted" style={{ marginBottom: 8 }}>💡 {draft.note}</div>}
       {draft.channel === "email" && (
         <input style={{ width: "100%", marginBottom: 8 }} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" />
       )}

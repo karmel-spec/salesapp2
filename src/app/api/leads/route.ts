@@ -4,12 +4,14 @@ import { canWrite } from "@/lib/sheets";
 import { requireSession, jsonError } from "@/lib/api";
 import { notifyTelegram } from "@/lib/arnold";
 import { config } from "@/lib/config";
+import { isValidArnoldKey } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  // Arnold's draft-only key grants read access so he can survey the pipeline.
   const guard = requireSession(req);
-  if (guard) return guard;
+  if (guard && !isValidArnoldKey(req.headers.get("x-blp-key"))) return guard;
   try {
     const force = req.nextUrl.searchParams.get("refresh") === "1";
     const { leads } = await getLeads(force);
