@@ -211,7 +211,11 @@ function RepSelect({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: string)
         method: "PATCH",
         body: JSON.stringify({ fields: { rep }, who: getWho() }),
       });
-      onFlash(`Reassigned to ${rep}.`);
+      onFlash(
+        lead.isStale && rep !== "Arnold"
+          ? `Reassigned to ${rep}. Heads up: this lead is still ${lead.daysSinceContact}d stale — the next stale sweep hands it back to Arnold unless contact is logged.`
+          : `Reassigned to ${rep}.`
+      );
       onDone();
     } catch (e) {
       onFlash(e instanceof Error ? e.message : String(e));

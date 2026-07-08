@@ -304,8 +304,10 @@ function rowToLead(row: string[], rowNumber: number, shape: SheetShape, now: Dat
     snoozeWoke,
     rep,
     repRaw,
-    // Stale open leads are Arnold's by rule; brand-new unassigned leads default to Brigham.
-    effectiveRep: isStale ? config.staleRep : rep || (openBucket ? config.defaultRep : rep),
+    // A deliberately assigned rep always wins (manual reassignment sticks).
+    // The stale rule claims only unassigned stale leads for display; the
+    // sweep is what persists Arnold onto stale leads' sheet rows.
+    effectiveRep: rep || (isStale ? config.staleRep : openBucket ? config.defaultRep : ""),
     headline: get("headline").trim(),
     score: get("score").trim(),
     firstName: first,
