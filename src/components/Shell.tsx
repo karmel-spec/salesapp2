@@ -78,7 +78,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <a href="https://t.me/arnoldlarsonbot" target="_blank" rel="noreferrer">
             Arnold ↗
           </a>
-          <div style={{ marginTop: 4 }}>Leads Log is the source of truth</div>
+          <div style={{ marginTop: 4 }}>
+            <a
+              href="https://docs.google.com/spreadsheets/d/1sdOeaChihEjAQBCi8U0_lTTlYP4H38eiC6zgmRLoWC0/edit"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Leads Log ↗
+            </a>{" "}
+            is the source of truth
+          </div>
         </div>
       </aside>
       <main className="main">{children}</main>
