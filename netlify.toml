@@ -1,0 +1,11 @@
+# Netlify deploy config — the Next.js runtime is auto-detected, this just
+# pins the essentials so auto-deploys are deterministic.
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

@@ -123,7 +123,9 @@ export async function generateDraftsViaApi(lead: Lead): Promise<{
         content: `Draft the next-contact outreach (one SMS and one email) for this lead:\n\n${context}`,
       },
     ],
-    output_config: { format: { type: "json_schema", schema: DRAFT_SCHEMA } },
+    // Low effort: drafts are short, and this keeps generation inside
+    // Netlify's synchronous function timeout.
+    output_config: { effort: "low", format: { type: "json_schema", schema: DRAFT_SCHEMA } },
   });
 
   if (response.stop_reason === "refusal") {
