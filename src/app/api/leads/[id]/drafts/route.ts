@@ -83,7 +83,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         at: now,
         who,
         kind: draft.channel === "sms" ? "sms_out" : "email_out",
-        text: `${deliveryNote} — approved Arnold draft: "${finalBody.slice(0, 120)}${finalBody.length > 120 ? "…" : ""}"`,
+        text:
+          draft.channel === "email"
+            ? `${deliveryNote} — approved Arnold draft. Full message:\nSubject: ${finalSubject}\n\n${finalBody}`
+            : `${deliveryNote} — approved Arnold draft. Full message:\n${finalBody}`,
       },
       { touchLastContact: true }
     );

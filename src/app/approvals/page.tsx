@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { Lead } from "@/lib/leads";
-import { api, fetchLeads, getWho } from "@/lib/client";
+import { api, fetchLeads, getWho, REPS } from "@/lib/client";
 import { RepBadge, StaleBadge } from "@/components/ui";
 
 /** Approval queue: every pending Arnold draft across all leads. */
@@ -26,7 +26,7 @@ export default function ApprovalsPage() {
   }, [leads]);
 
   const repOptions = useMemo(
-    () => Array.from(new Set(queue.map((x) => x.lead.effectiveRep).filter(Boolean))).sort(),
+    () => Array.from(new Set([...REPS, ...queue.map((x) => x.lead.effectiveRep)].filter(Boolean))).sort(),
     [queue]
   );
 

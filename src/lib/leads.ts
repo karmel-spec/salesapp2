@@ -426,7 +426,9 @@ export async function appendTimeline(
 /** Replace the lead's draft list (Arnold suggestions + approval state). */
 export async function saveDrafts(lead: Lead, shape: SheetShape, drafts: DraftMessage[]): Promise<void> {
   const s = await ensureAppColumns(shape);
-  await updateLeadFields(lead, s, { arnoldDraftJson: JSON.stringify(drafts) });
+  // Pretty-printed so the sheet column reads like structured text while
+  // remaining valid JSON for the app to parse back.
+  await updateLeadFields(lead, s, { arnoldDraftJson: JSON.stringify(drafts, null, 2) });
 }
 
 /** Create a new lead row. Defaults rep to Brigham per business rule. */
