@@ -126,16 +126,30 @@ export default function AgentConsole({ params }: { params: Promise<{ slug: strin
     <>
       <div className="page-head" style={{ alignItems: "center" }}>
         <Link href="/agents" className="muted">← Agents</Link>
-        <div
-          aria-hidden
-          style={{
-            width: 54, height: 54, borderRadius: 12, background: agent.accent, color: "#fff",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontFamily: "var(--serif)", fontSize: 30, fontWeight: 700,
-          }}
-        >
-          {agent.name[0]}
-        </div>
+        {agent.avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={agent.avatar}
+            alt={agent.name}
+            width={60}
+            height={60}
+            style={{
+              width: 60, height: 60, borderRadius: 12, objectFit: "cover",
+              filter: agent.status === "live" ? "none" : "grayscale(1) opacity(0.8)",
+            }}
+          />
+        ) : (
+          <div
+            aria-hidden
+            style={{
+              width: 60, height: 60, borderRadius: 12, background: agent.accent, color: "#fff",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontFamily: "var(--serif)", fontSize: 32, fontWeight: 700,
+            }}
+          >
+            {agent.name[0]}
+          </div>
+        )}
         <div>
           <h1 style={{ marginBottom: 2 }}>{agent.name}</h1>
           <div className="muted">{agent.role} · reports to {agent.reportsTo}</div>
@@ -188,6 +202,20 @@ export default function AgentConsole({ params }: { params: Promise<{ slug: strin
         </div>
 
         <div>
+          <div className="card" style={{ marginBottom: 18 }}>
+            <h2>Registry</h2>
+            <dl className="kv">
+              <dt>Department</dt>
+              <dd>{agent.department}</dd>
+              <dt>Status</dt>
+              <dd>{agent.status === "live" ? "Live in console" : agent.registryStatus || "On Deck"}</dd>
+              {agent.runtime && (<><dt>Runtime</dt><dd>{agent.runtime}</dd></>)}
+              {agent.homeComputer && (<><dt>Home computer</dt><dd>{agent.homeComputer}</dd></>)}
+              {agent.email && (<><dt>Email</dt><dd>{agent.email}</dd></>)}
+              {agent.crons && (<><dt>Registry crons</dt><dd>{agent.crons}</dd></>)}
+            </dl>
+          </div>
+
           <div className="card" style={{ marginBottom: 18 }}>
             <h2>Boundaries</h2>
             <dl className="kv">

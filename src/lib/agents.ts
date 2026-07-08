@@ -1,7 +1,9 @@
+import REGISTRY from "./agent-registry.json";
+
 /**
- * BLP Agent Registry — the single place each Hermes agent is described.
- * Adding an agent = adding an entry here (plus optional live widgets).
- * Karmel's agent registry spreadsheet can hydrate/replace this later.
+ * BLP Agent Registry — generated from Karmel's agent registry spreadsheet
+ * (agent-registry.json), with per-agent overrides below for agents that are
+ * wired into the console. `status: "live"` = has a working brain connection.
  */
 
 export interface AgentSchedule {
@@ -21,34 +23,40 @@ export interface AgentConfig {
   slug: string;
   name: string;
   role: string;
-  tagline: string; // one-line "quick read"
+  department: string;
+  tagline: string;
   reportsTo: string;
-  accent: string; // avatar/badge color
-  avatar?: string; // /agents/<slug>.jpg in /public once avatar folder lands
-  telegram?: string; // t.me handle URL
-  healthUrl?: string; // public tunnel health endpoint
+  accent: string;
+  avatar: string | null;
+  email?: string | null;
+  runtime?: string | null;
+  registryStatus?: string;
+  crons?: string | null;
+  homeComputer?: string | null;
+  telegram?: string;
+  healthUrl?: string;
   status: "live" | "coming-soon";
   schedule: AgentSchedule[];
   boundaries: { can: string; never: string; voice?: string };
   links: AgentLink[];
   onMacFiles: [string, string][];
-  /** Which live-data widget set the console renders (see AGENT_WIDGETS). */
   widgets?: "arnold";
 }
 
-export const AGENTS: AgentConfig[] = [
-  {
-    slug: "arnold",
-    name: "Arnold",
-    role: "Chief Sales Agent",
-    tagline:
-      "Lead follow-up, pipeline oversight, and daily pre-drafting — always as a ghostwriter in Brigham's voice, never sending without a human's approval.",
-    reportsTo: "Brigham & Karmel",
-    accent: "var(--crimson)",
-    telegram: "https://t.me/arnoldlarsonbot",
-    healthUrl: "https://arnold.brighamlarsonpianos.com/health",
+const DEFAULT_BOUNDARIES = {
+  can: "To be defined when this agent is wired into the console",
+  never: "Send anything to a customer without human approval (house rule for every BLP agent)",
+};
+
+/** Rich config for agents that are actually wired up. */
+const OVERRIDES: Record<string, Partial<AgentConfig>> = {
+  arnold: {
     status: "live",
     widgets: "arnold",
+    telegram: "https://t.me/arnoldlarsonbot",
+    healthUrl: "https://arnold.brighamlarsonpianos.com/health",
+    tagline:
+      "Lead follow-up, pipeline oversight, and daily pre-drafting — always as a ghostwriter in Brigham's voice, never sending without a human's approval.",
     schedule: [
       { time: "8:00 AM", days: "Mon–Sat", what: "Morning sales briefing", where: "BLP Sales Team group" },
       {
@@ -82,25 +90,37 @@ export const AGENTS: AgentConfig[] = [
       ["Drafting skill", "~/.hermes/profiles/arnold/skills/business-operations/blp-arnold-sales/"],
     ],
   },
-  {
-    slug: "ivory",
-    name: "Ivory",
-    role: "Tuning & Care Agent",
-    tagline:
-      "Tuning calendar upkeep, reactivation campaigns, and service reminders — bringing past customers back to the bench.",
-    reportsTo: "Karmel",
-    accent: "#33526e",
+};
+
+export const AGENTS: AgentConfig[] = (REGISTRY as Array<Record<string, unknown>>).map((r) => {
+  const base: AgentConfig = {
+    slug: r.slug as string,
+    name: r.name as string,
+    role: r.role as string,
+    department: r.department as string,
+    tagline: r.tagline as string,
+    reportsTo: (r.reportsTo as string) || "Karmel",
+    accent: r.accent as string,
+    avatar: (r.avatar as string) || null,
+    email: r.email as string | null,
+    runtime: r.runtime as string | null,
+    registryStatus: r.registryStatus as string,
+    crons: r.crons as string | null,
+    homeComputer: r.homeComputer as string | null,
     status: "coming-soon",
     schedule: [],
-    boundaries: {
-      can: "To be defined when Ivory is wired in",
-      never: "Send anything without human approval (house rule for every agent)",
-    },
+    boundaries: DEFAULT_BOUNDARIES,
     links: [],
     onMacFiles: [],
-  },
-];
+  };
+  return { ...base, ...(OVERRIDES[base.slug] || {}) };
+});
 
 export function getAgent(slug: string): AgentConfig | undefined {
   return AGENTS.find((a) => a.slug === slug);
 }
+
+export const DEPARTMENTS = Array.from(new Set(AGENTS.map((a) => a.department))).sort((a, b) => {
+  const order = ["Leadership", "Sales", "Marketing", "Admin & Customer Service", "Accounting & Finance", "Operations", "Shop", "Fieldwork", "Technical"];
+  return order.indexOf(a) - order.indexOf(b);
+});
