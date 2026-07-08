@@ -10,7 +10,7 @@ import { RepBadge, StaleBadge } from "@/components/ui";
 export default function ApprovalsPage() {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [error, setError] = useState("");
-  const [flash, setFlash] = useState("");
+  const [flash, setFlash] = useState<{ kind: "good" | "bad"; text: string } | null>(null);
 
   const load = () => fetchLeads(true).then((r) => setLeads(r.leads)).catch((e) => setError(e.message));
   useEffect(() => {
@@ -25,16 +25,16 @@ export default function ApprovalsPage() {
   }, [leads]);
 
   async function act(leadId: string, createdAt: string, channel: string, action: "approve_send" | "dismiss", body: string, subject: string) {
-    setFlash("");
+    setFlash(null);
     try {
       const r = await api<{ detail?: string; status: string }>(`/api/leads/${encodeURIComponent(leadId)}/drafts`, {
         method: "POST",
         body: JSON.stringify({ createdAt, channel, action, body, subject, who: getWho() }),
       });
-      setFlash(r.detail || `Draft ${r.status}`);
+      setFlash({ kind: "good", text: r.detail || `Draft ${r.status}` });
       load();
     } catch (e) {
-      setFlash(e instanceof Error ? e.message : String(e));
+      setFlash({ kind: "bad", text: e instanceof Error ? e.message : String(e) });
     }
   }
 
@@ -47,7 +47,7 @@ export default function ApprovalsPage() {
         <h1>Approvals</h1>
         <span className="sub">{queue.reduce((n, x) => n + x.drafts.length, 0)} Arnold draft(s) awaiting a human</span>
       </div>
-      {flash && <div className="banner good">✓ {flash}</div>}
+      {flash && <div className={`banner ${flash.kind}`}>{flash.kind === "good" ? "✓" : "⚠"} {flash.text}</div>}
       {queue.length === 0 && (
         <div className="card">
           <div className="muted">
