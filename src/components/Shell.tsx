@@ -6,11 +6,11 @@ import Link from "next/link";
 import { REPS } from "@/lib/client";
 
 const NAV = [
-  { href: "/", label: "Dashboard", icon: "◆" },
-  { href: "/leads", label: "Leads", icon: "♪" },
-  { href: "/approvals", label: "Approvals", icon: "✓" },
-  { href: "/activity", label: "Activity", icon: "≡" },
-  { href: "/settings", label: "Settings", icon: "⚙" },
+  { href: "/", label: "Dashboard" },
+  { href: "/leads", label: "Leads" },
+  { href: "/approvals", label: "Approvals" },
+  { href: "/activity", label: "Activity" },
+  { href: "/settings", label: "Settings" },
 ];
 
 function WhoAmI() {
@@ -65,7 +65,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
               item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             return (
               <Link key={item.href} href={item.href} className={active ? "active" : ""}>
-                <span aria-hidden>{item.icon}</span>
                 {item.label}
               </Link>
             );

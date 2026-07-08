@@ -347,7 +347,6 @@ tbody tr:hover { background: #faf7f2; }
     -webkit-overflow-scrolling: touch;
   }
   .nav a { padding: 8px 10px; font-size: 13px; white-space: nowrap; }
-  .nav a span[aria-hidden] { display: none; }
   .sidebar-foot { display: none; }
   .main { padding: 16px 12px 40px; }
   h1 { font-size: 22px; }
