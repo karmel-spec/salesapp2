@@ -158,18 +158,22 @@ export async function generateDraftsViaApi(lead: Lead): Promise<{
   };
 
   const now = new Date().toISOString();
-  return {
-    reasoning: parsed.reasoning,
-    drafts: [
-      { channel: "sms", body: parsed.sms, status: "pending", createdAt: now, createdBy: "arnold-api" },
-      {
-        channel: "email",
-        subject: parsed.emailSubject,
-        body: parsed.emailBody,
-        status: "pending",
-        createdAt: now,
-        createdBy: "arnold-api",
-      },
-    ],
-  };
+  const drafts: DraftMessage[] = [];
+  if (lead.phoneDialable) {
+    drafts.push({ channel: "sms", body: parsed.sms, status: "pending", createdAt: now, createdBy: "arnold-api" });
+  }
+  if (lead.emailClean) {
+    drafts.push({
+      channel: "email",
+      subject: parsed.emailSubject,
+      body: parsed.emailBody,
+      status: "pending",
+      createdAt: now,
+      createdBy: "arnold-api",
+    });
+  }
+  if (!drafts.length) {
+    throw new Error(`${lead.name} has no email or dialable phone on file — no channel to draft for.`);
+  }
+  return { reasoning: parsed.reasoning, drafts };
 }
