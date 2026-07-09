@@ -157,10 +157,10 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
               )}
               <dt>Phone</dt><dd><InlineText lead={lead} field="phone" value={lead.phone} hint={lead.phoneDialable ? ` → ${lead.phoneDialable}` : ""} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Email</dt><dd><InlineText lead={lead} field="email" value={lead.email} onFlash={setFlash} onDone={loadSoon} /></dd>
-              <dt>Social</dt><dd><InlineText lead={lead} field="social" value={lead.social} onFlash={setFlash} onDone={loadSoon} /></dd>
+              <dt>Social handle</dt><dd><InlineText lead={lead} field="social" value={lead.social} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Type of lead</dt><dd><InlineSelect lead={lead} field="leadType" value={lead.leadType} options={typeOptions} addNew onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Piano</dt><dd><InlineText lead={lead} field="pianoType" value={lead.pianoType} onFlash={setFlash} onDone={loadSoon} /></dd>
-              <dt>Source</dt><dd><InlineSelect lead={lead} field="source" value={lead.source} options={LEAD_SOURCES} onFlash={setFlash} onDone={loadSoon} /></dd>
+              <dt>Source of business</dt><dd><InlineSelect lead={lead} field="source" value={lead.source} options={LEAD_SOURCES} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Inquiry method</dt><dd><InlineSelect lead={lead} field="inquiryMethod" value={lead.inquiryMethod} options={INQUIRY_METHODS} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Heat (1–10)</dt><dd><InlineSelect lead={lead} field="score" value={lead.score} options={["10", "9", "8", "7", "6", "5", "4", "3", "2", "1"]} emptyLabel="— rate: 10 hot, 1 cold" onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>$ Value</dt><dd><InlineText lead={lead} field="value" value={lead.value} onFlash={setFlash} onDone={loadSoon} /></dd>

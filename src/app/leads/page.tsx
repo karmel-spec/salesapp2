@@ -174,7 +174,7 @@ function NewLeadForm({ onDone }: { onDone: () => void }) {
         {(
           [
             ["firstName", "First name *"], ["lastName", "Last name"], ["headline", "Headline"],
-            ["phone", "Phone"], ["email", "Email"], ["social", "Social media handle"],
+            ["phone", "Phone"], ["email", "Email"], ["social", "Social handle"],
           ] as const
         ).map(([key, label]) => (
           <div key={key}>
@@ -191,7 +191,7 @@ function NewLeadForm({ onDone }: { onDone: () => void }) {
           [
             ["leadType", "Type of lead", LEAD_TYPES, "— pick a type"],
             ["pianoType", "Type of piano", PIANO_TYPES, "— pick a piano type"],
-            ["source", "Source", LEAD_SOURCES, "— how they found us"],
+            ["source", "Source of business", LEAD_SOURCES, "— how they found us"],
             ["inquiryMethod", "Inquiry method", INQUIRY_METHODS, "— how they reached out"],
             ["capturedBy", "Entered by", ENTERED_BY, "— who is entering this lead"],
           ] as const
