@@ -99,6 +99,7 @@ export default function LeadsPage() {
               <th>Status</th>
               <th>Rep</th>
               <th>Type</th>
+              <th>Heat</th>
               <th>Last contact</th>
               <th>Drafts</th>
             </tr>
@@ -113,6 +114,7 @@ export default function LeadsPage() {
                 <td><StatusBadge lead={l} /> <StaleBadge lead={l} /></td>
                 <td><RepBadge rep={l.effectiveRep} subRep={l.effectiveSubRep} /></td>
                 <td className="muted">{l.leadType || "—"}{l.pianoType ? ` · ${l.pianoType}` : ""}</td>
+                <td>{l.score ? <span style={{ fontWeight: 600, color: Number(l.score) >= 8 ? "#9e2020" : Number(l.score) >= 5 ? "#8a5a00" : "#33526e" }}>{Number(l.score) >= 8 ? "🔥 " : ""}{l.score}</span> : <span className="muted">—</span>}</td>
                 <td className="muted">{fmtDays(l)}</td>
                 <td>{pendingDrafts(l).length > 0 && <span className="badge pending-draft">{pendingDrafts(l).length} pending</span>}</td>
               </tr>
@@ -130,7 +132,7 @@ function NewLeadForm({ onDone }: { onDone: () => void }) {
   const [f, setF] = useState({
     firstName: "", lastName: "", headline: "", phone: "", email: "", social: "",
     source: "", inquiryMethod: "", leadType: "", pianoType: "", notes: "", capturedBy: "",
-    openedBy: "Brigham",
+    openedBy: "Brigham", score: "",
   });
   const [other, setOther] = useState({ source: "", inquiryMethod: "", leadType: "", pianoType: "", capturedBy: "" });
 
@@ -212,6 +214,17 @@ function NewLeadForm({ onDone }: { onDone: () => void }) {
             )}
           </div>
         ))}
+        <div>
+          <label className="field">Heat (1 cold – 10 hot)</label>
+          <select style={{ width: "100%" }} value={f.score} onChange={(e) => setF({ ...f, score: e.target.value })}>
+            <option value="">— rate this lead</option>
+            {[10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map((n) => (
+              <option key={n} value={String(n)}>
+                {n}{n === 10 ? " — 🔥 ready to buy" : n === 7 ? " — warm" : n === 4 ? " — lukewarm" : n === 1 ? " — ❄️ nearly dead" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
         <div>
           <label className="field">Lead opened by</label>
           <select style={{ width: "100%" }} value={f.openedBy} onChange={(e) => setF({ ...f, openedBy: e.target.value })}>

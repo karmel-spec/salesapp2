@@ -505,6 +505,7 @@ export async function createLead(input: {
   leadType?: string;
   pianoType?: string;
   value?: string;
+  score?: string;
   capturedBy?: string;
   openedBy?: string;
 }): Promise<string> {
@@ -544,6 +545,7 @@ export async function createLead(input: {
   set("leadType", input.leadType || "");
   set("pianoType", input.pianoType || "");
   set("value", input.value || "");
+  set("score", input.score || "");
   set("capturedBy", input.capturedBy || "");
   set(
     "timelineJson",
