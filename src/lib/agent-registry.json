@@ -12,7 +12,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/addielarsonbot",
+    "telegramActive": true
   },
   {
     "slug": "anne",
@@ -27,7 +29,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/annelarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "arnold",
@@ -42,7 +46,9 @@
     "runtime": "Hermes",
     "registryStatus": "Live",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/arnoldlarsonbot",
+    "telegramActive": true
   },
   {
     "slug": "brandy",
@@ -57,7 +63,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/brandylarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "carla",
@@ -72,7 +80,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/carlalarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "chris",
@@ -87,7 +97,9 @@
     "runtime": "OpenClaw",
     "registryStatus": "Active",
     "crons": "Hourly Chris Inbox Triage (every hour)",
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/chrislarsonbot",
+    "telegramActive": true
   },
   {
     "slug": "clara",
@@ -102,7 +114,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/claralarsonbot",
+    "telegramActive": true
   },
   {
     "slug": "cody",
@@ -117,7 +131,9 @@
     "runtime": "Hermes (codycoder profile, claude-opus-4-7)",
     "registryStatus": "Active",
     "crons": "Cody inbox triage runs from Lindsay's profile (every 30 min)",
-    "homeComputer": "Karmel's Mac mini (blpadmin)"
+    "homeComputer": "Karmel's Mac mini (blpadmin)",
+    "telegram": "https://t.me/codylarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "collette",
@@ -132,7 +148,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/collettelarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "collin",
@@ -147,7 +165,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/collinlarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "connie",
@@ -162,7 +182,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/connielarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "dawn",
@@ -177,7 +199,9 @@
     "runtime": "OpenClaw (per agent-roster.md, scaffolded 2026-04-17)",
     "registryStatus": "Active",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/dawnlarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "desie",
@@ -192,7 +216,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/desielarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "ed",
@@ -207,7 +233,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/edlarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "eunice",
@@ -222,7 +250,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/eunicelarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "howie",
@@ -237,7 +267,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/howielarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "hugh",
@@ -252,7 +284,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/hughlarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "ila",
@@ -267,7 +301,9 @@
     "runtime": "Hermes (ila-oversight profile, claude-opus-4-7)",
     "registryStatus": "Active",
     "crons": null,
-    "homeComputer": "Karmel's Mac mini (blpadmin)"
+    "homeComputer": "Karmel's Mac mini (blpadmin)",
+    "telegram": "https://t.me/ilalarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "ivory",
@@ -282,7 +318,9 @@
     "runtime": "Hermes",
     "registryStatus": "Active",
     "crons": "Ivory: Tuning confirmations (daily 8 AM); Ivory: Google Review requests (per cron report logs)",
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/ivorylarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "lee",
@@ -297,7 +335,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/leelarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "libby",
@@ -312,7 +352,9 @@
     "runtime": "OpenClaw (per earlier sessions, migration to Hermes planned/in-progress on M1 Max)",
     "registryStatus": "Active",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/libbylarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "lindsay",
@@ -327,7 +369,9 @@
     "runtime": "Hermes (default profile, claude-opus-4-7)",
     "registryStatus": "Active",
     "crons": "Lindsay nightly backup (3:08 AM); BLP agent backup audit (4 AM); SOUL.md guardrail confirmation tracker (3 AM); Lindsay inbox active triage (every 30 min); Cody inbox active triage (every 30 min)",
-    "homeComputer": "Karmel's Mac mini (blpadmin)"
+    "homeComputer": "Karmel's Mac mini (blpadmin)",
+    "telegram": "https://t.me/lindsaystrategistbot",
+    "telegramActive": true
   },
   {
     "slug": "marcus",
@@ -342,7 +386,9 @@
     "runtime": "OpenClaw",
     "registryStatus": "Active",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/marcuslarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "melody",
@@ -357,7 +403,9 @@
     "runtime": "OpenClaw",
     "registryStatus": "Active",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/melodylarsonbot",
+    "telegramActive": true
   },
   {
     "slug": "moe",
@@ -372,7 +420,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/moelarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "monte",
@@ -387,7 +437,9 @@
     "runtime": "OpenClaw",
     "registryStatus": "Active",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/montelarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "morgan",
@@ -402,7 +454,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/morganlarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "penny",
@@ -417,7 +471,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/pennylarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "rajeesh",
@@ -432,7 +488,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/rajeeshlarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "reese",
@@ -447,7 +505,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/reeselarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "regis",
@@ -462,7 +522,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/regislarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "ricardo",
@@ -477,7 +539,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/ricardolarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "sally",
@@ -492,7 +556,9 @@
     "runtime": "OpenClaw",
     "registryStatus": "Active",
     "crons": "sally-nightly-backup (3:05 AM MDT \u2014 currently FAILING per Walter's 6/3 report: Telegram delivery missing chatId); sally-daily-cron-report (7:55 AM MDT)",
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/sallylarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "sam",
@@ -507,7 +573,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": null
+    "homeComputer": null,
+    "telegram": "https://t.me/samlarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "sharie",
@@ -597,7 +665,9 @@
     "runtime": null,
     "registryStatus": "On Deck",
     "crons": null,
-    "homeComputer": "Chopin"
+    "homeComputer": "Chopin",
+    "telegram": "https://t.me/warrenlarsonbot",
+    "telegramActive": false
   },
   {
     "slug": "yolanda",

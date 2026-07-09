@@ -66,6 +66,18 @@ export default function AgentsPage() {
                     <span className="badge inactive">{a.registryStatus || "On Deck"}</span>
                   )}
                   {a.runtime && <span className="badge rep">{a.runtime.split(" ")[0]}</span>}
+                  {a.telegram && a.telegramActive && (
+                    <a
+                      href={a.telegram}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="badge won"
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ textDecoration: "none" }}
+                    >
+                      ✈ Message
+                    </a>
+                  )}
                 </div>
               </Link>
             ))}

@@ -34,6 +34,7 @@ export interface AgentConfig {
   crons?: string | null;
   homeComputer?: string | null;
   telegram?: string;
+  telegramActive?: boolean;
   healthUrl?: string;
   status: "live" | "coming-soon";
   schedule: AgentSchedule[];
@@ -56,6 +57,7 @@ const OVERRIDES: Record<string, Partial<AgentConfig>> = {
     status: "live",
     widgets: "arnold",
     telegram: "https://t.me/arnoldlarsonbot",
+    telegramActive: true,
     healthUrl: "https://arnold.brighamlarsonpianos.com/health",
     tagline:
       "Lead follow-up, pipeline oversight, and daily pre-drafting — always as a ghostwriter in Brigham's voice, never sending without a human's approval.",
@@ -115,6 +117,8 @@ export const AGENTS: AgentConfig[] = (REGISTRY as Array<Record<string, unknown>>
     links: [],
     onMacFiles: [],
     mindLinks: (r.mindLinks as AgentLink[]) || [],
+    telegram: (r.telegram as string) || undefined,
+    telegramActive: Boolean(r.telegramActive),
   };
   return { ...base, ...(OVERRIDES[base.slug] || {}) };
 });

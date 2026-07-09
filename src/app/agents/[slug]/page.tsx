@@ -156,7 +156,15 @@ export default function AgentConsole({ params }: { params: Promise<{ slug: strin
         </div>
         <span className="spacer" />
         {agent.telegram && (
-          <a className="btn" href={agent.telegram} target="_blank" rel="noreferrer">Message {agent.name}</a>
+          <a
+            className={`btn ${agent.telegramActive ? "" : "ghost"}`}
+            href={agent.telegram}
+            target="_blank"
+            rel="noreferrer"
+            title={agent.telegramActive ? `Chat with ${agent.name} on Telegram` : "Bot reserved — not activated yet"}
+          >
+            {agent.telegramActive ? `Message ${agent.name}` : "Telegram (not active yet)"}
+          </a>
         )}
       </div>
 
