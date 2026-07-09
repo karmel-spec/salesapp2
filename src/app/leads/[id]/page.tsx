@@ -79,6 +79,12 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
         <StaleBadge lead={lead} />
         <RepSelect lead={lead} onFlash={setFlash} onDone={load} />
         <span className="spacer" />
+        <button className="btn" onClick={askArnold} disabled={asking}>
+          {asking ? "Asking Arnold…" : "Ask Arnold for a draft"}
+        </button>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", margin: "10px 0 16px" }}>
         <SnoozeButton leadId={lead.id} onFlash={setFlash} onDone={load} />
         {lead.phoneDialable && <CallButton leadId={lead.id} onFlash={setFlash} onDone={load} />}
         {lead.phoneDialable && (
@@ -91,9 +97,6 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
             ✉️ Email
           </button>
         )}
-        <button className="btn" onClick={askArnold} disabled={asking}>
-          {asking ? "Asking Arnold…" : "Ask Arnold for a draft"}
-        </button>
         <NextLeadButton currentId={lead.id} />
       </div>
 
