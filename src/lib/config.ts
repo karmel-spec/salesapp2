@@ -44,7 +44,8 @@ export const config = {
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || "",
 
   // Business rules
-  staleDays: Number(process.env.STALE_DAYS || 30),
+  staleDays: Number(process.env.STALE_DAYS || 30), // worked leads: quiet this long → Arnold
+  newLeadStaleDays: Number(process.env.NEW_LEAD_STALE_DAYS || 10), // never-contacted new leads → Arnold sooner
   defaultRep: process.env.DEFAULT_REP || "Brigham",
   staleRep: process.env.STALE_REP || "Arnold",
 };

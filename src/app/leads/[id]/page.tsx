@@ -120,7 +120,8 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
       )}
       {lead.isStale && lead.rep !== "Arnold" && (
         <div className="banner warn">
-          ⏰ {lead.daysSinceContact} days since last contact — this lead now belongs to Arnold by the 30-day
+          ⏰ {lead.daysSinceContact} days since last contact — this lead now belongs to Arnold by the
+          {lead.staleRule === "new-10d" ? " 10-day new-lead" : " 30-day"}
           rule. Run the stale sweep from the Dashboard to write it back to the sheet.
         </div>
       )}
@@ -479,6 +480,7 @@ function DraftCard({ leadId, draft, lead, onDone }: { leadId: string; draft: Dra
 }
 
 const DEFAULT_LOST_REASONS = ["KSL", "Piano Gallery", "Too expensive", "Bought elsewhere", "No response"];
+const DEFAULT_LEAD_TYPES = ["Sales", "Restoration", "Player Restoration", "Refinishing", "Refurbishing", "QRS", "Trade-in Sales Lead"];
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "keep", label: "" }, // label filled at render with the current raw status
@@ -489,7 +491,7 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "Unqualified", label: "Unqualified — not actually a lead (leaves the funnel)" },
   { value: "Snoozed", label: "Snoozed — requires a wake-up date" },
   { value: "Closed", label: "Closed — all efforts completed, no response" },
-  { value: "stale-info", label: "Stale — automatic at 30+ days quiet (not selectable)" },
+  { value: "stale-info", label: "Stale — automatic (10d if never contacted, 30d if worked; not selectable)" },
 ];
 
 function EditForm({ lead, onSaved }: { lead: Lead; onSaved: () => void }) {
@@ -510,6 +512,31 @@ function EditForm({ lead, onSaved }: { lead: Lead; onSaved: () => void }) {
   const [snoozeDate, setSnoozeDate] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [typeOptions, setTypeOptions] = useState<string[]>(DEFAULT_LEAD_TYPES);
+  const [newLeadType, setNewLeadType] = useState("");
+
+  // Harvest lead types already used in the sheet (values used more than once)
+  // so the dropdown reflects how the team actually categorizes.
+  useEffect(() => {
+    import("@/lib/client").then(({ fetchLeads }) =>
+      fetchLeads().then((r) => {
+        const counts = new Map<string, { label: string; n: number }>();
+        for (const l of r.leads) {
+          const t = (l.leadType || "").trim();
+          if (!t || t.length > 40) continue; // skip blanks and note-length junk values
+          const k = t.toLowerCase();
+          const cur = counts.get(k);
+          counts.set(k, { label: cur?.label || t, n: (cur?.n || 0) + 1 });
+        }
+        const seen = new Set(DEFAULT_LEAD_TYPES.map((x) => x.toLowerCase()));
+        const extra = [...counts.values()]
+          .filter((v) => v.n >= 2 && !seen.has(v.label.toLowerCase()))
+          .map((v) => v.label)
+          .sort();
+        if (extra.length) setTypeOptions([...DEFAULT_LEAD_TYPES, ...extra]);
+      }).catch(() => {})
+    );
+  }, []);
 
   // Harvest lost reasons already used in the sheet so the list grows itself.
   useEffect(() => {
@@ -563,6 +590,14 @@ function EditForm({ lead, onSaved }: { lead: Lead; onSaved: () => void }) {
     setErr("");
     try {
       const fields: Record<string, string> = { ...f };
+      if (fields.leadType === "__new__") {
+        if (!newLeadType.trim()) {
+          setErr("Type the new lead type (or pick one from the list).");
+          setBusy(false);
+          return;
+        }
+        fields.leadType = newLeadType.trim();
+      }
       if (statusResult.value) fields.status = statusResult.value;
       await api(`/api/leads/${encodeURIComponent(lead.id)}`, {
         method: "PATCH",
@@ -624,10 +659,53 @@ function EditForm({ lead, onSaved }: { lead: Lead; onSaved: () => void }) {
       )}
 
       <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        <div>
+          <label className="field">Sales rep</label>
+          <select
+            style={{ width: "100%" }}
+            value={f.rep}
+            onChange={(e) => setF({ ...f, rep: e.target.value })}
+          >
+            <option value="">— unassigned (defaults to Brigham)</option>
+            {Array.from(new Set([...REPS, f.rep].filter(Boolean))).map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="field">Type of lead</label>
+          <select
+            style={{ width: "100%" }}
+            value={typeOptions.includes(f.leadType) || f.leadType === "" ? f.leadType : "__current__"}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === "__new__") { setNewLeadType(""); setF({ ...f, leadType: "__new__" }); }
+              else if (v !== "__current__") setF({ ...f, leadType: v });
+            }}
+          >
+            <option value="">— not set</option>
+            {f.leadType && !typeOptions.includes(f.leadType) && f.leadType !== "__new__" && (
+              <option value="__current__">Keep current: {f.leadType.slice(0, 40)}</option>
+            )}
+            {typeOptions.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+            <option value="__new__">＋ Add a new type…</option>
+          </select>
+          {f.leadType === "__new__" && (
+            <input
+              style={{ width: "100%", marginTop: 6 }}
+              placeholder="New lead type (e.g. Rental)"
+              value={newLeadType}
+              onChange={(e) => setNewLeadType(e.target.value)}
+              autoFocus
+            />
+          )}
+        </div>
         {(
           [
-            ["rep", "Sales rep"], ["headline", "Headline"], ["phone", "Phone"],
-            ["email", "Email"], ["leadType", "Type of lead"], ["pianoType", "Piano"], ["value", "$ Value"],
+            ["headline", "Headline"], ["phone", "Phone"],
+            ["email", "Email"], ["pianoType", "Piano"], ["value", "$ Value"],
           ] as const
         ).map(([key, label]) => (
           <div key={key}>

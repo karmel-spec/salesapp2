@@ -67,7 +67,10 @@ export interface Lead {
   lastContact: string; // best-known last contact date (raw string)
   lastTouchISO: string | null; // resolved last-touch date used by stale rule
   daysSinceContact: number | null;
-  isStale: boolean; // no contact in >= staleDays and still open
+  isStale: boolean; // quiet past its threshold and still open (see staleRule)
+  /** Which staleness rule applies: never-contacted leads go to Arnold after
+   *  newLeadStaleDays (10); worked leads after staleDays (30) of quiet. */
+  staleRule: "new-10d" | "worked-30d";
   snoozeUntil: string | null; // raw date parsed from a "Snoozed until …" status
   snoozeWoke: boolean; // snooze date has passed — lead is treated as active again
   rep: string; // normalized: Brigham | Karmel | Sally | Melissa | Arnold | other raw
@@ -298,7 +301,13 @@ function rowToLead(row: string[], rowNumber: number, shape: SheetShape, now: Dat
   // Arnold works leads by text/email — a lead with neither stays with its
   // human rep (e.g. social-media-only leads assigned to Alisa).
   const arnoldReachable = Boolean(phoneDialable || emailClean);
-  const isStale = openBucket && daysSince !== null && daysSince >= config.staleDays && arnoldReachable;
+  // Two-tier staleness: a lead that has never been contacted (its only touch
+  // is the inquiry itself) goes to Arnold after newLeadStaleDays (10); a lead
+  // someone has actually worked goes to Arnold after staleDays (30) of quiet.
+  const everContacted = Boolean(parseUSDate(lastContact) || timelineDates.length);
+  const staleRule: "new-10d" | "worked-30d" = everContacted ? "worked-30d" : "new-10d";
+  const threshold = everContacted ? config.staleDays : config.newLeadStaleDays;
+  const isStale = openBucket && daysSince !== null && daysSince >= threshold && arnoldReachable;
 
   const first = get("firstName").trim();
   const last = get("lastName").trim();
@@ -314,6 +323,7 @@ function rowToLead(row: string[], rowNumber: number, shape: SheetShape, now: Dat
     lastTouchISO: lastTouch ? lastTouch.toISOString() : null,
     daysSinceContact: daysSince,
     isStale,
+    staleRule,
     snoozeUntil,
     snoozeWoke,
     rep,
@@ -576,9 +586,9 @@ export async function wakeExpiredSnoozes(): Promise<Lead[]> {
 }
 
 /**
- * Stale sweep: persist the 30-day rule back to the sheet — any open lead
- * with no contact in >= staleDays gets reassigned to Arnold in the rep column.
- * Returns the leads that were reassigned.
+ * Stale sweep: persist the quiet-lead rules back to the sheet. Never-contacted
+ * leads go to Arnold after newLeadStaleDays (10); worked leads after staleDays
+ * (30) of quiet. Returns the leads that were reassigned.
  */
 export async function applyStaleAssignments(): Promise<Lead[]> {
   const { leads, shape: rawShape } = await getLeads(true);
@@ -594,7 +604,9 @@ export async function applyStaleAssignments(): Promise<Lead[]> {
       at: new Date().toISOString(),
       who: "app",
       kind: "assign",
-      text: `Auto-reassigned to ${config.staleRep} (${l.daysSinceContact}d since last contact, was "${l.repRaw || "unassigned"}")`,
+      text: `Auto-reassigned to ${config.staleRep} (${l.daysSinceContact}d quiet — ${
+        l.staleRule === "new-10d" ? `new lead never contacted, ${config.newLeadStaleDays}-day rule` : `worked lead, ${config.staleDays}-day rule`
+      }; was "${l.repRaw || "unassigned"}")`,
     }),
   ]);
   await writeCells(cells);

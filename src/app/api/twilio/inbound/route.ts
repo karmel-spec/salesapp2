@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getLeads, appendTimeline } from "@/lib/leads";
-import { notifyTelegram } from "@/lib/arnold";
+import { notifyTelegram, notifyArnoldWebhook } from "@/lib/arnold";
 import { config } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
@@ -69,6 +69,13 @@ export async function POST(req: NextRequest) {
       notifyTelegram(
         `📥 <b>${lead.name} texted back</b> (${lead.headline || lead.leadType || "lead"}):\n"${body.slice(0, 400)}"\n→ It's our turn — reply from the Sales Console.`
       ).catch(() => {});
+      // Wake Arnold: the reply makes his old draft stale — he rewrites it to
+      // respond to what the customer actually said (still approval-gated).
+      notifyArnoldWebhook({
+        event: "inbound_reply",
+        lead: { id: lead.id },
+        note: `Customer replied by SMS: "${body.slice(0, 400)}". Replace any pending drafts for this lead with new ones that respond to this message.`,
+      }).catch(() => {});
     } else {
       notifyTelegram(
         `📥 <b>Text from a number not in the Leads Log</b> (${from}):\n"${body.slice(0, 400)}"`

@@ -29,7 +29,8 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * Run the stale sweep: persist "30+ days no contact → assign Arnold" back to
+ * Run the stale sweep: persist the quiet-lead rules (never-contacted 10d /
+ * worked 30d → assign Arnold) back to
  * the Leads Log sheet. (The UI already displays the rule either way.)
  */
 export async function POST(req: NextRequest) {

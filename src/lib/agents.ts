@@ -89,7 +89,7 @@ const OVERRIDES: Record<string, Partial<AgentConfig>> = {
       {
         time: "continuous",
         days: "",
-        what: "30-day stale sweep hands quiet leads to Arnold; customer text replies ping the group",
+        what: "Quiet-lead sweep hands leads to Arnold (10d if never contacted, 30d if worked); customer text replies ping the group",
       },
     ],
     boundaries: {

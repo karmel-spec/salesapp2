@@ -66,7 +66,7 @@ export default function Dashboard() {
         <span className="sub">Leads Log · live from Google Sheets</span>
         <span className="spacer" />
         <button className="btn ghost small" onClick={() => load()}>↻ Refresh</button>
-        <button className="btn small" onClick={runSweep} disabled={sweeping || !writeEnabled} title={writeEnabled ? "Persist the 30-day rule to the sheet" : "Read-only mode — connect the Google service account to enable"}>
+        <button className="btn small" onClick={runSweep} disabled={sweeping || !writeEnabled} title={writeEnabled ? "Persist the quiet-lead rules (10d untouched / 30d worked) to the sheet" : "Read-only mode — connect the Google service account to enable"}>
           {sweeping ? "Sweeping…" : "Run Arnold stale sweep"}
         </button>
       </div>
