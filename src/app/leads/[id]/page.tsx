@@ -173,6 +173,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
                 <option value="call">Call</option>
                 <option value="sms_out">Text (manual)</option>
                 <option value="email_out">Email (manual)</option>
+                <option value="followup">Next follow-up instructions</option>
               </select>
               <input style={{ flex: 1 }} placeholder="Log a note, call, or touch…" value={note} onChange={(e) => setNote(e.target.value)} />
               <button className="btn small" disabled={savingNote || !note.trim()}>Log</button>
