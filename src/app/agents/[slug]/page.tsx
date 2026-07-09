@@ -248,12 +248,17 @@ export default function AgentConsole({ params }: { params: Promise<{ slug: strin
             </div>
           )}
 
-          {agent.onMacFiles.length > 0 && (
+          {(agent.mindLinks?.length || agent.onMacFiles.length > 0) && (
             <div className="card">
-              <h2>Mind &amp; memory (on the shop Mac)</h2>
-              <div className="muted" style={{ marginBottom: 8 }}>
-                Identity, soul, and knowledge live on the machine that runs this agent&apos;s brain — not on
-                the public internet, by design.
+              <h2>Mind &amp; memory</h2>
+              {agent.mindLinks?.map((m) => (
+                <div key={m.name} style={{ padding: "7px 0", borderBottom: "1px solid #f0ece6" }}>
+                  <a href={m.href} target="_blank" rel="noreferrer" style={{ textDecoration: "underline" }}>{m.name} ↗</a>
+                  {m.note && <div className="muted">{m.note}</div>}
+                </div>
+              ))}
+              <div className="muted" style={{ margin: "8px 0" }}>
+                Local copies live on the machine that runs this agent&apos;s brain:
               </div>
               {agent.onMacFiles.map(([name, path]) => (
                 <div key={name} style={{ padding: "6px 0" }}>

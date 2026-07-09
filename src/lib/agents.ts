@@ -40,6 +40,8 @@ export interface AgentConfig {
   boundaries: { can: string; never: string; voice?: string };
   links: AgentLink[];
   onMacFiles: [string, string][];
+  /** Team-reachable mind links (Drive folders, Obsidian Publish, etc.). */
+  mindLinks?: AgentLink[];
   widgets?: "arnold";
 }
 
@@ -112,6 +114,7 @@ export const AGENTS: AgentConfig[] = (REGISTRY as Array<Record<string, unknown>>
     boundaries: DEFAULT_BOUNDARIES,
     links: [],
     onMacFiles: [],
+    mindLinks: (r.mindLinks as AgentLink[]) || [],
   };
   return { ...base, ...(OVERRIDES[base.slug] || {}) };
 });
