@@ -151,6 +151,10 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
               <dt>Status</dt><dd><InlineStatus lead={lead} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Rep (sheet)</dt><dd><InlineSelect lead={lead} field="rep" value={lead.repRaw} options={[...REPS]} emptyLabel="— unassigned (defaults to Brigham)" onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Sub-rep</dt><dd><InlineSelect lead={lead} field="subRep" value={lead.subRep} options={[...REPS]} emptyLabel="— none (add a helper, e.g. Arnold)" onFlash={setFlash} onDone={loadSoon} /></dd>
+              <dt>Opened by</dt><dd><InlineSelect lead={lead} field="openedBy" value={lead.openedBy} options={[...REPS]} emptyLabel="— not recorded" onFlash={setFlash} onDone={loadSoon} /></dd>
+              {(lead.statusBucket === "won" || lead.closedBy) && (
+                <><dt>Closed by</dt><dd><InlineSelect lead={lead} field="closedBy" value={lead.closedBy} options={[...REPS]} emptyLabel="— who closed the sale?" onFlash={setFlash} onDone={loadSoon} /></dd></>
+              )}
               <dt>Phone</dt><dd><InlineText lead={lead} field="phone" value={lead.phone} hint={lead.phoneDialable ? ` → ${lead.phoneDialable}` : ""} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Email</dt><dd><InlineText lead={lead} field="email" value={lead.email} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Social</dt><dd><InlineText lead={lead} field="social" value={lead.social} onFlash={setFlash} onDone={loadSoon} /></dd>
@@ -605,11 +609,14 @@ function useLeadTypeOptions(): string[] {
   return options;
 }
 
-/** Save one field of the lead to the sheet. */
+/** Save one or more fields of the lead to the sheet. */
 async function patchField(leadId: string, field: string, value: string): Promise<void> {
+  await patchFields(leadId, { [field]: value });
+}
+async function patchFields(leadId: string, fields: Record<string, string>): Promise<void> {
   await api(`/api/leads/${encodeURIComponent(leadId)}`, {
     method: "PATCH",
-    body: JSON.stringify({ fields: { [field]: value }, who: getWho() }),
+    body: JSON.stringify({ fields, who: getWho() }),
   });
 }
 
@@ -760,12 +767,13 @@ function InlineStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: stri
   const [lostWhy, setLostWhy] = useState("");
   const [newLostWhy, setNewLostWhy] = useState("");
   const [snoozeDate, setSnoozeDate] = useState("");
+  const [closedBy, setClosedBy] = useState("Brigham");
   const [busy, setBusy] = useState(false);
 
-  async function save(status: string) {
+  async function save(status: string, extra: Record<string, string> = {}) {
     setBusy(true);
     try {
-      await patchField(lead.id, "status", status);
+      await patchFields(lead.id, { status, ...extra });
       onFlash(`✓ Status set to "${status}"`);
       setEditing(false);
       setChoice("");
@@ -802,6 +810,18 @@ function InlineStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: stri
       </span>
     );
   }
+  if (choice === "Won") {
+    return (
+      <span style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: 13 }}>🏆 Sale closed by:</span>
+        <select value={closedBy} autoFocus disabled={busy} onChange={(e) => setClosedBy(e.target.value)}>
+          {REPS.map((r) => <option key={r} value={r}>{r}{r === "Brigham" ? " (default)" : ""}</option>)}
+        </select>
+        <button className="btn small" disabled={busy} onClick={() => save("Won", { closedBy })}>✓ Mark Won</button>
+        <button className="btn ghost small" onClick={() => { setChoice(""); setEditing(false); }}>✕</button>
+      </span>
+    );
+  }
   if (choice === "Snoozed") {
     return (
       <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -828,10 +848,10 @@ function InlineStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: stri
       disabled={busy}
       onChange={(e) => {
         const v = e.target.value;
-        if (v === "LOST" || v === "Snoozed") setChoice(v);
+        if (v === "LOST" || v === "Snoozed" || v === "Won") setChoice(v);
         else if (v) save(v);
       }}
-      onBlur={() => { if (!choice) setEditing(false); }}
+      onBlur={(e) => { if (!choice && !e.currentTarget.contains(e.relatedTarget as Node)) setEditing(false); }}
       onKeyDown={(e) => { if (e.key === "Escape") setEditing(false); }}
     >
       <option value="">{`Keep current: "${lead.status || "(blank = New)"}"`}</option>

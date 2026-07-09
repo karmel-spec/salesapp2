@@ -17,6 +17,8 @@ export const COLS = {
   lastContact: "Date of Last Contact",
   rep: "Sales Rep OPEN / WORKING / CLOSE",
   subRep: "Sub Rep (assistant)",
+  openedBy: "Lead Opened By (Rep)",
+  closedBy: "Sale Closed By (Rep)",
   headline: "Headline",
   score: "1-10",
   firstName: "Customer FIRST Name",
@@ -101,6 +103,8 @@ export interface Lead {
   pianoType: string;
   value: string;
   capturedBy: string;
+  openedBy: string;
+  closedBy: string;
   appActivity: string;
   timeline: TimelineEvent[];
   drafts: DraftMessage[];
@@ -359,6 +363,8 @@ function rowToLead(row: string[], rowNumber: number, shape: SheetShape, now: Dat
     pianoType: get("pianoType").trim(),
     value: get("value").trim(),
     capturedBy: get("capturedBy").trim(),
+    openedBy: normRep(get("openedBy")),
+    closedBy: normRep(get("closedBy")),
     appActivity: get("appActivity"),
     timeline,
     drafts: safeJson<DraftMessage[]>(get("arnoldDraftJson"), []),
@@ -438,7 +444,7 @@ export async function updateLeadFields(
   invalidateCache();
 }
 
-const AUTO_COLS: (keyof typeof COLS)[] = ["blpId", "appActivity", "timelineJson", "arnoldDraftJson", "subRep"];
+const AUTO_COLS: (keyof typeof COLS)[] = ["blpId", "appActivity", "timelineJson", "arnoldDraftJson", "subRep", "openedBy", "closedBy"];
 
 /**
  * The hidden app columns may not exist yet in a fresh sheet; add any missing
@@ -500,6 +506,7 @@ export async function createLead(input: {
   pianoType?: string;
   value?: string;
   capturedBy?: string;
+  openedBy?: string;
 }): Promise<string> {
   const { leads, shape } = await getLeads(true);
 
@@ -519,9 +526,11 @@ export async function createLead(input: {
   };
   const id = `blp-${crypto.randomBytes(5).toString("hex")}`;
   const today = new Date().toLocaleDateString("en-US");
+  const opener = input.openedBy?.trim() || config.defaultRep;
   set("blpId", id);
   set("dateAdded", today);
-  set("rep", config.defaultRep);
+  set("rep", opener);
+  set("openedBy", opener);
   set("status", "Active");
   set("firstName", input.firstName);
   set("lastName", input.lastName || "");
@@ -543,7 +552,7 @@ export async function createLead(input: {
         at: new Date().toISOString(),
         who: input.capturedBy || "app",
         kind: "created",
-        text: `Lead created in sales app, assigned to ${config.defaultRep}`,
+        text: `Lead created in sales app, opened by ${opener}`,
       } satisfies TimelineEvent,
     ])
   );

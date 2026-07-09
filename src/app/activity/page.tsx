@@ -34,6 +34,8 @@ const FILTERS: { key: string; label: string; kinds: string[] }[] = [
   { key: "outbound", label: "Sent to customers", kinds: ["sms_out", "email_out", "call", "call_attempt"] },
   { key: "inbound", label: "Customer replies", kinds: ["inbound"] },
   { key: "arnold", label: "Arnold drafts", kinds: ["draft"] },
+  { key: "coaching", label: "Train Arnold (coaching)", kinds: ["coaching"] },
+  { key: "followup", label: "Follow-up instructions", kinds: ["followup"] },
   { key: "notes", label: "Notes & edits", kinds: ["note", "edit", "assign", "created"] },
 ];
 

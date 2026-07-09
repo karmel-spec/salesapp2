@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Lead } from "@/lib/leads";
-import { api, fetchLeads, getWho, LEAD_SOURCES, INQUIRY_METHODS } from "@/lib/client";
+import { api, fetchLeads, getWho, LEAD_SOURCES, INQUIRY_METHODS, PIANO_TYPES, LEAD_TYPES, ENTERED_BY, REPS } from "@/lib/client";
 import { RepBadge, StaleBadge, StatusBadge, fmtDays, pendingDrafts } from "@/components/ui";
 
 const BUCKETS = ["all", "open", "new", "active", "snoozed", "won", "lost", "closed", "unqualified", "inactive", "support"] as const;
@@ -130,20 +130,30 @@ function NewLeadForm({ onDone }: { onDone: () => void }) {
   const [f, setF] = useState({
     firstName: "", lastName: "", headline: "", phone: "", email: "", social: "",
     source: "", inquiryMethod: "", leadType: "", pianoType: "", notes: "", capturedBy: "",
+    openedBy: "Brigham",
   });
-  const [otherSource, setOtherSource] = useState("");
-  const [otherInquiry, setOtherInquiry] = useState("");
+  const [other, setOther] = useState({ source: "", inquiryMethod: "", leadType: "", pianoType: "", capturedBy: "" });
+
+  // Default "Entered by" to whoever is signed in on this device.
+  useEffect(() => {
+    const me = getWho();
+    if (me !== "app" && ENTERED_BY.includes(me)) setF((cur) => ({ ...cur, capturedBy: me }));
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError("");
     try {
+      const resolve = (key: keyof typeof other) =>
+        f[key] === "__other__" ? other[key].trim() : f[key];
       const payload = {
         ...f,
-        source: f.source === "__other__" ? otherSource.trim() : f.source,
-        inquiryMethod: f.inquiryMethod === "__other__" ? otherInquiry.trim() : f.inquiryMethod,
-        capturedBy: f.capturedBy || getWho(),
+        source: resolve("source"),
+        inquiryMethod: resolve("inquiryMethod"),
+        leadType: resolve("leadType"),
+        pianoType: resolve("pianoType"),
+        capturedBy: resolve("capturedBy") || getWho(),
       };
       await api("/api/leads", { method: "POST", body: JSON.stringify(payload) });
       onDone();
@@ -156,14 +166,13 @@ function NewLeadForm({ onDone }: { onDone: () => void }) {
 
   return (
     <form className="card" style={{ marginBottom: 16 }} onSubmit={submit}>
-      <h2>New lead <span className="muted" style={{ fontFamily: "var(--sans)", fontWeight: 400 }}>— assigned to Brigham by default</span></h2>
+      <h2>New lead <span className="muted" style={{ fontFamily: "var(--sans)", fontWeight: 400 }}>— assigned to whoever opens it (Brigham by default)</span></h2>
       {error && <div className="banner bad">⚠ {error}</div>}
       <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
         {(
           [
             ["firstName", "First name *"], ["lastName", "Last name"], ["headline", "Headline"],
             ["phone", "Phone"], ["email", "Email"], ["social", "Social media handle"],
-            ["leadType", "Type of lead"], ["pianoType", "Type of piano"], ["capturedBy", "Captured by"],
           ] as const
         ).map(([key, label]) => (
           <div key={key}>
@@ -176,27 +185,38 @@ function NewLeadForm({ onDone }: { onDone: () => void }) {
             />
           </div>
         ))}
+        {(
+          [
+            ["leadType", "Type of lead", LEAD_TYPES, "— pick a type"],
+            ["pianoType", "Type of piano", PIANO_TYPES, "— pick a piano type"],
+            ["source", "Source", LEAD_SOURCES, "— how they found us"],
+            ["inquiryMethod", "Inquiry method", INQUIRY_METHODS, "— how they reached out"],
+            ["capturedBy", "Entered by", ENTERED_BY, "— who is entering this lead"],
+          ] as const
+        ).map(([key, label, options, placeholder]) => (
+          <div key={key}>
+            <label className="field">{label}</label>
+            <select style={{ width: "100%" }} value={f[key]} onChange={(e) => setF({ ...f, [key]: e.target.value })}>
+              <option value="">{placeholder}</option>
+              {options.map((o) => <option key={o} value={o}>{o}</option>)}
+              <option value="__other__">{key === "capturedBy" ? "＋ Add new…" : "Other…"}</option>
+            </select>
+            {f[key] === "__other__" && (
+              <input
+                style={{ width: "100%", marginTop: 6 }}
+                placeholder={label}
+                value={other[key]}
+                onChange={(e) => setOther({ ...other, [key]: e.target.value })}
+                autoFocus
+              />
+            )}
+          </div>
+        ))}
         <div>
-          <label className="field">Source</label>
-          <select style={{ width: "100%" }} value={f.source} onChange={(e) => setF({ ...f, source: e.target.value })}>
-            <option value="">— how they found us</option>
-            {LEAD_SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
-            <option value="__other__">Other…</option>
+          <label className="field">Lead opened by</label>
+          <select style={{ width: "100%" }} value={f.openedBy} onChange={(e) => setF({ ...f, openedBy: e.target.value })}>
+            {REPS.map((r) => <option key={r} value={r}>{r}{r === "Brigham" ? " (default)" : ""}</option>)}
           </select>
-          {f.source === "__other__" && (
-            <input style={{ width: "100%", marginTop: 6 }} placeholder="Source" value={otherSource} onChange={(e) => setOtherSource(e.target.value)} autoFocus />
-          )}
-        </div>
-        <div>
-          <label className="field">Inquiry method</label>
-          <select style={{ width: "100%" }} value={f.inquiryMethod} onChange={(e) => setF({ ...f, inquiryMethod: e.target.value })}>
-            <option value="">— how they reached out</option>
-            {INQUIRY_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
-            <option value="__other__">Other…</option>
-          </select>
-          {f.inquiryMethod === "__other__" && (
-            <input style={{ width: "100%", marginTop: 6 }} placeholder="Inquiry method" value={otherInquiry} onChange={(e) => setOtherInquiry(e.target.value)} autoFocus />
-          )}
         </div>
       </div>
       <div style={{ marginTop: 10 }}>
