@@ -85,8 +85,6 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", margin: "10px 0 16px" }}>
-        <SnoozeButton leadId={lead.id} onFlash={setFlash} onDone={load} />
-        {lead.phoneDialable && <CallButton leadId={lead.id} onFlash={setFlash} onDone={load} />}
         {lead.phoneDialable && (
           <button className="btn ghost" onClick={() => setCompose(compose === "sms" ? null : "sms")}>
             💬 Text
@@ -97,6 +95,8 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
             ✉️ Email
           </button>
         )}
+        {lead.phoneDialable && <CallButton leadId={lead.id} onFlash={setFlash} onDone={load} />}
+        <SnoozeButton leadId={lead.id} onFlash={setFlash} onDone={load} />
         <NextLeadButton currentId={lead.id} />
       </div>
 
