@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, use } from "react";
 import Link from "next/link";
 import type { Lead, DraftMessage } from "@/lib/leads";
-import { api, getWho, REPS } from "@/lib/client";
+import { api, getWho, REPS, LEAD_SOURCES, INQUIRY_METHODS } from "@/lib/client";
 import { Linkify, StaleBadge, StatusBadge, fmtDays } from "@/components/ui";
 
 export default function LeadDetail({ params }: { params: Promise<{ id: string }> }) {
@@ -94,6 +94,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
         <button className="btn" onClick={askArnold} disabled={asking}>
           {asking ? "Asking Arnold…" : "Ask Arnold for a draft"}
         </button>
+        <NextLeadButton currentId={lead.id} />
       </div>
 
       {flash && <div className="banner info">{flash}</div>}
@@ -216,7 +217,41 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
           </div>
         </div>
       </div>
+
+      <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end" }}>
+        <NextLeadButton currentId={lead.id} />
+      </div>
     </>
+  );
+}
+
+/**
+ * Jump to the next open (new/active) lead in the working list's order,
+ * so a rep can grind through the pipeline without bouncing back to Leads.
+ */
+function NextLeadButton({ currentId }: { currentId: string }) {
+  const [next, setNext] = useState<{ id: string; name: string } | null | undefined>(undefined);
+
+  useEffect(() => {
+    import("@/lib/client").then(({ fetchLeads }) =>
+      fetchLeads().then((r) => {
+        const open = r.leads.filter((l) => l.statusBucket === "new" || l.statusBucket === "active");
+        const i = open.findIndex((l) => l.id === currentId);
+        // Next open lead after this one (wraps to the top); if the current
+        // lead isn't open (won/lost/etc.), just start at the first open lead.
+        const candidates = i >= 0 ? [...open.slice(i + 1), ...open.slice(0, i)] : open;
+        const n = candidates.find((l) => l.id !== currentId);
+        setNext(n ? { id: n.id, name: n.name } : null);
+      }).catch(() => setNext(null))
+    );
+  }, [currentId]);
+
+  if (next === undefined) return <button className="btn ghost" disabled>Next lead ›</button>;
+  if (next === null) return null;
+  return (
+    <Link href={`/leads/${encodeURIComponent(next.id)}`} className="btn ghost" title={`Jump to ${next.name}`}>
+      Next lead: {next.name.split(" ")[0]} ›
+    </Link>
   );
 }
 
@@ -500,6 +535,9 @@ function EditForm({ lead, onSaved }: { lead: Lead; onSaved: () => void }) {
     headline: lead.headline,
     phone: lead.phone,
     email: lead.email,
+    social: lead.social,
+    source: lead.source,
+    inquiryMethod: lead.inquiryMethod,
     leadType: lead.leadType,
     pianoType: lead.pianoType,
     value: lead.value,
@@ -702,10 +740,38 @@ function EditForm({ lead, onSaved }: { lead: Lead; onSaved: () => void }) {
             />
           )}
         </div>
+        <div>
+          <label className="field">Source</label>
+          <select
+            style={{ width: "100%" }}
+            value={LEAD_SOURCES.includes(f.source) || f.source === "" ? f.source : "__current__"}
+            onChange={(e) => { if (e.target.value !== "__current__") setF({ ...f, source: e.target.value }); }}
+          >
+            <option value="">— not set</option>
+            {f.source && !LEAD_SOURCES.includes(f.source) && (
+              <option value="__current__">Keep current: {f.source.slice(0, 40)}</option>
+            )}
+            {LEAD_SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="field">Inquiry method</label>
+          <select
+            style={{ width: "100%" }}
+            value={INQUIRY_METHODS.includes(f.inquiryMethod) || f.inquiryMethod === "" ? f.inquiryMethod : "__current__"}
+            onChange={(e) => { if (e.target.value !== "__current__") setF({ ...f, inquiryMethod: e.target.value }); }}
+          >
+            <option value="">— not set</option>
+            {f.inquiryMethod && !INQUIRY_METHODS.includes(f.inquiryMethod) && (
+              <option value="__current__">Keep current: {f.inquiryMethod.slice(0, 40)}</option>
+            )}
+            {INQUIRY_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
         {(
           [
             ["headline", "Headline"], ["phone", "Phone"],
-            ["email", "Email"], ["pianoType", "Piano"], ["value", "$ Value"],
+            ["email", "Email"], ["social", "Social media handle"], ["pianoType", "Piano"], ["value", "$ Value"],
           ] as const
         ).map(([key, label]) => (
           <div key={key}>

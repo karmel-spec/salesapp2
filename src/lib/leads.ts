@@ -479,6 +479,7 @@ export async function createLead(input: {
   headline?: string;
   phone?: string;
   email?: string;
+  social?: string;
   notes?: string;
   source?: string;
   inquiryMethod?: string;
@@ -514,6 +515,7 @@ export async function createLead(input: {
   set("headline", input.headline || "");
   set("phone", input.phone || "");
   set("email", input.email || "");
+  set("social", input.social || "");
   set("notes", input.notes || "");
   set("source", input.source || "");
   set("inquiryMethod", input.inquiryMethod || "");

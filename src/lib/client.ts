@@ -22,6 +22,10 @@ export async function fetchLeads(refresh = false) {
 
 export const REPS = ["Brigham", "Karmel", "Arnold", "Melissa", "Alisa"] as const;
 
+/** Canonical pick-lists for lead fields (free-text history stays as "keep current"). */
+export const LEAD_SOURCES = ["Repeat customer", "Google", "YouTube", "TikTok", "Facebook", "Instagram", "Sign", "Referral", "Recital", "KSL", "Not sure"];
+export const INQUIRY_METHODS = ["Text", "Phone Call", "Voicemail", "Email", "Web Form", "Walk-in", "Social Media", "SC - Text"];
+
 /** The signed-in rep's name (chosen in the sidebar, kept per device). */
 export function getWho(): string {
   if (typeof window === "undefined") return "app";

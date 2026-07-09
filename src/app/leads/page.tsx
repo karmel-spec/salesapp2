@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Lead } from "@/lib/leads";
-import { api, fetchLeads, getWho } from "@/lib/client";
+import { api, fetchLeads, getWho, LEAD_SOURCES, INQUIRY_METHODS } from "@/lib/client";
 import { RepBadge, StaleBadge, StatusBadge, fmtDays, pendingDrafts } from "@/components/ui";
 
 const BUCKETS = ["all", "open", "new", "active", "snoozed", "won", "lost", "closed", "unqualified", "inactive", "support"] as const;
@@ -127,14 +127,25 @@ export default function LeadsPage() {
 function NewLeadForm({ onDone }: { onDone: () => void }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [f, setF] = useState({ firstName: "", lastName: "", headline: "", phone: "", email: "", leadType: "", pianoType: "", notes: "", capturedBy: "" });
+  const [f, setF] = useState({
+    firstName: "", lastName: "", headline: "", phone: "", email: "", social: "",
+    source: "", inquiryMethod: "", leadType: "", pianoType: "", notes: "", capturedBy: "",
+  });
+  const [otherSource, setOtherSource] = useState("");
+  const [otherInquiry, setOtherInquiry] = useState("");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError("");
     try {
-      await api("/api/leads", { method: "POST", body: JSON.stringify({ ...f, capturedBy: f.capturedBy || getWho() }) });
+      const payload = {
+        ...f,
+        source: f.source === "__other__" ? otherSource.trim() : f.source,
+        inquiryMethod: f.inquiryMethod === "__other__" ? otherInquiry.trim() : f.inquiryMethod,
+        capturedBy: f.capturedBy || getWho(),
+      };
+      await api("/api/leads", { method: "POST", body: JSON.stringify(payload) });
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -151,15 +162,42 @@ function NewLeadForm({ onDone }: { onDone: () => void }) {
         {(
           [
             ["firstName", "First name *"], ["lastName", "Last name"], ["headline", "Headline"],
-            ["phone", "Phone"], ["email", "Email"], ["leadType", "Type of lead"],
-            ["pianoType", "Type of piano"], ["capturedBy", "Captured by"],
+            ["phone", "Phone"], ["email", "Email"], ["social", "Social media handle"],
+            ["leadType", "Type of lead"], ["pianoType", "Type of piano"], ["capturedBy", "Captured by"],
           ] as const
         ).map(([key, label]) => (
           <div key={key}>
             <label className="field">{label}</label>
-            <input style={{ width: "100%" }} value={f[key]} onChange={(e) => setF({ ...f, [key]: e.target.value })} />
+            <input
+              style={{ width: "100%" }}
+              placeholder={key === "social" ? "e.g. @jane.doe on Instagram / FB Marketplace link" : undefined}
+              value={f[key]}
+              onChange={(e) => setF({ ...f, [key]: e.target.value })}
+            />
           </div>
         ))}
+        <div>
+          <label className="field">Source</label>
+          <select style={{ width: "100%" }} value={f.source} onChange={(e) => setF({ ...f, source: e.target.value })}>
+            <option value="">— how they found us</option>
+            {LEAD_SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
+            <option value="__other__">Other…</option>
+          </select>
+          {f.source === "__other__" && (
+            <input style={{ width: "100%", marginTop: 6 }} placeholder="Source" value={otherSource} onChange={(e) => setOtherSource(e.target.value)} autoFocus />
+          )}
+        </div>
+        <div>
+          <label className="field">Inquiry method</label>
+          <select style={{ width: "100%" }} value={f.inquiryMethod} onChange={(e) => setF({ ...f, inquiryMethod: e.target.value })}>
+            <option value="">— how they reached out</option>
+            {INQUIRY_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+            <option value="__other__">Other…</option>
+          </select>
+          {f.inquiryMethod === "__other__" && (
+            <input style={{ width: "100%", marginTop: 6 }} placeholder="Inquiry method" value={otherInquiry} onChange={(e) => setOtherInquiry(e.target.value)} autoFocus />
+          )}
+        </div>
       </div>
       <div style={{ marginTop: 10 }}>
         <label className="field">Notes</label>
