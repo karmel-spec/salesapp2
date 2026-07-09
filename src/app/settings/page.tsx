@@ -50,12 +50,87 @@ const INTEGRATIONS: { key: string; name: string; desc: string; env: string }[] =
     env: "TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID",
   },
   {
+    key: "googleLogin",
+    name: "Google sign-in for reps",
+    desc: "Team members sign in with their @brighamlarsonpianos.com Google account — sends and edits carry their real name.",
+    env: "GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET",
+  },
+  {
     key: "claudeFallback",
     name: "Claude API fallback drafts",
     desc: "Lets the app write drafts in Arnold's voice when his gateway is unreachable.",
     env: "ANTHROPIC_API_KEY",
   },
 ];
+
+type BackupInfo = {
+  configured: boolean;
+  serviceAccount?: string;
+  files: { id: string; name: string; createdTime: string; size?: string; webViewLink?: string }[];
+};
+
+function BackupsCard() {
+  const [info, setInfo] = useState<BackupInfo | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [flash, setFlash] = useState("");
+
+  const load = () => api<BackupInfo>("/api/backup").then(setInfo).catch(() => setInfo(null));
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function backupNow() {
+    setBusy(true);
+    setFlash("");
+    try {
+      const r = await api<{ file: { name: string }; rows: number; pruned: number }>("/api/backup", { method: "POST" });
+      setFlash(`✓ ${r.file.name} saved (${r.rows} rows${r.pruned ? `, ${r.pruned} old backup(s) pruned` : ""})`);
+      load();
+    } catch (e) {
+      setFlash(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 18 }}>
+      <div style={{ display: "flex", alignItems: "baseline" }}>
+        <h2>Leads Log backups</h2>
+        <span className="spacer" style={{ flex: 1 }} />
+        <button className="btn small" onClick={backupNow} disabled={busy || !info?.configured}>
+          {busy ? "Backing up…" : "Back up now"}
+        </button>
+      </div>
+      {flash && <div className="banner info">{flash}</div>}
+      {!info && <div className="muted">Checking backups…</div>}
+      {info && !info.configured && (
+        <div className="muted">
+          Nightly CSV backups go to a Google Drive folder once connected. Setup (one time):
+          <ol style={{ margin: "6px 0 0", paddingLeft: 20 }}>
+            <li>Create a folder in Google Drive (e.g. &quot;Leads Log Backups&quot;)</li>
+            <li>Share it with <code>{info.serviceAccount}</code> as Editor</li>
+            <li>Set <code>DRIVE_BACKUP_FOLDER_ID</code> (the long ID in the folder&apos;s URL) in Netlify env + redeploy</li>
+          </ol>
+        </div>
+      )}
+      {info && info.configured && (
+        <>
+          <div className="muted" style={{ marginBottom: 8 }}>
+            Nightly at 2:15 AM · 30 most recent kept · every file is the complete sheet as CSV
+          </div>
+          {info.files.length === 0 && <div className="muted">No backups yet — click &quot;Back up now&quot; to create the first.</div>}
+          {info.files.slice(0, 12).map((f) => (
+            <div key={f.id} style={{ padding: "6px 0", borderBottom: "1px solid #f0ece6", display: "flex", gap: 10, alignItems: "baseline" }}>
+              <a href={f.webViewLink} target="_blank" rel="noreferrer" style={{ textDecoration: "underline" }}>{f.name}</a>
+              <span className="muted">{new Date(f.createdTime).toLocaleString()}{f.size ? ` · ${(Number(f.size) / 1024).toFixed(0)} KB` : ""}</span>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const [status, setStatus] = useState<SyncStatus | null>(null);
@@ -72,8 +147,10 @@ export default function SettingsPage() {
     <>
       <div className="page-head">
         <h1>Settings</h1>
-        <span className="sub">integration status &amp; business rules</span>
+        <span className="sub">integration status, backups &amp; business rules</span>
       </div>
+
+      <BackupsCard />
 
       <div className="card" style={{ marginBottom: 18 }}>
         <h2>Business rules</h2>

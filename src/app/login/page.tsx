@@ -31,6 +31,14 @@ export default function LoginPage() {
           Brigham Larson <em style={{ color: "var(--crimson)", fontStyle: "normal" }}>Pianos</em>
         </h1>
         <div className="sub">Sales Console — team access</div>
+        <a
+          href="/api/auth/google"
+          className="btn"
+          style={{ width: "100%", justifyContent: "center", marginBottom: 14, textDecoration: "none" }}
+        >
+          Sign in with Google
+        </a>
+        <div className="sub" style={{ margin: "0 0 10px" }}>— or use the team passcode —</div>
         <form onSubmit={submit}>
           {error && <div className="banner bad">⚠ {error}</div>}
           <input

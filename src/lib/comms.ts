@@ -1,9 +1,15 @@
 import { createTransport } from "nodemailer";
 import { config } from "./config";
 
-/** Outbound comms: Twilio SMS + SMTP email, both env-gated. */
+/** Outbound comms: Twilio SMS + SMTP email, both env-gated.
+ * In open/dev mode (no team passcode) sends are DRY-RUN by default —
+ * logged, never delivered — so local development can't text customers. */
 
 export async function sendSms(to: string, body: string): Promise<{ sid: string }> {
+  if (config.dryRunSends) {
+    console.log(`[DRY-RUN] SMS to ${to}: ${body.slice(0, 120)}`);
+    return { sid: "DRYRUN-SMS" };
+  }
   if (!config.twilioAccountSid || !config.twilioAuthToken || !config.twilioFrom) {
     throw new Error(
       "Twilio not configured: set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER"
@@ -42,6 +48,10 @@ export async function sendSms(to: string, body: string): Promise<{ sid: string }
  * Inline TwiML — no webhook endpoint required.
  */
 export async function startBridgeCall(repPhone: string, leadPhone: string): Promise<{ sid: string }> {
+  if (config.dryRunSends) {
+    console.log(`[DRY-RUN] bridge call ${repPhone} → ${leadPhone}`);
+    return { sid: "DRYRUN-CALL" };
+  }
   if (!config.twilioAccountSid || !config.twilioAuthToken) {
     throw new Error("Twilio not configured: set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN");
   }
@@ -72,6 +82,10 @@ export async function sendEmail(
   subject: string,
   body: string
 ): Promise<{ messageId: string }> {
+  if (config.dryRunSends) {
+    console.log(`[DRY-RUN] email to ${to} ("${subject}"): ${body.slice(0, 120)}`);
+    return { messageId: "DRYRUN-EMAIL" };
+  }
   if (!config.smtpPass) {
     throw new Error("Email not configured: set SMTP_PASS (app password for info@brighamlarsonpianos.com)");
   }

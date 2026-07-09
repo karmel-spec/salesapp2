@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { config } from "./config";
-import { readRows, writeCells, insertRowTop, canWrite, expandColumns, readCell } from "./sheets";
+import { readRows, writeCells, insertRowTop, canWrite, expandColumns, readCell, moveRow } from "./sheets";
 
 /**
  * Lead domain model over the Leads Log spreadsheet.
@@ -640,4 +640,51 @@ export async function applyStaleAssignments(): Promise<Lead[]> {
   await writeCells(cells);
   invalidateCache();
   return targets;
+}
+
+/**
+ * Tidy the sheet: re-file rows whose status closed after the last
+ * organization. The bottom of the sheet holds three sections in order —
+ * SNOOZED, then WON, then LOST — and any snoozed/won/lost row still sitting
+ * in the working area above gets moved down to the top of its section.
+ * Runs nightly (with the backup) and from the dashboard.
+ */
+export async function tidySheetSections(): Promise<{ moved: { name: string; bucket: StatusBucket }[] }> {
+  const SECTION: StatusBucket[] = ["snoozed", "won", "lost"]; // top → bottom
+  const moved: { name: string; bucket: StatusBucket }[] = [];
+
+  for (let pass = 0; pass < 40; pass++) {
+    const { leads } = await getLeads(true);
+    const byRow = [...leads].sort((a, b) => a.row - b.row);
+    if (!byRow.length) break;
+
+    // Detect the contiguous tail blocks: LOST suffix, WON above it, SNOOZED above that.
+    let i = byRow.length;
+    const blockStart: Partial<Record<StatusBucket, number>> = {};
+    for (const bucket of [...SECTION].reverse()) {
+      let start = i;
+      while (start > 0 && byRow[start - 1].statusBucket === bucket) start--;
+      if (start < i) blockStart[bucket] = byRow[start].row;
+      i = start;
+    }
+    const bottom = byRow[byRow.length - 1].row + 1;
+    // Destination for each section: top of its block, else where the next
+    // section below begins, else the very bottom.
+    const dest: Record<StatusBucket, number> = {} as Record<StatusBucket, number>;
+    let fallback = bottom;
+    for (const bucket of [...SECTION].reverse()) {
+      dest[bucket] = blockStart[bucket] ?? fallback;
+      fallback = dest[bucket];
+    }
+
+    // Working area = rows above the first section block.
+    const firstSectionRow = Math.min(...SECTION.map((b) => blockStart[b] ?? bottom));
+    const misplaced = byRow.find((l) => l.row < firstSectionRow && SECTION.includes(l.statusBucket));
+    if (!misplaced) break;
+
+    await moveRow(misplaced.row, dest[misplaced.statusBucket]);
+    invalidateCache();
+    moved.push({ name: misplaced.name, bucket: misplaced.statusBucket });
+  }
+  return { moved };
 }

@@ -35,7 +35,7 @@ async function getAccessToken(): Promise<string> {
   const claims = Buffer.from(
     JSON.stringify({
       iss: config.googleClientEmail,
-      scope: "https://www.googleapis.com/auth/spreadsheets",
+      scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive",
       aud: "https://oauth2.googleapis.com/token",
       iat: now,
       exp: now + 3600,
@@ -57,6 +57,11 @@ async function getAccessToken(): Promise<string> {
   const json = (await res.json()) as { access_token: string; expires_in: number };
   tokenCache = { token: json.access_token, exp: now + json.expires_in };
   return json.access_token;
+}
+
+/** Service-account bearer token (Sheets + Drive scopes) for other Google APIs. */
+export async function getGoogleToken(): Promise<string> {
+  return getAccessToken();
 }
 
 async function api(path: string, init?: RequestInit): Promise<any> {
@@ -205,6 +210,28 @@ export async function insertRowTop(values: string[]): Promise<void> {
   await api(`/values/${encodeURIComponent(tab)}!A2?valueInputOption=RAW`, {
     method: "PUT",
     body: JSON.stringify({ values: [values] }),
+  });
+}
+
+/** Move a single row so it sits immediately before `toBeforeRow` (1-based). */
+export async function moveRow(fromRow: number, toBeforeRow: number): Promise<void> {
+  if (!canWrite()) throw new SheetsReadOnlyError();
+  const tab = await getTabName();
+  const meta = await api("?fields=sheets(properties(sheetId,title))");
+  const sheet = meta.sheets.find((s: any) => s.properties.title === tab) || meta.sheets[0];
+  await api(":batchUpdate", {
+    method: "POST",
+    body: JSON.stringify({
+      requests: [
+        {
+          moveDimension: {
+            source: { sheetId: sheet.properties.sheetId, dimension: "ROWS", startIndex: fromRow - 1, endIndex: fromRow },
+            // destinationIndex uses coordinates BEFORE the source row is removed.
+            destinationIndex: toBeforeRow - 1,
+          },
+        },
+      ],
+    }),
   });
 }
 

@@ -43,6 +43,25 @@ export const config = {
   // Claude API when the Hermes webhook isn't reachable.
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || "",
 
+  // Safety: without a team passcode the app is in open/dev mode — real
+  // customer sends are disabled there unless explicitly forced.
+  dryRunSends:
+    process.env.DRY_RUN_SENDS === "1" ||
+    (!process.env.BLP_APP_ACCESS_KEY && process.env.DRY_RUN_SENDS !== "0"),
+
+  // Google Drive folder (shared with the service account) for Leads Log backups
+  driveBackupFolderId: process.env.DRIVE_BACKUP_FOLDER_ID || "",
+
+  // Google sign-in for reps (domain-restricted OAuth)
+  googleOauthClientId: process.env.GOOGLE_OAUTH_CLIENT_ID || "",
+  googleOauthClientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET || "",
+  googleAllowedDomain: process.env.GOOGLE_ALLOWED_DOMAIN || "brighamlarsonpianos.com",
+  googleAllowedEmails: (process.env.GOOGLE_ALLOWED_EMAILS || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean),
+  publicBaseUrl: process.env.PUBLIC_BASE_URL || "https://blpsalesapp.netlify.app",
+
   // Business rules
   staleDays: Number(process.env.STALE_DAYS || 30), // worked leads: quiet this long → Arnold
   newLeadStaleDays: Number(process.env.NEW_LEAD_STALE_DAYS || 10), // never-contacted new leads → Arnold sooner
@@ -59,5 +78,6 @@ export function integrationStatus() {
     arnoldWebhook: Boolean(config.arnoldWebhookUrl),
     telegram: Boolean(config.telegramBotToken && config.telegramChatId),
     claudeFallback: Boolean(config.anthropicApiKey),
+    googleLogin: Boolean(config.googleOauthClientId && config.googleOauthClientSecret),
   };
 }

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { applyStaleAssignments, wakeExpiredSnoozes, getLeads } from "@/lib/leads";
+import { applyStaleAssignments, wakeExpiredSnoozes, getLeads, tidySheetSections } from "@/lib/leads";
 import { canWrite } from "@/lib/sheets";
 import { integrationStatus, config } from "@/lib/config";
 import { notifyTelegram } from "@/lib/arnold";
 import { requireSession, jsonError } from "@/lib/api";
+import { isValidArnoldKey } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -35,8 +36,22 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   const guard = requireSession(req);
-  if (guard) return guard;
+  if (guard && !isValidArnoldKey(req.headers.get("x-blp-key"))) return guard;
   try {
+    const body = (await req.json().catch(() => ({}))) as { action?: string };
+
+    if (body.action === "tidy") {
+      // Re-file snoozed/won/lost rows from the working area to their sections.
+      const { moved } = await tidySheetSections();
+      if (moved.length) {
+        notifyTelegram(
+          `🧹 <b>Leads Log tidied</b> — ${moved.length} row(s) re-filed: ` +
+            moved.map((m) => `${m.name} → ${m.bucket.toUpperCase()}`).join(", ")
+        ).catch(() => {});
+      }
+      return NextResponse.json({ moved });
+    }
+
     const woken = await wakeExpiredSnoozes();
     const reassigned = await applyStaleAssignments();
     if (reassigned.length) {
