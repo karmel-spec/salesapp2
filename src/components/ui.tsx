@@ -11,6 +11,8 @@ export function StatusBadge({ lead }: { lead: Lead }) {
     lost: "Lost",
     inactive: "Inactive",
     support: "Support",
+    unqualified: "Unqualified",
+    closed: "Closed",
   };
   return <span className={`badge ${lead.statusBucket}`}>{labels[lead.statusBucket]}</span>;
 }

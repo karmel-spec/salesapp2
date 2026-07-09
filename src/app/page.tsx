@@ -31,7 +31,7 @@ export default function Dashboard() {
     const stale = leads.filter((l) => l.isStale);
     const approvals = leads.reduce((n, l) => n + pendingDrafts(l).length, 0);
     const won = leads.filter((l) => l.statusBucket === "won");
-    const byBucket: [string, number][] = (["new", "active", "snoozed", "won", "lost", "inactive", "support"] as const)
+    const byBucket: [string, number][] = (["new", "active", "snoozed", "won", "lost", "closed", "unqualified", "inactive", "support"] as const)
       .map((b) => [b, leads.filter((l) => l.statusBucket === b).length] as [string, number])
       .filter(([, n]) => n > 0);
     return { open, stale, approvals, won, byBucket, arnoldQueue: leads.filter((l) => l.effectiveRep === "Arnold" && (l.statusBucket === "new" || l.statusBucket === "active")) };

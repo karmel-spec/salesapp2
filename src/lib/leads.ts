@@ -38,7 +38,7 @@ export const COLS = {
   arnoldDraftJson: "arnold_draft_json",
 } as const;
 
-export type StatusBucket = "new" | "active" | "snoozed" | "won" | "lost" | "inactive" | "support";
+export type StatusBucket = "new" | "active" | "snoozed" | "won" | "lost" | "inactive" | "support" | "unqualified" | "closed";
 
 export interface DraftMessage {
   channel: "sms" | "email";
@@ -106,12 +106,21 @@ function normStatus(raw: string): StatusBucket {
   if (!s) return "new";
   if (s.startsWith("won")) return "won";
   if (s.startsWith("lost")) return "lost";
+  if (s.includes("unqualified") || s.includes("not a lead")) return "unqualified";
+  if (s.startsWith("closed") || s === "resolved") return "closed";
   if (s.includes("support")) return "support";
+  if (s.startsWith("new")) return "new";
   if (s.startsWith("active")) return "active"; // e.g. "Active (snooze ended)"
   if (s.includes("snooze")) return "snoozed";
   if (s.includes("inactive") || s.includes("past 30")) return "inactive";
   if (s.includes("active") || s.includes("working") || s.includes("open")) return "active";
   return "active";
+}
+
+/** Parse the reason out of a "LOST - reason" / "LOST: reason" status. */
+export function lostReason(raw: string): string {
+  const m = raw.trim().match(/^lost\??\s*[-–:]\s*(.+)$/i);
+  return m ? m[1].trim() : "";
 }
 
 export function normRep(raw: string): string {
@@ -238,6 +247,11 @@ function rowToLead(row: string[], rowNumber: number, shape: SheetShape, now: Dat
 
   const statusRaw = get("status");
   let bucket = normStatus(statusRaw);
+  // "New" covers a lead's first 7 days; after that it flows into Active.
+  if (bucket === "new") {
+    const added = parseUSDate(get("dateAdded"));
+    if (added && (now.getTime() - added.getTime()) / 86400000 > 7) bucket = "active";
+  }
   // Snooze: "Snoozed until 1/15/2027" sleeps the lead; past the date it wakes.
   let snoozeUntil: string | null = null;
   let snoozeWoke = false;

@@ -380,9 +380,22 @@ function DraftCard({ leadId, draft, lead, onDone }: { leadId: string; draft: Dra
   );
 }
 
+const DEFAULT_LOST_REASONS = ["KSL", "Piano Gallery", "Too expensive", "Bought elsewhere", "No response"];
+
+const STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "keep", label: "" }, // label filled at render with the current raw status
+  { value: "New", label: "New — first 7 days, then auto-switches to Active" },
+  { value: "Active", label: "Active — being worked" },
+  { value: "WON", label: "Won" },
+  { value: "LOST", label: "Lost — requires a reason" },
+  { value: "Unqualified", label: "Unqualified — not actually a lead (leaves the funnel)" },
+  { value: "Snoozed", label: "Snoozed — requires a wake-up date" },
+  { value: "Closed", label: "Closed — all efforts completed, no response" },
+  { value: "stale-info", label: "Stale — automatic at 30+ days quiet (not selectable)" },
+];
+
 function EditForm({ lead, onSaved }: { lead: Lead; onSaved: () => void }) {
   const [f, setF] = useState({
-    status: lead.status,
     rep: lead.repRaw,
     headline: lead.headline,
     phone: lead.phone,
@@ -392,17 +405,70 @@ function EditForm({ lead, onSaved }: { lead: Lead; onSaved: () => void }) {
     value: lead.value,
     notes: lead.notes,
   });
+  const [statusChoice, setStatusChoice] = useState("keep");
+  const [lostWhy, setLostWhy] = useState("");
+  const [newLostWhy, setNewLostWhy] = useState("");
+  const [lostOptions, setLostOptions] = useState<string[]>(DEFAULT_LOST_REASONS);
+  const [snoozeDate, setSnoozeDate] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
+  // Harvest lost reasons already used in the sheet so the list grows itself.
+  useEffect(() => {
+    if (statusChoice !== "LOST") return;
+    import("@/lib/client").then(({ fetchLeads }) =>
+      fetchLeads().then((r) => {
+        const seen = new Set(DEFAULT_LOST_REASONS.map((x) => x.toLowerCase()));
+        const extra: string[] = [];
+        for (const l of r.leads) {
+          const m = l.status.trim().match(/^lost\??\s*[-–:]\s*(.+)$/i);
+          const reason = m?.[1]?.trim();
+          if (reason && !seen.has(reason.toLowerCase())) {
+            seen.add(reason.toLowerCase());
+            extra.push(reason);
+          }
+        }
+        if (extra.length) setLostOptions([...DEFAULT_LOST_REASONS, ...extra.sort()]);
+      }).catch(() => {})
+    );
+  }, [statusChoice]);
+
+  function composedStatus(): { value?: string; error?: string } {
+    switch (statusChoice) {
+      case "keep":
+      case "stale-info":
+        return {};
+      case "LOST": {
+        const reason = lostWhy === "__new__" ? newLostWhy.trim() : lostWhy;
+        if (!reason) return { error: "Pick (or add) the reason this lead was lost." };
+        return { value: `LOST - ${reason}` };
+      }
+      case "Snoozed": {
+        if (!snoozeDate) return { error: "Pick the wake-up date for the snooze." };
+        const [y, m, d] = snoozeDate.split("-").map(Number);
+        return { value: `Snoozed until ${m}/${d}/${y}` };
+      }
+      default:
+        return { value: statusChoice };
+    }
+  }
+
+  const statusResult = composedStatus();
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    if (statusResult.error) {
+      setErr(statusResult.error);
+      return;
+    }
     setBusy(true);
     setErr("");
     try {
+      const fields: Record<string, string> = { ...f };
+      if (statusResult.value) fields.status = statusResult.value;
       await api(`/api/leads/${encodeURIComponent(lead.id)}`, {
         method: "PATCH",
-        body: JSON.stringify({ fields: f, who: getWho() }),
+        body: JSON.stringify({ fields, who: getWho() }),
       });
       onSaved();
     } catch (error) {
@@ -415,10 +481,54 @@ function EditForm({ lead, onSaved }: { lead: Lead; onSaved: () => void }) {
   return (
     <form onSubmit={save}>
       {err && <div className="banner bad">⚠ {err}</div>}
+
+      <div style={{ marginBottom: 10 }}>
+        <label className="field">Status</label>
+        <select
+          style={{ width: "100%" }}
+          value={statusChoice}
+          onChange={(e) => setStatusChoice(e.target.value)}
+        >
+          {STATUS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value} disabled={o.value === "stale-info"}>
+              {o.value === "keep" ? `Keep current: "${lead.status || "(blank = New)"}"` : o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {statusChoice === "LOST" && (
+        <div style={{ marginBottom: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <select value={lostWhy} onChange={(e) => setLostWhy(e.target.value)} style={{ flex: 1, minWidth: 180 }}>
+            <option value="">Lost to / because… (required)</option>
+            {lostOptions.map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+            <option value="__new__">＋ Add a new reason…</option>
+          </select>
+          {lostWhy === "__new__" && (
+            <input
+              style={{ flex: 1, minWidth: 160 }}
+              placeholder="New reason (e.g. Facebook Marketplace)"
+              value={newLostWhy}
+              onChange={(e) => setNewLostWhy(e.target.value)}
+              autoFocus
+            />
+          )}
+        </div>
+      )}
+
+      {statusChoice === "Snoozed" && (
+        <div style={{ marginBottom: 10 }}>
+          <label className="field">Wake-up date (required) — lead returns to Active automatically</label>
+          <input type="date" value={snoozeDate} onChange={(e) => setSnoozeDate(e.target.value)} />
+        </div>
+      )}
+
       <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
         {(
           [
-            ["status", "Status"], ["rep", "Sales rep"], ["headline", "Headline"], ["phone", "Phone"],
+            ["rep", "Sales rep"], ["headline", "Headline"], ["phone", "Phone"],
             ["email", "Email"], ["leadType", "Type of lead"], ["pianoType", "Piano"], ["value", "$ Value"],
           ] as const
         ).map(([key, label]) => (
@@ -432,7 +542,7 @@ function EditForm({ lead, onSaved }: { lead: Lead; onSaved: () => void }) {
         <label className="field">Notes</label>
         <textarea rows={4} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} />
       </div>
-      <button className="btn" style={{ marginTop: 12 }} disabled={busy}>
+      <button className="btn" style={{ marginTop: 12 }} disabled={busy || Boolean(statusResult.error && statusChoice !== "keep")} title={statusResult.error || ""}>
         {busy ? "Writing to sheet…" : "Save to Leads Log"}
       </button>
     </form>

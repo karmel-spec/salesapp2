@@ -6,7 +6,7 @@ import type { Lead } from "@/lib/leads";
 import { api, fetchLeads, getWho } from "@/lib/client";
 import { RepBadge, StaleBadge, StatusBadge, fmtDays, pendingDrafts } from "@/components/ui";
 
-const BUCKETS = ["all", "open", "new", "active", "snoozed", "won", "lost", "inactive", "support"] as const;
+const BUCKETS = ["all", "open", "new", "active", "snoozed", "won", "lost", "closed", "unqualified", "inactive", "support"] as const;
 
 /** Initial filters from the URL (?bucket=open|won|… & ?stale=1) so dashboard tiles can deep-link. */
 function initialParams() {

@@ -182,6 +182,8 @@ h2 {
 .badge.support { background: var(--info-soft); color: var(--info); }
 .badge.snoozed { background: var(--info-soft); color: var(--info); }
 .badge.woke { background: var(--warn-soft); color: var(--warn); }
+.badge.unqualified { background: #eeeae5; color: var(--ink-3); }
+.badge.closed { background: #eeeae5; color: var(--ink-3); }
 .badge.stale { background: var(--bad-soft); color: var(--bad); }
 .badge.rep { background: #efece7; color: var(--ink-2); }
 .badge.rep.arnold { background: var(--crimson-soft); color: var(--crimson); }
