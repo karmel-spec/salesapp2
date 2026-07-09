@@ -55,9 +55,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-name">
-            Brigham Larson <em>Pianos</em>
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/blp-logo.png" alt="Brigham Larson Pianos" className="brand-logo" />
           <div className="brand-sub">Sales Console</div>
         </div>
         <nav className="nav">
