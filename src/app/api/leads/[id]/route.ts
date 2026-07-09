@@ -11,7 +11,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (guard && !isValidArnoldKey(req.headers.get("x-blp-key"))) return guard;
   try {
     const { id } = await ctx.params;
-    const found = await getLead(id);
+    // ?refresh=1 bypasses the in-memory cache — production runs several
+    // server instances, and a read after a write must not trust another
+    // instance's stale cache (edits looked like they "didn't save").
+    const force = req.nextUrl.searchParams.get("refresh") === "1";
+    const found = await getLead(id, force);
     if (!found) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
     return NextResponse.json({ lead: found.lead });
   } catch (err) {

@@ -406,8 +406,8 @@ export function invalidateCache() {
   cache = null;
 }
 
-export async function getLead(id: string): Promise<{ lead: Lead; shape: SheetShape } | null> {
-  const { leads, shape } = await getLeads();
+export async function getLead(id: string, force = false): Promise<{ lead: Lead; shape: SheetShape } | null> {
+  const { leads, shape } = await getLeads(force);
   const lead = leads.find((l) => l.id === id);
   return lead ? { lead, shape } : null;
 }

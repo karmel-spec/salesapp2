@@ -19,18 +19,18 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
   const typeOptions = useLeadTypeOptions();
 
   const load = useCallback(
-    () =>
-      api<{ lead: Lead }>(`/api/leads/${encodeURIComponent(id)}`)
+    (fresh = false) =>
+      api<{ lead: Lead }>(`/api/leads/${encodeURIComponent(id)}${fresh ? "?refresh=1" : ""}`)
         .then((r) => setLead(r.lead))
         .catch((e) => setError(e.message)),
     [id]
   );
 
-  // Sheets reads can lag a write by a couple of seconds — reload once now
-  // and once shortly after, so inline edits always settle to what was saved.
+  // After a save: force-refresh past every server instance's cache (and
+  // Google's own read-after-write lag) so the edit never LOOKS unsaved.
   const loadSoon = useCallback(() => {
-    load();
-    setTimeout(load, 2500);
+    load(true);
+    setTimeout(() => load(true), 2500);
   }, [load]);
 
   useEffect(() => {
@@ -84,8 +84,8 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
         <h1>{lead.name}</h1>
         <StatusBadge lead={lead} />
         <StaleBadge lead={lead} />
-        <RepSelect lead={lead} onFlash={setFlash} onDone={load} />
-        <SubRepSelect lead={lead} onFlash={setFlash} onDone={load} />
+        <RepSelect lead={lead} onFlash={setFlash} onDone={loadSoon} />
+        <SubRepSelect lead={lead} onFlash={setFlash} onDone={loadSoon} />
         <span className="spacer" />
         <button className="btn" onClick={askArnold} disabled={asking}>
           {asking ? "Asking Arnold…" : "Ask Arnold for a draft"}
@@ -103,8 +103,8 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
             ✉️ Email
           </button>
         )}
-        {lead.phoneDialable && <CallButton leadId={lead.id} onFlash={setFlash} onDone={load} />}
-        <SnoozeButton leadId={lead.id} onFlash={setFlash} onDone={load} />
+        {lead.phoneDialable && <CallButton leadId={lead.id} onFlash={setFlash} onDone={loadSoon} />}
+        <SnoozeButton leadId={lead.id} onFlash={setFlash} onDone={loadSoon} />
         <AdjacentLeadButton currentId={lead.id} dir={-1} />
         <AdjacentLeadButton currentId={lead.id} dir={1} />
       </div>
@@ -115,7 +115,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
           lead={lead}
           channel={compose}
           onFlash={setFlash}
-          onDone={() => { setCompose(null); load(); }}
+          onDone={() => { setCompose(null); loadSoon(); }}
           onClose={() => setCompose(null)}
         />
       )}
