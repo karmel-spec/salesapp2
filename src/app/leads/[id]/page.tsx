@@ -16,6 +16,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
   const [noteKind, setNoteKind] = useState("note");
   const [savingNote, setSavingNote] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [compose, setCompose] = useState<"sms" | "email" | null>(null);
 
   const load = useCallback(
     () =>
@@ -80,12 +81,31 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
         <span className="spacer" />
         <SnoozeButton leadId={lead.id} onFlash={setFlash} onDone={load} />
         {lead.phoneDialable && <CallButton leadId={lead.id} onFlash={setFlash} onDone={load} />}
+        {lead.phoneDialable && (
+          <button className="btn ghost" onClick={() => setCompose(compose === "sms" ? null : "sms")}>
+            💬 Text
+          </button>
+        )}
+        {lead.emailClean && (
+          <button className="btn ghost" onClick={() => setCompose(compose === "email" ? null : "email")}>
+            ✉️ Email
+          </button>
+        )}
         <button className="btn" onClick={askArnold} disabled={asking}>
           {asking ? "Asking Arnold…" : "Ask Arnold for a draft"}
         </button>
       </div>
 
       {flash && <div className="banner info">{flash}</div>}
+      {compose && (
+        <ComposePanel
+          lead={lead}
+          channel={compose}
+          onFlash={setFlash}
+          onDone={() => { setCompose(null); load(); }}
+          onClose={() => setCompose(null)}
+        />
+      )}
       {lead.statusBucket === "snoozed" && (
         <div className="banner info">
           💤 Snoozed{lead.snoozeUntil ? ` until ${lead.snoozeUntil}` : ""} — this lead sleeps (no stale rule)
@@ -330,6 +350,84 @@ function CallButton({ leadId, onFlash, onDone }: { leadId: string; onFlash: (s: 
       </button>
       <button className="btn ghost small" onClick={() => setOpen(false)}>✕</button>
     </span>
+  );
+}
+
+function ComposePanel({
+  lead,
+  channel,
+  onFlash,
+  onDone,
+  onClose,
+}: {
+  lead: Lead;
+  channel: "sms" | "email";
+  onFlash: (s: string) => void;
+  onDone: () => void;
+  onClose: () => void;
+}) {
+  const [body, setBody] = useState("");
+  const [subject, setSubject] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const isEmail = channel === "email";
+  const to = isEmail ? lead.emailClean : lead.phoneDialable;
+
+  async function send() {
+    setBusy(true);
+    setErr("");
+    try {
+      const r = await api<{ detail: string }>(`/api/leads/${encodeURIComponent(lead.id)}/send`, {
+        method: "POST",
+        body: JSON.stringify({ channel, body, subject, who: getWho() }),
+      });
+      onFlash(`✓ ${r.detail}`);
+      onDone();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 18, borderLeft: "3px solid #2e7d46" }}>
+      <div style={{ display: "flex", alignItems: "baseline" }}>
+        <h2>{isEmail ? "✉️ Email" : "💬 Text"} {lead.name}</h2>
+        <span className="muted" style={{ marginLeft: 10 }}>→ {to}</span>
+        <span className="spacer" style={{ flex: 1 }} />
+        <button className="btn ghost small" onClick={onClose}>✕</button>
+      </div>
+      {err && <div className="banner bad">⚠ {err}</div>}
+      {isEmail && (
+        <input
+          style={{ width: "100%", marginBottom: 8 }}
+          placeholder="Subject"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          autoFocus
+        />
+      )}
+      <textarea
+        rows={isEmail ? 8 : 4}
+        placeholder={isEmail ? "Write your email… (markdown links like [Pictures](url) become clean links)" : "Write your text message…"}
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        autoFocus={!isEmail}
+      />
+      <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
+        <button
+          className="btn"
+          onClick={send}
+          disabled={busy || !body.trim() || (isEmail && !subject.trim())}
+        >
+          {busy ? "Sending…" : `Send ${isEmail ? "email" : "text"}`}
+        </button>
+        <span className="muted" style={{ fontSize: 12 }}>
+          sends immediately as {getWho() || "you"} — {isEmail ? "from info@brighamlarsonpianos.com" : "from the store number"} — and lands in the lead's activity
+        </span>
+      </div>
+    </div>
   );
 }
 
