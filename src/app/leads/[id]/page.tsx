@@ -15,8 +15,8 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
   const [note, setNote] = useState("");
   const [noteKind, setNoteKind] = useState("note");
   const [savingNote, setSavingNote] = useState(false);
-  const [editing, setEditing] = useState(false);
   const [compose, setCompose] = useState<"sms" | "email" | null>(null);
+  const typeOptions = useLeadTypeOptions();
 
   const load = useCallback(
     () =>
@@ -25,6 +25,13 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
         .catch((e) => setError(e.message)),
     [id]
   );
+
+  // Sheets reads can lag a write by a couple of seconds — reload once now
+  // and once shortly after, so inline edits always settle to what was saved.
+  const loadSoon = useCallback(() => {
+    load();
+    setTimeout(load, 2500);
+  }, [load]);
 
   useEffect(() => {
     load();
@@ -136,29 +143,24 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
             <div style={{ display: "flex", alignItems: "baseline" }}>
               <h2>Details</h2>
               <span className="spacer" style={{ flex: 1 }} />
-              <button className="btn ghost small" onClick={() => setEditing((v) => !v)}>
-                {editing ? "Close" : "✎ Edit"}
-              </button>
+              <span className="muted" style={{ fontSize: 12 }}>click any value to edit</span>
             </div>
-            {editing ? (
-              <EditForm lead={lead} onSaved={() => { setEditing(false); load(); }} />
-            ) : (
-              <dl className="kv">
-                <dt>Headline</dt><dd>{lead.headline || "—"}</dd>
-                <dt>Status (raw)</dt><dd>{lead.status || "—"}</dd>
-                <dt>Rep (sheet)</dt><dd>{lead.repRaw || "— (defaults to Brigham)"}</dd>
-                <dt>Phone</dt><dd>{lead.phone || "—"}{lead.phoneDialable && <span className="muted"> → {lead.phoneDialable}</span>}</dd>
-                <dt>Email</dt><dd>{lead.email || "—"}</dd>
-                <dt>Type of lead</dt><dd>{lead.leadType || "—"}</dd>
-                <dt>Piano</dt><dd>{lead.pianoType || "—"}</dd>
-                <dt>Source</dt><dd>{lead.source || "—"}</dd>
-                <dt>Inquiry method</dt><dd>{lead.inquiryMethod || "—"}</dd>
-                <dt>$ Value</dt><dd>{lead.value || "—"}</dd>
-                <dt>Date added</dt><dd>{lead.dateAdded || "—"}</dd>
-                <dt>Last contact</dt><dd>{lead.lastContact || "—"} <span className="muted">({fmtDays(lead)})</span></dd>
-                <dt>Notes</dt><dd>{lead.notes ? <Linkify text={lead.notes} /> : "—"}</dd>
-              </dl>
-            )}
+            <dl className="kv">
+              <dt>Headline</dt><dd><InlineText lead={lead} field="headline" value={lead.headline} onFlash={setFlash} onDone={loadSoon} /></dd>
+              <dt>Status</dt><dd><InlineStatus lead={lead} onFlash={setFlash} onDone={loadSoon} /></dd>
+              <dt>Rep (sheet)</dt><dd><InlineSelect lead={lead} field="rep" value={lead.repRaw} options={[...REPS]} emptyLabel="— unassigned (defaults to Brigham)" onFlash={setFlash} onDone={loadSoon} /></dd>
+              <dt>Phone</dt><dd><InlineText lead={lead} field="phone" value={lead.phone} hint={lead.phoneDialable ? ` → ${lead.phoneDialable}` : ""} onFlash={setFlash} onDone={loadSoon} /></dd>
+              <dt>Email</dt><dd><InlineText lead={lead} field="email" value={lead.email} onFlash={setFlash} onDone={loadSoon} /></dd>
+              <dt>Social</dt><dd><InlineText lead={lead} field="social" value={lead.social} onFlash={setFlash} onDone={loadSoon} /></dd>
+              <dt>Type of lead</dt><dd><InlineSelect lead={lead} field="leadType" value={lead.leadType} options={typeOptions} addNew onFlash={setFlash} onDone={loadSoon} /></dd>
+              <dt>Piano</dt><dd><InlineText lead={lead} field="pianoType" value={lead.pianoType} onFlash={setFlash} onDone={loadSoon} /></dd>
+              <dt>Source</dt><dd><InlineSelect lead={lead} field="source" value={lead.source} options={LEAD_SOURCES} onFlash={setFlash} onDone={loadSoon} /></dd>
+              <dt>Inquiry method</dt><dd><InlineSelect lead={lead} field="inquiryMethod" value={lead.inquiryMethod} options={INQUIRY_METHODS} onFlash={setFlash} onDone={loadSoon} /></dd>
+              <dt>$ Value</dt><dd><InlineText lead={lead} field="value" value={lead.value} onFlash={setFlash} onDone={loadSoon} /></dd>
+              <dt>Date added</dt><dd>{lead.dateAdded || "—"}</dd>
+              <dt>Last contact</dt><dd>{lead.lastContact || "—"} <span className="muted">({fmtDays(lead)})</span></dd>
+              <dt>Notes</dt><dd><InlineText lead={lead} field="notes" value={lead.notes} textarea onFlash={setFlash} onDone={loadSoon} /></dd>
+            </dl>
           </div>
 
           <div className="card">
@@ -532,264 +534,267 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "stale-info", label: "Stale — automatic (10d if never contacted, 30d if worked; not selectable)" },
 ];
 
-function EditForm({ lead, onSaved }: { lead: Lead; onSaved: () => void }) {
-  const [f, setF] = useState({
-    rep: lead.repRaw,
-    headline: lead.headline,
-    phone: lead.phone,
-    email: lead.email,
-    social: lead.social,
-    source: lead.source,
-    inquiryMethod: lead.inquiryMethod,
-    leadType: lead.leadType,
-    pianoType: lead.pianoType,
-    value: lead.value,
-    notes: lead.notes,
-  });
-  const [statusChoice, setStatusChoice] = useState("keep");
-  const [lostWhy, setLostWhy] = useState("");
-  const [newLostWhy, setNewLostWhy] = useState("");
-  const [lostOptions, setLostOptions] = useState<string[]>(DEFAULT_LOST_REASONS);
-  const [snoozeDate, setSnoozeDate] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-  const [typeOptions, setTypeOptions] = useState<string[]>(DEFAULT_LEAD_TYPES);
-  const [newLeadType, setNewLeadType] = useState("");
-
-  // Harvest lead types already used in the sheet (values used more than once)
-  // so the dropdown reflects how the team actually categorizes.
+/** Distinct lead types in real use (2+ leads) for the inline dropdown. */
+function useLeadTypeOptions(): string[] {
+  const [options, setOptions] = useState<string[]>(DEFAULT_LEAD_TYPES);
   useEffect(() => {
     import("@/lib/client").then(({ fetchLeads }) =>
       fetchLeads().then((r) => {
         const counts = new Map<string, { label: string; n: number }>();
         for (const l of r.leads) {
-          const t = (l.leadType || "").trim();
-          if (!t || t.length > 40) continue; // skip blanks and note-length junk values
-          const k = t.toLowerCase();
+          const v = (l.leadType || "").trim();
+          if (!v || v.length > 40) continue;
+          const k = v.toLowerCase();
           const cur = counts.get(k);
-          counts.set(k, { label: cur?.label || t, n: (cur?.n || 0) + 1 });
+          counts.set(k, { label: cur?.label || v, n: (cur?.n || 0) + 1 });
         }
         const seen = new Set(DEFAULT_LEAD_TYPES.map((x) => x.toLowerCase()));
         const extra = [...counts.values()]
           .filter((v) => v.n >= 2 && !seen.has(v.label.toLowerCase()))
           .map((v) => v.label)
           .sort();
-        if (extra.length) setTypeOptions([...DEFAULT_LEAD_TYPES, ...extra]);
+        if (extra.length) setOptions([...DEFAULT_LEAD_TYPES, ...extra]);
       }).catch(() => {})
     );
   }, []);
+  return options;
+}
 
-  // Harvest lost reasons already used in the sheet so the list grows itself.
-  useEffect(() => {
-    if (statusChoice !== "LOST") return;
-    import("@/lib/client").then(({ fetchLeads }) =>
-      fetchLeads().then((r) => {
-        const seen = new Set(DEFAULT_LOST_REASONS.map((x) => x.toLowerCase()));
-        const extra: string[] = [];
-        for (const l of r.leads) {
-          const m = l.status.trim().match(/^lost\??\s*[-–:]\s*(.+)$/i);
-          const reason = m?.[1]?.trim();
-          if (reason && !seen.has(reason.toLowerCase())) {
-            seen.add(reason.toLowerCase());
-            extra.push(reason);
-          }
-        }
-        if (extra.length) setLostOptions([...DEFAULT_LOST_REASONS, ...extra.sort()]);
-      }).catch(() => {})
-    );
-  }, [statusChoice]);
+/** Save one field of the lead to the sheet. */
+async function patchField(leadId: string, field: string, value: string): Promise<void> {
+  await api(`/api/leads/${encodeURIComponent(leadId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ fields: { [field]: value }, who: getWho() }),
+  });
+}
 
-  function composedStatus(): { value?: string; error?: string } {
-    switch (statusChoice) {
-      case "keep":
-      case "stale-info":
-        return {};
-      case "LOST": {
-        const reason = lostWhy === "__new__" ? newLostWhy.trim() : lostWhy;
-        if (!reason) return { error: "Pick (or add) the reason this lead was lost." };
-        return { value: `LOST - ${reason}` };
-      }
-      case "Snoozed": {
-        if (!snoozeDate) return { error: "Pick the wake-up date for the snooze." };
-        const [y, m, d] = snoozeDate.split("-").map(Number);
-        return { value: `Snoozed until ${m}/${d}/${y}` };
-      }
-      default:
-        return { value: statusChoice };
-    }
-  }
+function InlineText({
+  lead, field, value, hint, textarea, onFlash, onDone,
+}: {
+  lead: Lead; field: string; value: string; hint?: string; textarea?: boolean;
+  onFlash: (s: string) => void; onDone: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const statusResult = composedStatus();
-
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    if (statusResult.error) {
-      setErr(statusResult.error);
-      return;
-    }
+  async function save() {
+    if (val.trim() === value.trim()) { setEditing(false); return; }
     setBusy(true);
-    setErr("");
     try {
-      const fields: Record<string, string> = { ...f };
-      if (fields.leadType === "__new__") {
-        if (!newLeadType.trim()) {
-          setErr("Type the new lead type (or pick one from the list).");
-          setBusy(false);
-          return;
-        }
-        fields.leadType = newLeadType.trim();
-      }
-      if (statusResult.value) fields.status = statusResult.value;
-      await api(`/api/leads/${encodeURIComponent(lead.id)}`, {
-        method: "PATCH",
-        body: JSON.stringify({ fields, who: getWho() }),
-      });
-      onSaved();
-    } catch (error) {
-      setErr(error instanceof Error ? error.message : String(error));
+      await patchField(lead.id, field, val);
+      onFlash(`✓ Saved ${field} to the Leads Log`);
+      setEditing(false);
+      onDone();
+    } catch (e) {
+      onFlash(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
   }
 
-  return (
-    <form onSubmit={save}>
-      {err && <div className="banner bad">⚠ {err}</div>}
-
-      <div style={{ marginBottom: 10 }}>
-        <label className="field">Status</label>
-        <select
+  if (!editing) {
+    return (
+      <span className="inline-edit" title="Click to edit" onClick={() => { setVal(value); setEditing(true); }}>
+        {value ? (field === "notes" ? <Linkify text={value} /> : value) : <span className="muted">— click to add</span>}
+        {hint && <span className="muted">{hint}</span>}
+      </span>
+    );
+  }
+  if (textarea) {
+    return (
+      <span style={{ display: "block" }}>
+        <textarea
+          rows={4}
           style={{ width: "100%" }}
-          value={statusChoice}
-          onChange={(e) => setStatusChoice(e.target.value)}
-        >
-          {STATUS_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value} disabled={o.value === "stale-info"}>
-              {o.value === "keep" ? `Keep current: "${lead.status || "(blank = New)"}"` : o.label}
-            </option>
-          ))}
+          value={val}
+          autoFocus
+          disabled={busy}
+          onChange={(e) => setVal(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Escape") setEditing(false); }}
+          onBlur={save}
+        />
+        <span className="muted" style={{ fontSize: 11.5 }}>saves when you click away · Esc to cancel</span>
+      </span>
+    );
+  }
+  return (
+    <input
+      style={{ width: "100%" }}
+      value={val}
+      autoFocus
+      disabled={busy}
+      onChange={(e) => setVal(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") save();
+        if (e.key === "Escape") setEditing(false);
+      }}
+      onBlur={save}
+    />
+  );
+}
+
+function InlineSelect({
+  lead, field, value, options, emptyLabel, addNew, onFlash, onDone,
+}: {
+  lead: Lead; field: string; value: string; options: string[]; emptyLabel?: string; addNew?: boolean;
+  onFlash: (s: string) => void; onDone: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [newVal, setNewVal] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function save(v: string) {
+    if (v === value) { setEditing(false); setAdding(false); return; }
+    setBusy(true);
+    try {
+      await patchField(lead.id, field, v);
+      onFlash(`✓ Saved ${field} to the Leads Log`);
+      setEditing(false);
+      setAdding(false);
+      onDone();
+    } catch (e) {
+      onFlash(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <span className="inline-edit" title="Click to edit" onClick={() => setEditing(true)}>
+        {value || <span className="muted">{emptyLabel || "— click to set"}</span>}
+      </span>
+    );
+  }
+  if (adding) {
+    return (
+      <input
+        style={{ width: "100%" }}
+        placeholder={`New ${field}…`}
+        value={newVal}
+        autoFocus
+        disabled={busy}
+        onChange={(e) => setNewVal(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && newVal.trim()) save(newVal.trim());
+          if (e.key === "Escape") { setAdding(false); setEditing(false); }
+        }}
+        onBlur={() => (newVal.trim() ? save(newVal.trim()) : (setAdding(false), setEditing(false)))}
+      />
+    );
+  }
+  return (
+    <select
+      style={{ width: "100%" }}
+      value={options.includes(value) ? value : value ? "__current__" : ""}
+      autoFocus
+      disabled={busy}
+      onChange={(e) => {
+        const v = e.target.value;
+        if (v === "__new__") setAdding(true);
+        else if (v !== "__current__") save(v);
+      }}
+      onBlur={() => setEditing(false)}
+      onKeyDown={(e) => { if (e.key === "Escape") setEditing(false); }}
+    >
+      <option value="">{emptyLabel || "— not set"}</option>
+      {value && !options.includes(value) && <option value="__current__">Keep current: {value.slice(0, 40)}</option>}
+      {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      {addNew && <option value="__new__">＋ Add a new one…</option>}
+    </select>
+  );
+}
+
+const INLINE_STATUS_CHOICES = ["New", "Active", "Won", "LOST", "Unqualified", "Snoozed", "Closed"];
+
+function InlineStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: string) => void; onDone: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [choice, setChoice] = useState("");
+  const [lostWhy, setLostWhy] = useState("");
+  const [newLostWhy, setNewLostWhy] = useState("");
+  const [snoozeDate, setSnoozeDate] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function save(status: string) {
+    setBusy(true);
+    try {
+      await patchField(lead.id, "status", status);
+      onFlash(`✓ Status set to "${status}"`);
+      setEditing(false);
+      setChoice("");
+      onDone();
+    } catch (e) {
+      onFlash(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <span className="inline-edit" title="Click to edit" onClick={() => setEditing(true)}>
+        {lead.status || <span className="muted">(blank = New)</span>}
+      </span>
+    );
+  }
+
+  if (choice === "LOST") {
+    const reason = lostWhy === "__new__" ? newLostWhy.trim() : lostWhy;
+    return (
+      <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <select value={lostWhy} autoFocus disabled={busy} onChange={(e) => setLostWhy(e.target.value)} style={{ flex: 1, minWidth: 150 }}>
+          <option value="">Lost to / because… (required)</option>
+          {DEFAULT_LOST_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+          <option value="__new__">＋ Add a new reason…</option>
         </select>
-      </div>
-
-      {statusChoice === "LOST" && (
-        <div style={{ marginBottom: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <select value={lostWhy} onChange={(e) => setLostWhy(e.target.value)} style={{ flex: 1, minWidth: 180 }}>
-            <option value="">Lost to / because… (required)</option>
-            {lostOptions.map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-            <option value="__new__">＋ Add a new reason…</option>
-          </select>
-          {lostWhy === "__new__" && (
-            <input
-              style={{ flex: 1, minWidth: 160 }}
-              placeholder="New reason (e.g. Facebook Marketplace)"
-              value={newLostWhy}
-              onChange={(e) => setNewLostWhy(e.target.value)}
-              autoFocus
-            />
-          )}
-        </div>
-      )}
-
-      {statusChoice === "Snoozed" && (
-        <div style={{ marginBottom: 10 }}>
-          <label className="field">Wake-up date (required) — lead returns to Active automatically</label>
-          <input type="date" value={snoozeDate} onChange={(e) => setSnoozeDate(e.target.value)} />
-        </div>
-      )}
-
-      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
-        <div>
-          <label className="field">Sales rep</label>
-          <select
-            style={{ width: "100%" }}
-            value={f.rep}
-            onChange={(e) => setF({ ...f, rep: e.target.value })}
-          >
-            <option value="">— unassigned (defaults to Brigham)</option>
-            {Array.from(new Set([...REPS, f.rep].filter(Boolean))).map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="field">Type of lead</label>
-          <select
-            style={{ width: "100%" }}
-            value={typeOptions.includes(f.leadType) || f.leadType === "" ? f.leadType : "__current__"}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v === "__new__") { setNewLeadType(""); setF({ ...f, leadType: "__new__" }); }
-              else if (v !== "__current__") setF({ ...f, leadType: v });
-            }}
-          >
-            <option value="">— not set</option>
-            {f.leadType && !typeOptions.includes(f.leadType) && f.leadType !== "__new__" && (
-              <option value="__current__">Keep current: {f.leadType.slice(0, 40)}</option>
-            )}
-            {typeOptions.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-            <option value="__new__">＋ Add a new type…</option>
-          </select>
-          {f.leadType === "__new__" && (
-            <input
-              style={{ width: "100%", marginTop: 6 }}
-              placeholder="New lead type (e.g. Rental)"
-              value={newLeadType}
-              onChange={(e) => setNewLeadType(e.target.value)}
-              autoFocus
-            />
-          )}
-        </div>
-        <div>
-          <label className="field">Source</label>
-          <select
-            style={{ width: "100%" }}
-            value={LEAD_SOURCES.includes(f.source) || f.source === "" ? f.source : "__current__"}
-            onChange={(e) => { if (e.target.value !== "__current__") setF({ ...f, source: e.target.value }); }}
-          >
-            <option value="">— not set</option>
-            {f.source && !LEAD_SOURCES.includes(f.source) && (
-              <option value="__current__">Keep current: {f.source.slice(0, 40)}</option>
-            )}
-            {LEAD_SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="field">Inquiry method</label>
-          <select
-            style={{ width: "100%" }}
-            value={INQUIRY_METHODS.includes(f.inquiryMethod) || f.inquiryMethod === "" ? f.inquiryMethod : "__current__"}
-            onChange={(e) => { if (e.target.value !== "__current__") setF({ ...f, inquiryMethod: e.target.value }); }}
-          >
-            <option value="">— not set</option>
-            {f.inquiryMethod && !INQUIRY_METHODS.includes(f.inquiryMethod) && (
-              <option value="__current__">Keep current: {f.inquiryMethod.slice(0, 40)}</option>
-            )}
-            {INQUIRY_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
-        </div>
-        {(
-          [
-            ["headline", "Headline"], ["phone", "Phone"],
-            ["email", "Email"], ["social", "Social media handle"], ["pianoType", "Piano"], ["value", "$ Value"],
-          ] as const
-        ).map(([key, label]) => (
-          <div key={key}>
-            <label className="field">{label}</label>
-            <input style={{ width: "100%" }} value={f[key]} onChange={(e) => setF({ ...f, [key]: e.target.value })} />
-          </div>
-        ))}
-      </div>
-      <div style={{ marginTop: 10 }}>
-        <label className="field">Notes</label>
-        <textarea rows={4} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} />
-      </div>
-      <button className="btn" style={{ marginTop: 12 }} disabled={busy || Boolean(statusResult.error && statusChoice !== "keep")} title={statusResult.error || ""}>
-        {busy ? "Writing to sheet…" : "Save to Leads Log"}
-      </button>
-    </form>
+        {lostWhy === "__new__" && (
+          <input style={{ flex: 1, minWidth: 130 }} placeholder="New reason" value={newLostWhy} onChange={(e) => setNewLostWhy(e.target.value)} autoFocus />
+        )}
+        <button className="btn small" disabled={busy || !reason} onClick={() => save(`LOST - ${reason}`)}>✓</button>
+        <button className="btn ghost small" onClick={() => { setChoice(""); setEditing(false); }}>✕</button>
+      </span>
+    );
+  }
+  if (choice === "Snoozed") {
+    return (
+      <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <input type="date" value={snoozeDate} autoFocus disabled={busy} onChange={(e) => setSnoozeDate(e.target.value)} />
+        <button
+          className="btn small"
+          disabled={busy || !snoozeDate}
+          onClick={() => {
+            const [y, m, d] = snoozeDate.split("-").map(Number);
+            save(`Snoozed until ${m}/${d}/${y}`);
+          }}
+        >
+          ✓
+        </button>
+        <button className="btn ghost small" onClick={() => { setChoice(""); setEditing(false); }}>✕</button>
+      </span>
+    );
+  }
+  return (
+    <select
+      style={{ width: "100%" }}
+      value=""
+      autoFocus
+      disabled={busy}
+      onChange={(e) => {
+        const v = e.target.value;
+        if (v === "LOST" || v === "Snoozed") setChoice(v);
+        else if (v) save(v);
+      }}
+      onBlur={() => { if (!choice) setEditing(false); }}
+      onKeyDown={(e) => { if (e.key === "Escape") setEditing(false); }}
+    >
+      <option value="">{`Keep current: "${lead.status || "(blank = New)"}"`}</option>
+      {INLINE_STATUS_CHOICES.map((s) => (
+        <option key={s} value={s}>
+          {s === "LOST" ? "Lost — requires a reason" : s === "Snoozed" ? "Snoozed — requires a wake-up date" : s}
+        </option>
+      ))}
+    </select>
   );
 }

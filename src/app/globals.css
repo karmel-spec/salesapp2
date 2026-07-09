@@ -372,3 +372,17 @@ tbody tr:hover { background: #faf7f2; }
   .btn.small { padding: 8px 13px; }
   .draft .actions { flex-wrap: wrap; }
 }
+
+/* Click-to-edit fields on the lead details card */
+.inline-edit {
+  cursor: pointer;
+  border-bottom: 1px dashed transparent;
+  transition: border-color 0.15s, background 0.15s;
+  border-radius: 3px;
+  display: inline-block;
+  min-width: 40px;
+}
+.inline-edit:hover {
+  border-bottom-color: #b8a99a;
+  background: #f7f2ea;
+}
