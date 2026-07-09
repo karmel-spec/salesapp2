@@ -208,6 +208,43 @@ export async function insertRowTop(values: string[]): Promise<void> {
   });
 }
 
+/* ---------------- Generic named-tab helpers (Agent Status etc.) ---------------- */
+
+/** Create the tab if it doesn't exist yet. Returns true if it was created. */
+export async function ensureTab(title: string): Promise<boolean> {
+  if (!canWrite()) throw new SheetsReadOnlyError();
+  const meta = await api("?fields=sheets.properties.title");
+  if (meta.sheets?.some((s: any) => s.properties.title === title)) return false;
+  await api(":batchUpdate", {
+    method: "POST",
+    body: JSON.stringify({ requests: [{ addSheet: { properties: { title } } }] }),
+  });
+  return true;
+}
+
+/** All rows of a named tab ([] if the tab doesn't exist). */
+export async function readTab(title: string): Promise<string[][]> {
+  if (!canWrite()) throw new SheetsReadOnlyError();
+  try {
+    const data = await api(`/values/${encodeURIComponent(title)}?majorDimension=ROWS`);
+    return (data.values || []) as string[][];
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("(400)")) return []; // no such tab yet
+    throw err;
+  }
+}
+
+/** Replace a named tab's contents with `rows` (creates the tab if needed). */
+export async function writeTab(title: string, rows: string[][]): Promise<void> {
+  if (!canWrite()) throw new SheetsReadOnlyError();
+  await ensureTab(title);
+  await api(`/values/${encodeURIComponent(title)}!A1:ZZ10000:clear`, { method: "POST", body: "{}" });
+  await api(`/values/${encodeURIComponent(title)}!A1?valueInputOption=RAW`, {
+    method: "PUT",
+    body: JSON.stringify({ values: rows }),
+  });
+}
+
 /** Read a single cell's value (used to verify a row before writing to it). */
 export async function readCell(row: number, col: number): Promise<string> {
   if (!canWrite()) throw new SheetsReadOnlyError();
