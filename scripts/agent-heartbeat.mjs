@@ -15,6 +15,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { execSync } from "node:child_process";
 
 const HOME = os.homedir();
 const APP_URL = process.env.BLP_APP_URL || "https://blpsalesapp.netlify.app";
@@ -65,6 +66,71 @@ async function probe(url, timeoutMs = 3000) {
   }
 }
 
+/** OpenClaw cron store (live machines only — `.migrated` stores are retired). */
+function loadOpenClawJobs(storePath) {
+  if (!fs.existsSync(storePath)) return [];
+  try {
+    const d = JSON.parse(fs.readFileSync(storePath, "utf8"));
+    const jobs = Array.isArray(d) ? d : d.jobs || [];
+    return jobs.map((j) => ({
+      profile: j.agentId || "main",
+      cron: {
+        name: j.name || j.id,
+        enabled: j.enabled !== false,
+        schedule: j.schedule?.expr || "",
+        nextRunAt: j.state?.nextRunAtMs ? new Date(j.state.nextRunAtMs).toISOString() : null,
+        lastRunAt: j.state?.lastRunAtMs ? new Date(j.state.lastRunAtMs).toISOString() : null,
+        lastStatus: j.state?.lastStatus || null,
+        lastError: j.state?.lastError ? String(j.state.lastError).slice(0, 200) : null,
+      },
+    }));
+  } catch (e) {
+    console.error(`skip ${storePath}: ${e.message}`);
+    return [];
+  }
+}
+
+/**
+ * launchd services named com.blp.<agent>-… report as that agent's
+ * "service" entries (e.g. Chris's app server, Arnold's tunnel).
+ */
+function loadLaunchdServices(knownSlugs) {
+  const out = [];
+  let listing = "";
+  try {
+    listing = execSync("launchctl list", { encoding: "utf8", timeout: 10_000 });
+  } catch {
+    return out;
+  }
+  for (const line of listing.split("\n")) {
+    const m = line.trim().match(/^(\S+)\t(\S+)\t(com\.blp\.\S+)$/) || line.trim().match(/^(\S+)\s+(\S+)\s+(com\.blp\.\S+)$/);
+    if (!m) continue;
+    const [, pid, exitCode, label] = m;
+    if (label === "com.blp.agent-heartbeat") continue; // that's us
+    const slug = label
+      .replace("com.blp.", "")
+      .split(/[-.]/)
+      .find((part) => knownSlugs.has(part));
+    if (!slug) continue;
+    const running = pid !== "-";
+    const cleanExit = exitCode === "0";
+    out.push({
+      profile: slug,
+      cron: {
+        name: `service ${label.replace("com.blp.", "")}`,
+        enabled: true,
+        schedule: "launchd",
+        nextRunAt: null,
+        lastRunAt: null,
+        // A periodic job that last exited 0, or a daemon currently running, is healthy.
+        lastStatus: running || cleanExit ? "ok" : "error",
+        lastError: running || cleanExit ? null : `not running, last exit code ${exitCode}`,
+      },
+    });
+  }
+  return out;
+}
+
 // ---- gather ----
 const all = [];
 all.push(...loadJobs(path.join(HERMES, "cron", "jobs.json"), "main"));
@@ -74,11 +140,13 @@ if (fs.existsSync(profilesDir)) {
     all.push(...loadJobs(path.join(profilesDir, p, "cron", "jobs.json"), p));
   }
 }
+all.push(...loadOpenClawJobs(path.join(HOME, ".openclaw", "cron", "jobs.json")));
 
 const registry = JSON.parse(
   fs.readFileSync(path.join(HOME, "salesapp2", "src", "lib", "agent-registry.json"), "utf8")
 );
 const knownSlugs = new Set(registry.map((a) => a.slug));
+all.push(...loadLaunchdServices(knownSlugs));
 
 const bySlug = new Map();
 for (const { profile, cron } of all) {
