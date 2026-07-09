@@ -539,16 +539,28 @@ function DraftCard({ leadId, draft, lead, onDone }: { leadId: string; draft: Dra
   const [subject, setSubject] = useState(draft.subject || "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [coaching, setCoaching] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  const [flash, setFlash] = useState("");
 
-  async function act(action: "approve_send" | "dismiss") {
+  async function act(action: "approve_send" | "dismiss" | "train") {
     setBusy(true);
     setErr("");
     try {
-      await api(`/api/leads/${encodeURIComponent(leadId)}/drafts`, {
+      const r = await api<{ detail?: string; status: string }>(`/api/leads/${encodeURIComponent(leadId)}/drafts`, {
         method: "POST",
-        body: JSON.stringify({ createdAt: draft.createdAt, channel: draft.channel, action, body, subject, who: getWho() }),
+        body: JSON.stringify({
+          createdAt: draft.createdAt, channel: draft.channel, action, body, subject,
+          feedback: action === "train" ? feedback.trim() : undefined, who: getWho(),
+        }),
       });
-      onDone();
+      if (action === "train") {
+        setCoaching(false);
+        setFeedback("");
+        setFlash(r.detail || "Coaching sent.");
+      } else {
+        onDone();
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -566,6 +578,7 @@ function DraftCard({ leadId, draft, lead, onDone }: { leadId: string; draft: Dra
         <span style={{ marginLeft: "auto" }}>by {draft.createdBy === "arnold-api" ? "Arnold (AI)" : draft.createdBy}</span>
       </div>
       {err && <div className="banner bad">⚠ {err}</div>}
+      {flash && <div className="banner good">✓ {flash}</div>}
       {draft.note && <div className="muted" style={{ marginBottom: 8 }}>💡 {draft.note}</div>}
       {draft.channel === "email" && (
         <input style={{ width: "100%", marginBottom: 8 }} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" />
@@ -576,7 +589,26 @@ function DraftCard({ leadId, draft, lead, onDone }: { leadId: string; draft: Dra
           {busy ? "Working…" : draft.channel === "sms" ? "Approve & send text" : "Approve & send from info@"}
         </button>
         <button className="btn ghost small" onClick={() => act("dismiss")} disabled={busy}>Dismiss</button>
+        <button className="btn ghost small" onClick={() => setCoaching((v) => !v)} disabled={busy}>🎓 Train Arnold</button>
       </div>
+      {coaching && (
+        <div style={{ marginTop: 10, padding: 12, background: "#f7f2ea", borderRadius: 8 }}>
+          <label className="field">How could this response be better? Arnold records the lesson and rewrites the draft.</label>
+          <textarea
+            rows={3}
+            placeholder="e.g. Too formal for a text — match how the customer writes, and offer a specific visit time…"
+            value={feedback}
+            onChange={(e) => setFeedback(e.target.value)}
+            autoFocus
+          />
+          <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+            <button className="btn small" onClick={() => act("train")} disabled={busy || !feedback.trim()}>
+              {busy ? "Sending…" : "Send coaching"}
+            </button>
+            <button className="btn ghost small" onClick={() => { setCoaching(false); setFeedback(""); }}>Cancel</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
