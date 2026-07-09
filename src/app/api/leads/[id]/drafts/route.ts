@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLead, saveDrafts, appendTimeline, type DraftMessage } from "@/lib/leads";
 import { sendSms, sendEmail } from "@/lib/comms";
-import { notifyArnoldWebhook } from "@/lib/arnold";
+import { notifyArnoldWebhook, notifyTelegram } from "@/lib/arnold";
 import { requireSession, jsonError } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -56,6 +56,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         kind: "coaching",
         text: `🎓 Coaching for Arnold on his ${draft.channel} draft: ${feedback}\n(draft being coached: "${draft.body.slice(0, 160)}${draft.body.length > 160 ? "…" : ""}")`,
       });
+      notifyTelegram(
+        `🎓 <b>${who} coached Arnold</b> on his ${draft.channel} draft for ${lead.name}:\n` +
+          `"${feedback.slice(0, 500)}"\n` +
+          `<i>He's recording the lesson and rewriting the draft.</i>`
+      ).catch(() => {});
       const ping = await notifyArnoldWebhook({
         event: "training_feedback",
         lead: { id: lead.id },
