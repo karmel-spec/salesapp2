@@ -386,3 +386,20 @@ tbody tr:hover { background: #faf7f2; }
   border-bottom-color: #b8a99a;
   background: #f7f2ea;
 }
+
+/* ── Mobile polish (2026-07-10 audit) ── */
+/* Touch devices have no hover: always show the click-to-edit affordance */
+@media (hover: none) {
+  .inline-edit { border-bottom: 1px dashed #cbbfae; }
+}
+@media (max-width: 760px) {
+  /* 16px stops iOS from auto-zooming focused fields; taller controls hit
+     the 44px finger-target guideline */
+  input, select, textarea { font-size: 16px; }
+  input, textarea { min-height: 42px; }
+  .btn { min-height: 42px; }
+  .btn.small { min-height: 38px; }
+  /* stat tiles: two-up instead of one giant column */
+  .tiles { grid-template-columns: repeat(2, 1fr); }
+  .tile .value { font-size: 26px; }
+}
