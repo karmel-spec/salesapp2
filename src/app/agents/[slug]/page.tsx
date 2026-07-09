@@ -172,8 +172,10 @@ export default function AgentConsole({ params }: { params: Promise<{ slug: strin
 
       {agent.status === "coming-soon" && (
         <div className="banner warn">
-          🚧 {agent.name} isn&apos;t wired into the console yet — this page is the template we&apos;ll fill in
-          when {agent.name} goes live.
+          🚧 {agent.name} isn&apos;t wired into the console yet
+          {agent.vault
+            ? " — the info below comes from the Knowledge Vault; live widgets arrive when the brain is connected."
+            : " — this page is the template we'll fill in when " + agent.name + " goes live."}
         </div>
       )}
 
@@ -183,9 +185,39 @@ export default function AgentConsole({ params }: { params: Promise<{ slug: strin
         <div>
           {agent.widgets === "arnold" && <TaskBox agentName={agent.name} />}
 
+          {agent.vault?.mission && (
+            <div className="card" style={{ marginBottom: 18 }}>
+              <h2>Mission</h2>
+              <p style={{ margin: 0 }}>{agent.vault.mission}</p>
+            </div>
+          )}
+
+          {(agent.vault?.currentProjects?.length || 0) > 0 && (
+            <div className="card" style={{ marginBottom: 18 }}>
+              <h2>Current projects</h2>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                {agent.vault!.currentProjects!.map((p, i) => (
+                  <li key={i} style={{ marginBottom: 6 }}>{p}</li>
+                ))}
+              </ul>
+              {(agent.vault?.openQuestions?.length || 0) > 0 && (
+                <>
+                  <div className="label" style={{ marginTop: 12 }}>Open questions</div>
+                  <ul style={{ margin: "6px 0 0", paddingLeft: 18 }} className="muted">
+                    {agent.vault!.openQuestions!.map((q, i) => (
+                      <li key={i} style={{ marginBottom: 4 }}>{q}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          )}
+
           <div className="card">
             <h2>Schedule</h2>
-            {agent.schedule.length === 0 && <div className="muted">No schedule yet.</div>}
+            {agent.schedule.length === 0 && (agent.vault?.requestedCrons?.length || 0) === 0 && (
+              <div className="muted">No schedule yet.</div>
+            )}
             {agent.schedule.length > 0 && (
               <div className="table-wrap" style={{ border: "none" }}>
                 <table>
@@ -205,6 +237,18 @@ export default function AgentConsole({ params }: { params: Promise<{ slug: strin
                   </tbody>
                 </table>
               </div>
+            )}
+            {(agent.vault?.requestedCrons?.length || 0) > 0 && (
+              <>
+                <div className="label" style={{ marginTop: agent.schedule.length ? 12 : 0 }}>
+                  Requested (not yet running)
+                </div>
+                <ul style={{ margin: "6px 0 0", paddingLeft: 18 }} className="muted">
+                  {agent.vault!.requestedCrons!.map((c, i) => (
+                    <li key={i} style={{ marginBottom: 4 }}>{c}</li>
+                  ))}
+                </ul>
+              </>
             )}
           </div>
         </div>

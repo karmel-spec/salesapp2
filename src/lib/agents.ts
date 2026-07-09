@@ -1,4 +1,5 @@
 import REGISTRY from "./agent-registry.json";
+import VAULT from "./agent-vault.json";
 
 /**
  * BLP Agent Registry — generated from Karmel's agent registry spreadsheet
@@ -17,6 +18,20 @@ export interface AgentLink {
   name: string;
   href: string;
   note?: string;
+}
+
+/** Per-agent info harvested from the BLP Knowledge Vault (scripts/harvest-vault.mjs). */
+export interface VaultInfo {
+  mission?: string | null;
+  vibe?: string;
+  responsibilities?: string[];
+  needsApproval?: string[];
+  autonomous?: string[];
+  currentProjects?: string[];
+  openQuestions?: string[];
+  requestedCrons?: string[];
+  vaultFolder?: string;
+  docs?: [string, string][];
 }
 
 export interface AgentConfig {
@@ -43,6 +58,8 @@ export interface AgentConfig {
   onMacFiles: [string, string][];
   /** Team-reachable mind links (Drive folders, Obsidian Publish, etc.). */
   mindLinks?: AgentLink[];
+  /** Harvested from the Obsidian Knowledge Vault. */
+  vault?: VaultInfo;
   widgets?: "arnold";
 }
 
@@ -120,6 +137,22 @@ export const AGENTS: AgentConfig[] = (REGISTRY as Array<Record<string, unknown>>
     telegram: (r.telegram as string) || undefined,
     telegramActive: Boolean(r.telegramActive),
   };
+
+  const vault = (VAULT as unknown as Record<string, VaultInfo>)[base.slug];
+  if (vault) {
+    base.vault = vault;
+    if (vault.responsibilities?.length) {
+      base.boundaries = {
+        can: vault.responsibilities.join(" · "),
+        never: vault.needsApproval?.length
+          ? `Without human approval: ${vault.needsApproval.map((s) => s.replace(/\.$/, "")).join(" · ")}`
+          : DEFAULT_BOUNDARIES.never,
+      };
+    }
+    if (vault.vibe) base.boundaries = { ...base.boundaries, voice: vault.vibe };
+    if (vault.docs?.length) base.onMacFiles = vault.docs;
+  }
+
   return { ...base, ...(OVERRIDES[base.slug] || {}) };
 });
 
