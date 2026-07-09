@@ -768,7 +768,7 @@ function InlineStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: stri
   const [lostWhy, setLostWhy] = useState("");
   const [newLostWhy, setNewLostWhy] = useState("");
   const [snoozeDate, setSnoozeDate] = useState("");
-  const [closedBy, setClosedBy] = useState("Brigham");
+  const [closedBy, setClosedBy] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function save(status: string, extra: Record<string, string> = {}) {
@@ -814,12 +814,38 @@ function InlineStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: stri
   if (choice === "Won") {
     return (
       <span style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ fontSize: 13 }}>🏆 Sale closed by:</span>
-        <select value={closedBy} autoFocus disabled={busy} onChange={(e) => setClosedBy(e.target.value)}>
-          {REPS.map((r) => <option key={r} value={r}>{r}{r === "Brigham" ? " (default)" : ""}</option>)}
-        </select>
-        <button className="btn small" disabled={busy} onClick={() => save("Won", { closedBy })}>✓ Mark Won</button>
-        <button className="btn ghost small" onClick={() => { setChoice(""); setEditing(false); }}>✕</button>
+        {closedBy === "" ? (
+          <>
+            <span style={{ fontSize: 13 }}>🏆 Did Brigham close this sale?</span>
+            <button className="btn small" disabled={busy} onClick={() => save("Won", { closedBy: "Brigham" })}>
+              {busy ? "Saving…" : "✓ Yes — Won"}
+            </button>
+            <button className="btn ghost small" disabled={busy} onClick={() => setClosedBy("__pick__")}>
+              Another rep…
+            </button>
+          </>
+        ) : (
+          <>
+            <span style={{ fontSize: 13 }}>🏆 Sale closed by:</span>
+            <select
+              value={closedBy === "__pick__" ? "" : closedBy}
+              autoFocus
+              disabled={busy}
+              onChange={(e) => setClosedBy(e.target.value || "__pick__")}
+            >
+              <option value="">— pick the closer</option>
+              {REPS.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+            <button
+              className="btn small"
+              disabled={busy || closedBy === "__pick__"}
+              onClick={() => save("Won", { closedBy })}
+            >
+              {busy ? "Saving…" : "✓ Won"}
+            </button>
+          </>
+        )}
+        <button className="btn ghost small" onClick={() => { setChoice(""); setClosedBy(""); setEditing(false); }}>✕</button>
       </span>
     );
   }
