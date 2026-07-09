@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 }
 
 const EDITABLE: (keyof typeof COLS)[] = [
-  "status", "rep", "headline", "score", "firstName", "lastName", "notes",
+  "status", "rep", "subRep", "headline", "score", "firstName", "lastName", "notes",
   "phone", "email", "social", "source", "inquiryMethod", "leadType",
   "pianoType", "value", "lastContact",
 ];

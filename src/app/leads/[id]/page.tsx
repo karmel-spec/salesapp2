@@ -85,6 +85,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
         <StatusBadge lead={lead} />
         <StaleBadge lead={lead} />
         <RepSelect lead={lead} onFlash={setFlash} onDone={load} />
+        <SubRepSelect lead={lead} onFlash={setFlash} onDone={load} />
         <span className="spacer" />
         <button className="btn" onClick={askArnold} disabled={asking}>
           {asking ? "Asking Arnold…" : "Ask Arnold for a draft"}
@@ -149,6 +150,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
               <dt>Headline</dt><dd><InlineText lead={lead} field="headline" value={lead.headline} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Status</dt><dd><InlineStatus lead={lead} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Rep (sheet)</dt><dd><InlineSelect lead={lead} field="rep" value={lead.repRaw} options={[...REPS]} emptyLabel="— unassigned (defaults to Brigham)" onFlash={setFlash} onDone={loadSoon} /></dd>
+              <dt>Sub-rep</dt><dd><InlineSelect lead={lead} field="subRep" value={lead.subRep} options={[...REPS]} emptyLabel="— none (add a helper, e.g. Arnold)" onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Phone</dt><dd><InlineText lead={lead} field="phone" value={lead.phone} hint={lead.phoneDialable ? ` → ${lead.phoneDialable}` : ""} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Email</dt><dd><InlineText lead={lead} field="email" value={lead.email} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Social</dt><dd><InlineText lead={lead} field="social" value={lead.social} onFlash={setFlash} onDone={loadSoon} /></dd>
@@ -295,6 +297,48 @@ function RepSelect({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: string)
       title="Reassign this lead"
     >
       {options.map((r) => (
+        <option key={r} value={r}>{r}</option>
+      ))}
+    </select>
+  );
+}
+
+/**
+ * Assistant rep — works the lead WITH the primary owner (Brigham keeps the
+ * lead, Arnold handles delegated follow-up). The stale sweep never steals a
+ * lead whose sub-rep is already Arnold.
+ */
+function SubRepSelect({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: string) => void; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+
+  async function assign(subRep: string) {
+    if (subRep === lead.subRep) return;
+    setBusy(true);
+    try {
+      await api(`/api/leads/${encodeURIComponent(lead.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ fields: { subRep }, who: getWho() }),
+      });
+      onFlash(subRep ? `${subRep} added as sub-rep — ${lead.effectiveRep || "the primary"} keeps the lead.` : "Sub-rep removed.");
+      onDone();
+    } catch (e) {
+      onFlash(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <select
+      aria-label="Sub-rep (assistant)"
+      value={lead.subRep}
+      disabled={busy}
+      onChange={(e) => assign(e.target.value)}
+      style={{ padding: "3px 8px", fontSize: 12.5, borderRadius: 99, color: lead.subRep ? undefined : "#877f7a" }}
+      title="Add a second rep who works this lead with the owner"
+    >
+      <option value="">{lead.subRep ? "— remove sub-rep" : "+ sub-rep"}</option>
+      {REPS.filter((r) => r !== lead.effectiveRep).map((r) => (
         <option key={r} value={r}>{r}</option>
       ))}
     </select>

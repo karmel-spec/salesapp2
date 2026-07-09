@@ -16,6 +16,7 @@ export const COLS = {
   dateAdded: "Date Added",
   lastContact: "Date of Last Contact",
   rep: "Sales Rep OPEN / WORKING / CLOSE",
+  subRep: "Sub Rep (assistant)",
   headline: "Headline",
   score: "1-10",
   firstName: "Customer FIRST Name",
@@ -75,6 +76,9 @@ export interface Lead {
   snoozeWoke: boolean; // snooze date has passed — lead is treated as active again
   rep: string; // normalized: Brigham | Karmel | Sally | Melissa | Arnold | other raw
   repRaw: string;
+  /** Assistant rep working the lead WITH the primary (e.g. Brigham owns it,
+   *  Arnold handles follow-up tasks). Never overwritten by the stale sweep. */
+  subRep: string;
   effectiveRep: string; // rep after stale rule (stale open leads → Arnold)
   headline: string;
   score: string;
@@ -328,6 +332,7 @@ function rowToLead(row: string[], rowNumber: number, shape: SheetShape, now: Dat
     snoozeWoke,
     rep,
     repRaw,
+    subRep: normRep(get("subRep")),
     // A deliberately assigned rep always wins (manual reassignment sticks).
     // The stale rule claims only unassigned stale leads for display; the
     // sweep is what persists Arnold onto stale leads' sheet rows.
@@ -415,6 +420,10 @@ export async function updateLeadFields(
   shape: SheetShape,
   fields: Partial<Record<keyof typeof COLS, string>>
 ): Promise<void> {
+  // Auto-create any app-managed columns being written (e.g. "Sub Rep").
+  if (Object.keys(fields).some((k) => shape.col[k as keyof typeof COLS] < 0)) {
+    shape = await ensureAppColumns(shape);
+  }
   const target = await ensureRowCurrent(lead, shape);
   const cells = Object.entries(fields).map(([k, value]) => ({
     row: target.row,
@@ -425,7 +434,7 @@ export async function updateLeadFields(
   invalidateCache();
 }
 
-const AUTO_COLS: (keyof typeof COLS)[] = ["blpId", "appActivity", "timelineJson", "arnoldDraftJson"];
+const AUTO_COLS: (keyof typeof COLS)[] = ["blpId", "appActivity", "timelineJson", "arnoldDraftJson", "subRep"];
 
 /**
  * The hidden app columns may not exist yet in a fresh sheet; add any missing
@@ -594,7 +603,9 @@ export async function wakeExpiredSnoozes(): Promise<Lead[]> {
  */
 export async function applyStaleAssignments(): Promise<Lead[]> {
   const { leads, shape: rawShape } = await getLeads(true);
-  const targets = leads.filter((l) => l.isStale && l.rep !== config.staleRep);
+  // A lead whose sub-rep is already Arnold is being worked with him — the
+  // sweep leaves the primary owner in place.
+  const targets = leads.filter((l) => l.isStale && l.rep !== config.staleRep && l.subRep !== config.staleRep);
   if (!targets.length) return [];
   const shape = await ensureAppColumns(rawShape);
   const repCol = requireCol(shape, "rep");

@@ -36,7 +36,7 @@ export default function LeadsPage() {
   const reps = useMemo(() => {
     if (!leads) return [];
     // Sally retired — her historical leads keep her badge, but she's not a filter option.
-    return Array.from(new Set(leads.map((l) => l.effectiveRep).filter(Boolean)))
+    return Array.from(new Set(leads.flatMap((l) => [l.effectiveRep, l.subRep]).filter(Boolean)))
       .filter((r) => r !== "Sally")
       .sort();
   }, [leads]);
@@ -48,7 +48,7 @@ export default function LeadsPage() {
       if (bucket === "open") {
         if (l.statusBucket !== "new" && l.statusBucket !== "active") return false;
       } else if (bucket !== "all" && l.statusBucket !== bucket) return false;
-      if (rep !== "all" && l.effectiveRep !== rep) return false;
+      if (rep !== "all" && l.effectiveRep !== rep && l.subRep !== rep) return false;
       if (staleOnly && !l.isStale) return false;
       if (!needle) return true;
       return [l.name, l.headline, l.leadType, l.pianoType, l.phone, l.email, l.notes]
@@ -111,7 +111,7 @@ export default function LeadsPage() {
                   <div className="muted">{l.headline || l.notes.slice(0, 80) || "—"}</div>
                 </td>
                 <td><StatusBadge lead={l} /> <StaleBadge lead={l} /></td>
-                <td><RepBadge rep={l.effectiveRep} /></td>
+                <td><RepBadge rep={l.effectiveRep} subRep={l.subRep} /></td>
                 <td className="muted">{l.leadType || "—"}{l.pianoType ? ` · ${l.pianoType}` : ""}</td>
                 <td className="muted">{fmtDays(l)}</td>
                 <td>{pendingDrafts(l).length > 0 && <span className="badge pending-draft">{pendingDrafts(l).length} pending</span>}</td>

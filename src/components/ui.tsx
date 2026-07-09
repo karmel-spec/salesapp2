@@ -17,9 +17,14 @@ export function StatusBadge({ lead }: { lead: Lead }) {
   return <span className={`badge ${lead.statusBucket}`}>{labels[lead.statusBucket]}</span>;
 }
 
-export function RepBadge({ rep }: { rep: string }) {
+export function RepBadge({ rep, subRep }: { rep: string; subRep?: string }) {
   if (!rep) return <span className="muted">—</span>;
-  return <span className={`badge rep ${rep === "Arnold" ? "arnold" : ""}`}>{rep}</span>;
+  return (
+    <span className={`badge rep ${rep === "Arnold" ? "arnold" : ""}`}>
+      {rep}
+      {subRep && <span style={{ opacity: 0.75, fontWeight: 500 }}>&thinsp;+&thinsp;{subRep}</span>}
+    </span>
+  );
 }
 
 export function StaleBadge({ lead }: { lead: Lead }) {
