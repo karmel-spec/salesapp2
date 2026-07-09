@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLead, saveDrafts, appendTimeline, type DraftMessage } from "@/lib/leads";
 import { sendSms, sendEmail } from "@/lib/comms";
+import { notifyArnoldWebhook } from "@/lib/arnold";
 import { requireSession, jsonError } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * Act on an Arnold draft: human approves (and it sends), or dismisses.
+ * Act on an Arnold draft: human approves (and it sends), dismisses, or
+ * coaches ("train": feedback goes to the lead timeline + Arnold's brain,
+ * which records the lesson and rewrites the draft).
  * Body: {
  *   createdAt, channel,          // identifies the draft
- *   action: "approve_send" | "dismiss",
+ *   action: "approve_send" | "dismiss" | "train",
  *   body?, subject?,             // human edits before sending
+ *   feedback?,                   // for "train"
  *   who?: string
  * }
  */
@@ -27,9 +31,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const input = (await req.json()) as {
       createdAt: string;
       channel: "sms" | "email";
-      action: "approve_send" | "dismiss";
+      action: "approve_send" | "dismiss" | "train";
       body?: string;
       subject?: string;
+      feedback?: string;
       who?: string;
     };
     const idx = lead.drafts.findIndex(
@@ -41,6 +46,32 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const draft = { ...drafts[idx] };
     const who = input.who || "app";
     const now = new Date().toISOString();
+
+    if (input.action === "train") {
+      const feedback = (input.feedback || "").trim();
+      if (!feedback) return NextResponse.json({ error: "Coaching feedback is empty" }, { status: 400 });
+      await appendTimeline(lead, shape, {
+        at: now,
+        who,
+        kind: "coaching",
+        text: `🎓 Coaching for Arnold on his ${draft.channel} draft: ${feedback}\n(draft being coached: "${draft.body.slice(0, 160)}${draft.body.length > 160 ? "…" : ""}")`,
+      });
+      const ping = await notifyArnoldWebhook({
+        event: "training_feedback",
+        lead: { id: lead.id },
+        note:
+          `${who} coached your pending ${draft.channel} draft for ${lead.name}. Feedback: "${feedback}". ` +
+          `Record the lesson in kb/coaching-feedback.md (dated, generalized so it improves ALL future drafts), ` +
+          `then rewrite this lead's pending draft(s) applying it.`,
+      }).catch(() => ({ ok: false, detail: "webhook unreachable" }));
+      return NextResponse.json({
+        ok: true,
+        status: "coached",
+        detail: ping.ok
+          ? "Coaching sent — Arnold is recording the lesson and rewriting the draft."
+          : "Coaching saved to the lead's activity — Arnold picks it up on his next drafting pass (his brain wasn't reachable right now).",
+      });
+    }
 
     if (input.action === "dismiss") {
       draft.status = "dismissed";

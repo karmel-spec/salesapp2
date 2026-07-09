@@ -42,12 +42,12 @@ export default function ApprovalsPage() {
     [queue, repFilter]
   );
 
-  async function act(leadId: string, createdAt: string, channel: string, action: "approve_send" | "dismiss", body: string, subject: string) {
+  async function act(leadId: string, createdAt: string, channel: string, action: "approve_send" | "dismiss" | "train", body: string, subject: string, feedback?: string) {
     setFlash(null);
     try {
       const r = await api<{ detail?: string; status: string }>(`/api/leads/${encodeURIComponent(leadId)}/drafts`, {
         method: "POST",
-        body: JSON.stringify({ createdAt, channel, action, body, subject, who: getWho() }),
+        body: JSON.stringify({ createdAt, channel, action, body, subject, feedback, who: getWho() }),
       });
       setFlash({ kind: "good", text: r.detail || `Draft ${r.status}` });
       load();
@@ -100,7 +100,7 @@ export default function ApprovalsPage() {
               key={`${d.channel}-${d.createdAt}`}
               targetLabel={d.channel === "sms" ? lead.phoneDialable || "⚠ no phone" : lead.emailClean || "⚠ no email"}
               draft={d}
-              onAct={(action, body, subject) => act(lead.id, d.createdAt, d.channel, action, body, subject)}
+              onAct={(action, body, subject, feedback) => act(lead.id, d.createdAt, d.channel, action, body, subject, feedback)}
             />
           ))}
         </div>
@@ -116,16 +116,19 @@ function QueueDraft({
 }: {
   draft: { channel: string; body: string; subject?: string; note?: string; createdBy: string };
   targetLabel: string;
-  onAct: (action: "approve_send" | "dismiss", body: string, subject: string) => Promise<void>;
+  onAct: (action: "approve_send" | "dismiss" | "train", body: string, subject: string, feedback?: string) => Promise<void>;
 }) {
   const [body, setBody] = useState(draft.body);
   const [subject, setSubject] = useState(draft.subject || "");
   const [busy, setBusy] = useState(false);
+  const [coaching, setCoaching] = useState(false);
+  const [feedback, setFeedback] = useState("");
 
-  async function run(action: "approve_send" | "dismiss") {
+  async function run(action: "approve_send" | "dismiss" | "train") {
     setBusy(true);
-    await onAct(action, body, subject);
+    await onAct(action, body, subject, feedback.trim() || undefined);
     setBusy(false);
+    if (action === "train") { setCoaching(false); setFeedback(""); }
   }
 
   return (
@@ -144,7 +147,28 @@ function QueueDraft({
           {busy ? "Working…" : "Approve & send"}
         </button>
         <button className="btn ghost small" onClick={() => run("dismiss")} disabled={busy}>Dismiss</button>
+        <button className="btn ghost small" onClick={() => setCoaching((v) => !v)} disabled={busy}>
+          🎓 Train Arnold
+        </button>
       </div>
+      {coaching && (
+        <div style={{ marginTop: 10, padding: 12, background: "#f7f2ea", borderRadius: 8 }}>
+          <label className="field">How could this response be better? Arnold records the lesson and rewrites the draft.</label>
+          <textarea
+            rows={3}
+            placeholder="e.g. Too pushy for a first follow-up — lead with the free showroom visit, don't mention financing until they ask…"
+            value={feedback}
+            onChange={(e) => setFeedback(e.target.value)}
+            autoFocus
+          />
+          <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+            <button className="btn small" onClick={() => run("train")} disabled={busy || !feedback.trim()}>
+              {busy ? "Sending…" : "Send coaching"}
+            </button>
+            <button className="btn ghost small" onClick={() => { setCoaching(false); setFeedback(""); }}>Cancel</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
