@@ -106,11 +106,12 @@ function BackupsCard() {
       {!info && <div className="muted">Checking backups…</div>}
       {info && !info.configured && (
         <div className="muted">
-          Nightly CSV backups go to a Google Drive folder once connected. Setup (one time):
+          Nightly CSV backups go to a Google <b>Shared Drive</b> once connected (regular My Drive
+          folders can&apos;t accept service-account uploads). Setup (one time):
           <ol style={{ margin: "6px 0 0", paddingLeft: 20 }}>
-            <li>Create a folder in Google Drive (e.g. &quot;Leads Log Backups&quot;)</li>
-            <li>Share it with <code>{info.serviceAccount}</code> as Editor</li>
-            <li>Set <code>DRIVE_BACKUP_FOLDER_ID</code> (the long ID in the folder&apos;s URL) in Netlify env + redeploy</li>
+            <li>Google Drive → <b>Shared drives</b> (left sidebar) → + New → name it &quot;BLP Backups&quot;</li>
+            <li>Open it → Manage members → add <code>{info.serviceAccount}</code> as <b>Content manager</b></li>
+            <li>Set <code>DRIVE_BACKUP_FOLDER_ID</code> to the ID in the shared drive&apos;s URL, in Netlify env + redeploy</li>
           </ol>
         </div>
       )}
