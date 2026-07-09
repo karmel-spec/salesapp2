@@ -916,18 +916,15 @@ function InlineStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: stri
               value={closedBy === "__pick__" ? "" : closedBy}
               autoFocus
               disabled={busy}
-              onChange={(e) => setClosedBy(e.target.value || "__pick__")}
+              onChange={(e) => {
+                const v = e.target.value;
+                setClosedBy(v || "__pick__");
+                if (v) save("Won", { closedBy: v }); // picking the closer IS the save
+              }}
             >
-              <option value="">— pick the closer</option>
+              <option value="">— pick the closer (saves)</option>
               {REPS.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
-            <button
-              className="btn small"
-              disabled={busy || closedBy === "__pick__"}
-              onClick={() => save("Won", { closedBy })}
-            >
-              {busy ? "Saving…" : "✓ Won"}
-            </button>
           </>
         )}
         <button className="btn ghost small" onClick={() => { setChoice(""); setClosedBy(""); setEditing(false); }}>✕</button>
