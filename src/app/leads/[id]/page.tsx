@@ -863,16 +863,35 @@ function InlineStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: stri
     const reason = lostWhy === "__new__" ? newLostWhy.trim() : lostWhy;
     return (
       <span style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ fontSize: 13 }}>💔 Why was it lost? (required)</span>
-        <select value={lostWhy} autoFocus disabled={busy} onChange={(e) => setLostWhy(e.target.value)} style={{ flex: 1, minWidth: 150 }}>
+        <span style={{ fontSize: 13 }}>💔 Why was it lost? (required — picking a reason saves)</span>
+        <select
+          value={lostWhy}
+          autoFocus
+          disabled={busy}
+          onChange={(e) => {
+            const v = e.target.value;
+            setLostWhy(v);
+            if (v && v !== "__new__") save(`LOST - ${v}`); // picking a reason IS the save
+          }}
+          style={{ flex: 1, minWidth: 150 }}
+        >
           <option value="">— pick a reason</option>
           {lostOptions.map((r) => <option key={r} value={r}>{r}</option>)}
           <option value="__new__">＋ Add a new reason…</option>
         </select>
         {lostWhy === "__new__" && (
-          <input style={{ flex: 1, minWidth: 130 }} placeholder="New reason" value={newLostWhy} onChange={(e) => setNewLostWhy(e.target.value)} autoFocus />
+          <>
+            <input
+              style={{ flex: 1, minWidth: 130 }}
+              placeholder="New reason — Enter saves"
+              value={newLostWhy}
+              onChange={(e) => setNewLostWhy(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && reason) save(`LOST - ${reason}`); }}
+              autoFocus
+            />
+            <button className="btn small" disabled={busy || !reason} onClick={() => save(`LOST - ${reason}`)}>{busy ? "Saving…" : "✓ Lost"}</button>
+          </>
         )}
-        <button className="btn small" disabled={busy || !reason} onClick={() => save(`LOST - ${reason}`)}>{busy ? "Saving…" : "✓ Lost"}</button>
         <button className="btn ghost small" onClick={() => { setChoice(""); setEditing(false); }}>✕</button>
       </span>
     );
@@ -944,7 +963,6 @@ function InlineStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: stri
         if (v === "LOST" || v === "Snoozed" || v === "Won") setChoice(v);
         else if (v) save(v);
       }}
-      onBlur={(e) => { if (!choice && !e.currentTarget.contains(e.relatedTarget as Node)) setEditing(false); }}
       onKeyDown={(e) => { if (e.key === "Escape") setEditing(false); }}
     >
       <option value="">{`Keep current: "${lead.status || "(blank = New)"}"`}</option>
