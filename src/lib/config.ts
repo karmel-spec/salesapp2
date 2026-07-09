@@ -49,8 +49,14 @@ export const config = {
     process.env.DRY_RUN_SENDS === "1" ||
     (!process.env.BLP_APP_ACCESS_KEY && process.env.DRY_RUN_SENDS !== "0"),
 
-  // Google Drive folder (shared with the service account) for Leads Log backups
-  driveBackupFolderId: process.env.DRIVE_BACKUP_FOLDER_ID || "",
+  // Google Drive folder (shared with the service account) for Leads Log
+  // backups. Accepts a bare ID, a full folder URL, or an ID with ?usp=…
+  // link suffix — humans paste all three.
+  driveBackupFolderId: (process.env.DRIVE_BACKUP_FOLDER_ID || "")
+    .split("?")[0]
+    .split("/")
+    .filter(Boolean)
+    .pop() || "",
 
   // Google sign-in for reps (domain-restricted OAuth)
   googleOauthClientId: process.env.GOOGLE_OAUTH_CLIENT_ID || "",
