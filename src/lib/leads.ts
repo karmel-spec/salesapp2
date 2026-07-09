@@ -390,9 +390,10 @@ export async function getLeads(force = false): Promise<{ leads: Lead[]; shape: S
     if (!row.some((c) => c && c.trim() && !["TRUE", "FALSE"].includes(c.trim().toUpperCase()))) continue;
     const lead = rowToLead(row, i + 1, shape, now);
     // Section-label rows humans type into the sheet ("ACTIVE SHOP LEADS",
-    // "Player Rebuild") have no name, no contact info, no status, no id —
-    // they're headings, not leads.
-    if (!lead.name.replace("(no name)", "").trim() && !lead.phoneDialable && !lead.emailClean && !lead.social && !lead.status && !lead.id.startsWith("BLP") && !lead.id.startsWith("blp")) {
+    // "Player Rebuild") are headings, not leads: no name and no way to
+    // contact anyone. (Some carry a stamped blp_id from the backfill —
+    // identity fields, not ids, decide what counts as a lead.)
+    if (!lead.name.replace("(no name)", "").trim() && !lead.phone.trim() && !lead.email.trim() && !lead.social.trim()) {
       continue;
     }
     leads.push(lead);
