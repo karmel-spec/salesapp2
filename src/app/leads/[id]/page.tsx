@@ -132,9 +132,9 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
       )}
       {lead.isStale && lead.rep !== "Arnold" && (
         <div className="banner warn">
-          ⏰ {lead.daysSinceContact} days since last contact — this lead now belongs to Arnold by the
+          ⏰ {lead.daysSinceContact} days since last contact — Arnold joins as sub-rep under the
           {lead.staleRule === "new-10d" ? " 10-day new-lead" : " 30-day"}
-          rule. Run the stale sweep from the Dashboard to write it back to the sheet.
+          rule ({lead.effectiveRep} keeps the lead). Run the stale sweep from the Dashboard to write it to the sheet.
         </div>
       )}
 
@@ -276,7 +276,7 @@ function RepSelect({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: string)
       });
       onFlash(
         lead.isStale && rep !== "Arnold"
-          ? `Reassigned to ${rep}. Heads up: this lead is still ${lead.daysSinceContact}d stale — the next stale sweep hands it back to Arnold unless contact is logged.`
+          ? `Reassigned to ${rep}. Heads up: this lead is still ${lead.daysSinceContact}d stale — the next sweep adds Arnold as sub-rep unless contact is logged.`
           : `Reassigned to ${rep}.`
       );
       onDone();

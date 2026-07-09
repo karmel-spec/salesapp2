@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       totalLeads: leads.length,
       staleLeads: stale.length,
-      staleNotYetArnold: stale.filter((l) => l.rep !== config.staleRep).length,
+      staleNotYetArnold: stale.filter((l) => l.rep !== config.staleRep && l.subRep !== config.staleRep).length,
       writeEnabled: canWrite(),
       integrations: integrationStatus(),
       rules: { staleDays: config.staleDays, defaultRep: config.defaultRep, staleRep: config.staleRep },
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     const reassigned = await applyStaleAssignments();
     if (reassigned.length) {
       notifyTelegram(
-        `🤖 <b>Arnold picked up ${reassigned.length} stale lead(s)</b> (${config.staleDays}+ days no contact):\n` +
+        `🤖 <b>Arnold joined ${reassigned.length} quiet lead(s) as sub-rep</b> (primary reps keep them):\n` +
           reassigned.map((l) => `• ${l.name} — ${l.headline || l.leadType}`).join("\n")
       ).catch(() => {});
     }

@@ -86,7 +86,7 @@ export default function SettingsPage() {
           <dd>{status.rules.defaultRep} — every new lead is assigned to him first.</dd>
           <dt>Stale rule</dt>
           <dd>
-            {status.rules.staleDays}+ days without contact → assigned to {status.rules.staleRep} (the Chief Sales
+            {status.rules.staleDays}+ days without contact (10 for never-contacted new leads) → {status.rules.staleRep} joins as sub-rep (the Chief Sales
             Agent). Currently {status.staleLeads} stale, {status.staleNotYetArnold} still to hand over on the sheet.
           </dd>
           <dt>Human in the loop</dt>

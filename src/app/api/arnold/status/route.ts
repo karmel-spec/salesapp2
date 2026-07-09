@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       }
     }
     const queue = leads.filter(
-      (l) => l.effectiveRep === "Arnold" && (l.statusBucket === "new" || l.statusBucket === "active")
+      (l) => (l.effectiveRep === "Arnold" || l.effectiveSubRep === "Arnold") && (l.statusBucket === "new" || l.statusBucket === "active")
     ).length;
 
     return NextResponse.json({

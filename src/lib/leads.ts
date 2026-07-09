@@ -79,7 +79,10 @@ export interface Lead {
   /** Assistant rep working the lead WITH the primary (e.g. Brigham owns it,
    *  Arnold handles follow-up tasks). Never overwritten by the stale sweep. */
   subRep: string;
-  effectiveRep: string; // rep after stale rule (stale open leads → Arnold)
+  effectiveRep: string; // primary owner (defaults to Brigham for open leads)
+  /** Sub-rep after the stale rule: quiet leads get Arnold as HELPER (the
+   *  primary keeps the lead). */
+  effectiveSubRep: string;
   headline: string;
   score: string;
   firstName: string;
@@ -313,6 +316,7 @@ function rowToLead(row: string[], rowNumber: number, shape: SheetShape, now: Dat
   const threshold = everContacted ? config.staleDays : config.newLeadStaleDays;
   const isStale = openBucket && daysSince !== null && daysSince >= threshold && arnoldReachable;
 
+  const subRepNorm = normRep(get("subRep"));
   const first = get("firstName").trim();
   const last = get("lastName").trim();
   const blpId = get("blpId").trim();
@@ -332,11 +336,11 @@ function rowToLead(row: string[], rowNumber: number, shape: SheetShape, now: Dat
     snoozeWoke,
     rep,
     repRaw,
-    subRep: normRep(get("subRep")),
-    // A deliberately assigned rep always wins (manual reassignment sticks).
-    // The stale rule claims only unassigned stale leads for display; the
-    // sweep is what persists Arnold onto stale leads' sheet rows.
-    effectiveRep: rep || (isStale ? config.staleRep : openBucket ? config.defaultRep : ""),
+    subRep: subRepNorm,
+    // The primary owner is never displaced by the stale rule (2026-07-09):
+    // quiet leads get Arnold as SUB-REP instead, and the owner keeps the lead.
+    effectiveRep: rep || (openBucket ? config.defaultRep : ""),
+    effectiveSubRep: subRepNorm || (isStale && rep !== config.staleRep ? config.staleRep : ""),
     headline: get("headline").trim(),
     score: get("score").trim(),
     firstName: first,
@@ -598,28 +602,28 @@ export async function wakeExpiredSnoozes(): Promise<Lead[]> {
 
 /**
  * Stale sweep: persist the quiet-lead rules back to the sheet. Never-contacted
- * leads go to Arnold after newLeadStaleDays (10); worked leads after staleDays
- * (30) of quiet. Returns the leads that were reassigned.
+ * leads after newLeadStaleDays (10) and worked leads after staleDays (30) of
+ * quiet get Arnold added as SUB-REP — the primary rep keeps the lead.
+ * Returns the leads Arnold joined.
  */
 export async function applyStaleAssignments(): Promise<Lead[]> {
   const { leads, shape: rawShape } = await getLeads(true);
-  // A lead whose sub-rep is already Arnold is being worked with him — the
-  // sweep leaves the primary owner in place.
+  // Skip leads Arnold already owns or already assists.
   const targets = leads.filter((l) => l.isStale && l.rep !== config.staleRep && l.subRep !== config.staleRep);
   if (!targets.length) return [];
   const shape = await ensureAppColumns(rawShape);
-  const repCol = requireCol(shape, "rep");
+  const subRepCol = requireCol(shape, "subRep");
   // One batched write for the entire sweep — per-lead writes blow through
   // the Sheets 60-writes/minute quota with a hundred stale leads.
   const cells = targets.flatMap((l) => [
-    { row: l.row, col: repCol, value: config.staleRep },
+    { row: l.row, col: subRepCol, value: config.staleRep },
     ...timelineCells(l, shape, {
       at: new Date().toISOString(),
       who: "app",
       kind: "assign",
-      text: `Auto-reassigned to ${config.staleRep} (${l.daysSinceContact}d quiet — ${
+      text: `${config.staleRep} added as sub-rep (${l.daysSinceContact}d quiet — ${
         l.staleRule === "new-10d" ? `new lead never contacted, ${config.newLeadStaleDays}-day rule` : `worked lead, ${config.staleDays}-day rule`
-      }; was "${l.repRaw || "unassigned"}")`,
+      }); ${l.effectiveRep || "the primary rep"} keeps the lead`,
     }),
   ]);
   await writeCells(cells);

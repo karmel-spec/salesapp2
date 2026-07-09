@@ -34,7 +34,7 @@ export default function Dashboard() {
     const byBucket: [string, number][] = (["new", "active", "snoozed", "won", "lost", "closed", "unqualified", "inactive", "support"] as const)
       .map((b) => [b, leads.filter((l) => l.statusBucket === b).length] as [string, number])
       .filter(([, n]) => n > 0);
-    return { open, stale, approvals, won, byBucket, arnoldQueue: leads.filter((l) => l.effectiveRep === "Arnold" && (l.statusBucket === "new" || l.statusBucket === "active")) };
+    return { open, stale, approvals, won, byBucket, arnoldQueue: leads.filter((l) => (l.effectiveRep === "Arnold" || l.effectiveSubRep === "Arnold") && (l.statusBucket === "new" || l.statusBucket === "active")) };
   }, [leads]);
 
   async function runSweep() {
@@ -43,7 +43,7 @@ export default function Dashboard() {
     try {
       const r = await api<{ reassigned: { name: string }[]; woken?: { name: string }[] }>("/api/sync", { method: "POST" });
       const parts: string[] = [];
-      if (r.reassigned.length) parts.push(`Reassigned ${r.reassigned.length} stale lead(s) to Arnold: ${r.reassigned.map((x) => x.name).join(", ")}`);
+      if (r.reassigned.length) parts.push(`Arnold joined ${r.reassigned.length} quiet lead(s) as sub-rep: ${r.reassigned.map((x) => x.name).join(", ")}`);
       if (r.woken?.length) parts.push(`⏰ Woke ${r.woken.length} snoozed lead(s): ${r.woken.map((x) => x.name).join(", ")}`);
       setSweepResult(parts.join(" · ") || "Nothing to do — the sheet is already up to date.");
       load();
@@ -142,7 +142,7 @@ export default function Dashboard() {
               <Link href={`/leads/${encodeURIComponent(l.id)}`}>
                 <span className="lead-name">{l.name}</span>{" "}
                 <span className="muted">— {l.headline || l.leadType || "new inquiry"}</span>{" "}
-                <RepBadge rep={l.effectiveRep} />
+                <RepBadge rep={l.effectiveRep} subRep={l.effectiveSubRep} />
               </Link>
             </div>
           ))}
