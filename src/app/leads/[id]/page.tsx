@@ -767,6 +767,27 @@ function InlineStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: stri
   const [choice, setChoice] = useState("");
   const [lostWhy, setLostWhy] = useState("");
   const [newLostWhy, setNewLostWhy] = useState("");
+  const [lostOptions, setLostOptions] = useState<string[]>(DEFAULT_LOST_REASONS);
+
+  // Grow the reason list with reasons already written in the sheet.
+  useEffect(() => {
+    if (choice !== "LOST") return;
+    import("@/lib/client").then(({ fetchLeads }) =>
+      fetchLeads().then((r) => {
+        const seen = new Set(DEFAULT_LOST_REASONS.map((x) => x.toLowerCase()));
+        const extra: string[] = [];
+        for (const l of r.leads) {
+          const m = l.status.trim().match(/^lost\??\s*[-–:]\s*(.+)$/i);
+          const reason = m?.[1]?.trim();
+          if (reason && reason.length <= 40 && !seen.has(reason.toLowerCase())) {
+            seen.add(reason.toLowerCase());
+            extra.push(reason);
+          }
+        }
+        if (extra.length) setLostOptions([...DEFAULT_LOST_REASONS, ...extra.sort()]);
+      }).catch(() => {})
+    );
+  }, [choice]);
   const [snoozeDate, setSnoozeDate] = useState("");
   const [closedBy, setClosedBy] = useState("");
   const [busy, setBusy] = useState(false);
@@ -797,16 +818,17 @@ function InlineStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: stri
   if (choice === "LOST") {
     const reason = lostWhy === "__new__" ? newLostWhy.trim() : lostWhy;
     return (
-      <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      <span style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: 13 }}>💔 Why was it lost? (required)</span>
         <select value={lostWhy} autoFocus disabled={busy} onChange={(e) => setLostWhy(e.target.value)} style={{ flex: 1, minWidth: 150 }}>
-          <option value="">Lost to / because… (required)</option>
-          {DEFAULT_LOST_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+          <option value="">— pick a reason</option>
+          {lostOptions.map((r) => <option key={r} value={r}>{r}</option>)}
           <option value="__new__">＋ Add a new reason…</option>
         </select>
         {lostWhy === "__new__" && (
           <input style={{ flex: 1, minWidth: 130 }} placeholder="New reason" value={newLostWhy} onChange={(e) => setNewLostWhy(e.target.value)} autoFocus />
         )}
-        <button className="btn small" disabled={busy || !reason} onClick={() => save(`LOST - ${reason}`)}>✓</button>
+        <button className="btn small" disabled={busy || !reason} onClick={() => save(`LOST - ${reason}`)}>{busy ? "Saving…" : "✓ Lost"}</button>
         <button className="btn ghost small" onClick={() => { setChoice(""); setEditing(false); }}>✕</button>
       </span>
     );
