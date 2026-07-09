@@ -262,9 +262,11 @@ function rowToLead(row: string[], rowNumber: number, shape: SheetShape, now: Dat
   const statusRaw = get("status");
   let bucket = normStatus(statusRaw);
   // "New" covers a lead's first 7 days; after that it flows into Active.
+  // A lead with no parseable Date Added can't age out, so it's treated as
+  // Active immediately (blank-status rows are old imports, not fresh leads).
   if (bucket === "new") {
     const added = parseUSDate(get("dateAdded"));
-    if (added && (now.getTime() - added.getTime()) / 86400000 > 7) bucket = "active";
+    if (!added || (now.getTime() - added.getTime()) / 86400000 > 7) bucket = "active";
   }
   // Snooze: "Snoozed until 1/15/2027" sleeps the lead; past the date it wakes.
   let snoozeUntil: string | null = null;
@@ -386,7 +388,14 @@ export async function getLeads(force = false): Promise<{ leads: Lead[]; shape: S
     // Skip empty rows — including "ghost" rows whose only content is an
     // auto-filled checkbox value (TRUE/FALSE) from the alert column.
     if (!row.some((c) => c && c.trim() && !["TRUE", "FALSE"].includes(c.trim().toUpperCase()))) continue;
-    leads.push(rowToLead(row, i + 1, shape, now));
+    const lead = rowToLead(row, i + 1, shape, now);
+    // Section-label rows humans type into the sheet ("ACTIVE SHOP LEADS",
+    // "Player Rebuild") have no name, no contact info, no status, no id —
+    // they're headings, not leads.
+    if (!lead.name.replace("(no name)", "").trim() && !lead.phoneDialable && !lead.emailClean && !lead.social && !lead.status && !lead.id.startsWith("BLP") && !lead.id.startsWith("blp")) {
+      continue;
+    }
+    leads.push(lead);
   }
   cache = { leads, shape, at: Date.now() };
   return cache;
