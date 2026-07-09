@@ -8,7 +8,8 @@ a lead; if so the reply lands on the lead's timeline, pings the team on
 Telegram, and wakes Arnold to rewrite his drafts. Non-lead mail is ignored.
 
 Installed as LaunchAgent com.blp.email-watcher (every 5 minutes).
-State (last-seen IMAP UID) lives in ~/.blp-email-watcher-state.json.
+State (last-seen IMAP UID, All Mail namespace) lives in
+~/.blp-email-watcher-state.json.
 """
 import email
 import email.utils
@@ -74,7 +75,9 @@ def main() -> None:
 
     imap = imaplib.IMAP4_SSL(IMAP_HOST)
     imap.login(USER, password)
-    imap.select("INBOX", readonly=True)
+    # All Mail, not INBOX: replies stay visible even after inbox triage
+    # archives them (that's how Jarl's reply was missed).
+    imap.select('"[Gmail]/All Mail"', readonly=True)
 
     if last_uid:
         typ, data = imap.uid("search", None, f"UID {last_uid + 1}:*")
