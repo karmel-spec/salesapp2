@@ -105,7 +105,8 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
         )}
         {lead.phoneDialable && <CallButton leadId={lead.id} onFlash={setFlash} onDone={load} />}
         <SnoozeButton leadId={lead.id} onFlash={setFlash} onDone={load} />
-        <NextLeadButton currentId={lead.id} />
+        <AdjacentLeadButton currentId={lead.id} dir={-1} />
+        <AdjacentLeadButton currentId={lead.id} dir={1} />
       </div>
 
       {flash && <div className="banner info">{flash}</div>}
@@ -231,39 +232,50 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
         </div>
       </div>
 
-      <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end" }}>
-        <NextLeadButton currentId={lead.id} />
+      <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        <AdjacentLeadButton currentId={lead.id} dir={-1} />
+        <AdjacentLeadButton currentId={lead.id} dir={1} />
       </div>
     </>
   );
 }
 
 /**
- * Jump to the next open (new/active) lead in the working list's order,
- * so a rep can grind through the pipeline without bouncing back to Leads.
+ * Jump to the next/previous open (new/active) lead in the working list's
+ * order, so a rep can grind through the pipeline (or step back one to
+ * double-check something) without bouncing back to Leads.
  */
-function NextLeadButton({ currentId }: { currentId: string }) {
-  const [next, setNext] = useState<{ id: string; name: string } | null | undefined>(undefined);
+function AdjacentLeadButton({ currentId, dir }: { currentId: string; dir: 1 | -1 }) {
+  const [target, setTarget] = useState<{ id: string; name: string } | null | undefined>(undefined);
 
   useEffect(() => {
     import("@/lib/client").then(({ fetchLeads }) =>
       fetchLeads().then((r) => {
         const open = r.leads.filter((l) => l.statusBucket === "new" || l.statusBucket === "active");
         const i = open.findIndex((l) => l.id === currentId);
-        // Next open lead after this one (wraps to the top); if the current
-        // lead isn't open (won/lost/etc.), just start at the first open lead.
-        const candidates = i >= 0 ? [...open.slice(i + 1), ...open.slice(0, i)] : open;
+        // Adjacent open lead in the chosen direction (wraps around); if the
+        // current lead isn't open (won/lost/etc.), start from the list edge.
+        const candidates =
+          i >= 0
+            ? dir === 1
+              ? [...open.slice(i + 1), ...open.slice(0, i)]
+              : [...open.slice(0, i).reverse(), ...open.slice(i + 1).reverse()]
+            : dir === 1
+              ? open
+              : [...open].reverse();
         const n = candidates.find((l) => l.id !== currentId);
-        setNext(n ? { id: n.id, name: n.name } : null);
-      }).catch(() => setNext(null))
+        setTarget(n ? { id: n.id, name: n.name } : null);
+      }).catch(() => setTarget(null))
     );
-  }, [currentId]);
+  }, [currentId, dir]);
 
-  if (next === undefined) return <button className="btn ghost" disabled>Next lead ›</button>;
-  if (next === null) return null;
+  const label = dir === 1 ? "Next lead" : "Last lead";
+  if (target === undefined) return <button className="btn ghost" disabled>{dir === 1 ? `${label} ›` : `‹ ${label}`}</button>;
+  if (target === null) return null;
+  const first = target.name.split(" ")[0];
   return (
-    <Link href={`/leads/${encodeURIComponent(next.id)}`} className="btn ghost" title={`Jump to ${next.name}`}>
-      Next lead: {next.name.split(" ")[0]} ›
+    <Link href={`/leads/${encodeURIComponent(target.id)}`} className="btn ghost" title={`Jump to ${target.name}`}>
+      {dir === 1 ? `${label}: ${first} ›` : `‹ ${label}: ${first}`}
     </Link>
   );
 }
