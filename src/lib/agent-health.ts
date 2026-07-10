@@ -58,12 +58,14 @@ export interface AgentHealth {
 export async function saveHeartbeat(payload: HeartbeatPayload): Promise<number> {
   const now = new Date().toISOString();
   const rows = await readTab(STATUS_TAB);
+  // Keyed by slug+machine: the same agent can have workloads on several
+  // machines (e.g. ivory: Hermes here, OpenClaw on Walter's Mac).
   const byAgent = new Map<string, string[]>();
-  for (const r of rows.slice(1)) if (r[0]) byAgent.set(r[0], r);
+  for (const r of rows.slice(1)) if (r[0]) byAgent.set(`${r[0]}|${r[1] || ""}`, r);
 
   for (const a of payload.agents) {
     if (!a.slug) continue;
-    byAgent.set(a.slug, [
+    byAgent.set(`${a.slug}|${payload.machine || ""}`, [
       a.slug,
       payload.machine || "",
       now,
@@ -111,17 +113,18 @@ export async function readAgentHealth(): Promise<Record<string, AgentHealth>> {
     const reported = Date.parse(reportedAt || "");
     const fresh = !Number.isNaN(reported) && now - reported < FRESH_MS;
     const issues: string[] = [];
+    const tag = machine ? `[${machine}] ` : "";
     if (!fresh) {
-      issues.push(`no heartbeat from ${machine || "its machine"} since ${(reportedAt || "?").slice(0, 16).replace("T", " ")}`);
+      issues.push(`${tag}no heartbeat since ${(reportedAt || "?").slice(0, 16).replace("T", " ")}`);
     } else {
-      if (online === "FALSE") issues.push("brain/gateway not responding on its machine");
-      issues.push(...cronIssues(crons, now));
+      if (online === "FALSE") issues.push(`${tag}brain/gateway not responding`);
+      issues.push(...cronIssues(crons, now).map((i) => tag + i));
       if (crons.length > 0 && !crons.some((c) => c.enabled)) {
-        issues.push(`all ${crons.length} cron jobs are paused`);
+        issues.push(`${tag}all ${crons.length} cron jobs are paused`);
       }
     }
     const active = crons.filter((c) => c.enabled);
-    out[slug] = {
+    const piece: AgentHealth = {
       slug,
       machine: machine || "",
       reportedAt: reportedAt || "",
@@ -132,6 +135,27 @@ export async function readAgentHealth(): Promise<Record<string, AgentHealth>> {
       issues,
       note: note || undefined,
       dot: !fresh ? "offline" : issues.length ? "attention" : "healthy",
+    };
+    const prev = out[slug];
+    if (!prev) {
+      out[slug] = piece;
+      continue;
+    }
+    // Merge multi-machine agents: any fresh heartbeat keeps them on the
+    // board; issues accumulate with machine tags; counts sum.
+    out[slug] = {
+      ...prev,
+      machine: [prev.machine, piece.machine].filter(Boolean).join(" + "),
+      reportedAt: piece.reportedAt > prev.reportedAt ? piece.reportedAt : prev.reportedAt,
+      fresh: prev.fresh || piece.fresh,
+      online: prev.online === false || piece.online === false ? false : prev.online ?? piece.online,
+      cronsActive: prev.cronsActive + piece.cronsActive,
+      cronsOk: prev.cronsOk + piece.cronsOk,
+      issues: [...prev.issues, ...piece.issues],
+      dot:
+        !(prev.fresh || piece.fresh) ? "offline"
+        : prev.issues.length + piece.issues.length > 0 ? "attention"
+        : "healthy",
     };
   }
   return out;

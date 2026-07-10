@@ -26,12 +26,12 @@ const PROFILE_TO_SLUG = { eddy: "ed" };
 
 function key() {
   if (process.env.BLP_KEY) return process.env.BLP_KEY;
-  const envFile = path.join(HOME, "salesapp2", ".env.local");
-  if (fs.existsSync(envFile)) {
-    const m = fs.readFileSync(envFile, "utf8").match(/^BLP_ARNOLD_ACCESS_KEY=(.+)$/m);
+  for (const envFile of [path.join(HOME, "salesapp2", ".env.local"), path.join(HOME, "blp", ".env")]) {
+    if (!fs.existsSync(envFile)) continue;
+    const m = fs.readFileSync(envFile, "utf8").match(/^(?:BLP_ARNOLD_ACCESS_KEY|BLP_KEY)=(.+)$/m);
     if (m) return m[1].trim();
   }
-  throw new Error("No BLP_KEY env var and no BLP_ARNOLD_ACCESS_KEY in ~/salesapp2/.env.local");
+  throw new Error("No BLP_KEY found (env var, ~/salesapp2/.env.local, or ~/blp/.env)");
 }
 
 function loadJobs(storePath, fallbackProfile) {
@@ -142,9 +142,11 @@ if (fs.existsSync(profilesDir)) {
 }
 all.push(...loadOpenClawJobs(path.join(HOME, ".openclaw", "cron", "jobs.json")));
 
-const registry = JSON.parse(
-  fs.readFileSync(path.join(HOME, "salesapp2", "src", "lib", "agent-registry.json"), "utf8")
-);
+const registryPath = [
+  path.join(HOME, "salesapp2", "src", "lib", "agent-registry.json"),
+  path.join(HOME, "blp", "agent-registry.json"),
+].find((p) => fs.existsSync(p));
+const registry = JSON.parse(fs.readFileSync(registryPath, "utf8"));
 const knownSlugs = new Set(registry.map((a) => a.slug));
 all.push(...loadLaunchdServices(knownSlugs));
 
