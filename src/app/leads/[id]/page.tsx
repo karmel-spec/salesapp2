@@ -164,7 +164,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
               <dt>Source of business</dt><dd><InlineSelect lead={lead} field="source" value={lead.source} options={LEAD_SOURCES} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Inquiry method</dt><dd><InlineSelect lead={lead} field="inquiryMethod" value={lead.inquiryMethod} options={INQUIRY_METHODS} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Hot Lead?</dt><dd><InlineSelect lead={lead} field="score" value={lead.score} options={["10", "9", "8", "7", "6", "5", "4", "3", "2", "1"]} emptyLabel="— 10 hot, 1 cold" onFlash={setFlash} onDone={loadSoon} /></dd>
-              <dt>$ Value</dt><dd><InlineText lead={lead} field="value" value={lead.value} onFlash={setFlash} onDone={loadSoon} /></dd>
+              <dt>$ Value / Estimate</dt><dd><InlineText lead={lead} field="value" value={lead.value} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Date added</dt><dd>{lead.dateAdded || "—"}</dd>
               <dt>Last contact</dt><dd>{lead.lastContact || "—"} <span className="muted">({fmtDays(lead)})</span></dd>
               <dt>Notes</dt><dd><InlineText lead={lead} field="notes" value={lead.notes} textarea onFlash={setFlash} onDone={loadSoon} /></dd>
