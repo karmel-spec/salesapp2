@@ -113,16 +113,30 @@ def main() -> None:
         # and route to the SalesCaptain handler instead of the email handler.
         if "salescaptain.com" in from_email.lower():
             full = f"{subject}\n{body}"
-            m = re.search(r"^\s*(.+?)\s+sent a message to\b", full, re.M)
-            sender = (m.group(1).strip() if m else "").strip()
+            sender, text = "", ""
+            # Format A (teaser): "<Name> sent a message to Brigham Larson
+            #   Pianos at <date>, <time> and is currently waiting for a reply."
+            # Format B (with content): "New message from <Name> <message text>"
+            # Name and message are separated by a newline or 2+ spaces in the
+            # real emails; only split on that (never guess a word boundary).
+            mb = re.search(r"New message from\s+(.+?)(?:\n|\s{2,})(.+)", full, re.S)
+            if mb:
+                sender = mb.group(1).strip()
+                text = mb.group(2).strip()
+            else:
+                ma = re.search(r"^\s*(.+?)\s+sent a message to\b", full, re.M)
+                sender = (ma.group(1).strip() if ma else "").strip()
+                tm = re.search(r"waiting for a reply[.:]?\s*(.+)", body, re.S)
+                text = (tm.group(1).strip() if tm else "")
+            # Strip boilerplate/punctuation-only remnants; keep real messages.
+            text = re.sub(r"^[\s.:>-]+", "", text)[:1000]
+            if len(re.sub(r"\W", "", text)) < 3:
+                text = ""
             phone = ""
             pm = re.search(r"\+?1?\D?(\d{3})\D?(\d{3})\D?(\d{4})", sender)
             if pm:
                 phone = pm.group(1) + pm.group(2) + pm.group(3)
                 sender = ""  # the "name" was actually a raw number
-            # Message text, if the email includes it after the waiting line.
-            tm = re.search(r"waiting for a reply[.:]?\s*(.+)", body, re.S)
-            text = (tm.group(1).strip()[:1000] if tm else "")
             payload = json.dumps({
                 "senderName": sender,
                 "senderPhone": phone,
