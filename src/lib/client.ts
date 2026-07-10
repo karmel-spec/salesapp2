@@ -34,3 +34,54 @@ export function getWho(): string {
   if (typeof window === "undefined") return "app";
   return localStorage.getItem("blp_rep_name") || "app";
 }
+
+/* ── Lead priority order (Karmel, 2026-07-10) ─────────────────────────────
+   1 New → 2 Hot (9-10) → 3 Restoration → 4 other shop work → 5 Hailun sales
+   → 6 other sales. Within a category: $ value high→low, then heat, then
+   grands before uprights. */
+
+function leadText(l: Lead): string {
+  return `${l.leadType} ${l.pianoType} ${l.headline}`.toLowerCase();
+}
+
+export function priorityCategory(l: Lead): number {
+  if (l.statusBucket === "new") return 0;
+  if (Number(l.score) >= 9) return 1;
+  const s = leadText(l);
+  if (/restor|rebuild|player/.test(s)) return 2;
+  if (/refinish|refurb|repair|qrs/.test(s)) return 3;
+  if (/hailun/.test(s)) return 4;
+  return 5;
+}
+
+export const PRIORITY_CATEGORY_LABELS = [
+  "New", "Hot (9–10)", "Restoration", "Shop work", "Hailun", "Other sales",
+];
+
+/** Best-effort dollar value ("$5-15k" → 15000, "7500" → 7500). */
+export function leadValue(l: Lead): number {
+  const raw = (l.value || "").replace(/,/g, "").toLowerCase();
+  let best = 0;
+  for (const m of raw.matchAll(/(\d+(?:\.\d+)?)\s*(k)?/g)) {
+    const n = Number(m[1]) * (m[2] ? 1000 : 1);
+    if (n > best) best = n;
+  }
+  return best;
+}
+
+function grandRank(l: Lead): number {
+  const s = leadText(l);
+  if (/grand/.test(s)) return 0;
+  if (/upright|spinet|console|vertical/.test(s)) return 1;
+  return 2;
+}
+
+/** Sort a lead list by the team's working-priority rules. */
+export function prioritySort(leads: Lead[]): Lead[] {
+  return [...leads].sort((a, b) =>
+    priorityCategory(a) - priorityCategory(b) ||
+    leadValue(b) - leadValue(a) ||
+    (Number(b.score) || 0) - (Number(a.score) || 0) ||
+    grandRank(a) - grandRank(b)
+  );
+}

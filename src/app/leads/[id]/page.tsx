@@ -252,9 +252,9 @@ function AdjacentLeadButton({ currentId, dir }: { currentId: string; dir: 1 | -1
   const [target, setTarget] = useState<{ id: string; name: string } | null | undefined>(undefined);
 
   useEffect(() => {
-    import("@/lib/client").then(({ fetchLeads }) =>
+    import("@/lib/client").then(({ fetchLeads, prioritySort }) =>
       fetchLeads().then((r) => {
-        const open = r.leads.filter((l) => l.statusBucket === "new" || l.statusBucket === "active");
+        const open = prioritySort(r.leads.filter((l) => l.statusBucket === "new" || l.statusBucket === "active"));
         const i = open.findIndex((l) => l.id === currentId);
         // Adjacent open lead in the chosen direction (wraps around); if the
         // current lead isn't open (won/lost/etc.), start from the list edge.

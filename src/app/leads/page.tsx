@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Lead } from "@/lib/leads";
-import { api, fetchLeads, getWho, LEAD_SOURCES, INQUIRY_METHODS, PIANO_TYPES, LEAD_TYPES, ENTERED_BY, REPS } from "@/lib/client";
+import { api, fetchLeads, getWho, LEAD_SOURCES, INQUIRY_METHODS, PIANO_TYPES, LEAD_TYPES, ENTERED_BY, REPS, prioritySort } from "@/lib/client";
 import { RepBadge, StaleBadge, StatusBadge, fmtDays, pendingDrafts } from "@/components/ui";
 
 const BUCKETS = ["all", "open", "new", "active", "snoozed", "won", "lost", "closed", "unqualified", "inactive", "support"] as const;
@@ -28,6 +28,7 @@ export default function LeadsPage() {
   const [rep, setRep] = useState("all");
   const [staleOnly, setStaleOnly] = useState(() => initialParams().stale);
   const [showNew, setShowNew] = useState(false);
+  const [sortMode, setSortMode] = useState<"priority" | "newest">("priority");
 
   useEffect(() => {
     fetchLeads().then((r) => setLeads(r.leads)).catch((e) => setError(e.message));
@@ -58,7 +59,7 @@ export default function LeadsPage() {
   const filtered = useMemo(() => {
     if (!leads) return [];
     const needle = q.trim().toLowerCase();
-    return leads.filter((l) => {
+    const visible = leads.filter((l) => {
       if (bucket === "open") {
         if (l.statusBucket !== "new" && l.statusBucket !== "active") return false;
       } else if (bucket !== "all" && l.statusBucket !== bucket) return false;
@@ -70,7 +71,8 @@ export default function LeadsPage() {
         .toLowerCase()
         .includes(needle);
     });
-  }, [leads, q, bucket, rep, staleOnly]);
+    return sortMode === "priority" ? prioritySort(visible) : visible;
+  }, [leads, q, bucket, rep, staleOnly, sortMode]);
 
   if (error) return <div className="banner bad">⚠ {error}</div>;
   if (!leads) return <div className="spin">Loading leads…</div>;
@@ -98,6 +100,10 @@ export default function LeadsPage() {
         <select value={rep} onChange={(e) => setRep(e.target.value)}>
           <option value="all">All reps</option>
           {reps.map((r) => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <select value={sortMode} onChange={(e) => setSortMode(e.target.value as "priority" | "newest")} aria-label="Sort order">
+          <option value="priority">Priority order</option>
+          <option value="newest">Newest first</option>
         </select>
         {staleOnly && (
           <span className="badge stale" style={{ cursor: "pointer" }} title="Showing stale leads only — click to clear" onClick={() => setStaleOnly(false)}>
