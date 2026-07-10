@@ -31,7 +31,13 @@ function key() {
 }
 
 function plaud(args) {
-  return execFileSync(PLAUD, args, { encoding: "utf8", timeout: 60_000 });
+  // launchd's PATH lacks the node dir; the plaud bin's shebang needs it.
+  const binDir = path.dirname(PLAUD);
+  return execFileSync(PLAUD, args, {
+    encoding: "utf8",
+    timeout: 60_000,
+    env: { ...process.env, PATH: `${binDir}:${process.env.PATH || "/usr/bin:/bin"}` },
+  });
 }
 
 function loggedIn() {
@@ -58,14 +64,17 @@ function parseRecordings(text) {
 }
 
 function fileMeta(id) {
+  // `plaud file` prints "key: value" lines: name, start_at (ISO, local),
+  // duration like "8m39s".
   const meta = { title: "", startedAt: null, durationSec: null };
   try {
     const detail = plaud(["file", id]);
-    meta.title = (detail.match(/(?:name|title)\s*[:|]\s*(.+)/i) || [])[1]?.trim() || "";
-    const dt = (detail.match(/\b(20\d{2}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2})?)\b/) || [])[1];
-    if (dt) meta.startedAt = new Date(dt.replace(" ", "T")).toISOString();
-    const dur = (detail.match(/duration\s*[:|]\s*(\d+)/i) || [])[1];
-    if (dur) meta.durationSec = Number(dur);
+    meta.title = (detail.match(/^\s*name:\s*(.+)$/m) || [])[1]?.trim() || "";
+    const dt = (detail.match(/^\s*start_at:\s*(\S+)/m) || [])[1];
+    if (dt) meta.startedAt = new Date(dt).toISOString();
+    const dur = (detail.match(/^\s*duration:\s*(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/m) || []);
+    const secs = (Number(dur[1]) || 0) * 3600 + (Number(dur[2]) || 0) * 60 + (Number(dur[3]) || 0);
+    if (secs) meta.durationSec = secs;
   } catch {
     /* metadata is best-effort */
   }
