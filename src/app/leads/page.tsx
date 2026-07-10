@@ -99,10 +99,11 @@ export default function LeadsPage() {
           <option value="all">All reps</option>
           {reps.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
-        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13.5 }}>
-          <input type="checkbox" checked={staleOnly} onChange={(e) => setStaleOnly(e.target.checked)} />
-          Stale only
-        </label>
+        {staleOnly && (
+          <span className="badge stale" style={{ cursor: "pointer" }} title="Showing stale leads only — click to clear" onClick={() => setStaleOnly(false)}>
+            stale only ✕
+          </span>
+        )}
       </div>
 
       <div className="table-wrap">
