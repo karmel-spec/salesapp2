@@ -435,3 +435,17 @@ tbody tr:hover { background: #faf7f2; }
   .tiles { grid-template-columns: repeat(2, 1fr); }
   .tile .value { font-size: 26px; }
 }
+
+/* Swipe-between-leads hint — touch devices only, quiet */
+.swipe-hint { display: none; }
+@media (hover: none) and (max-width: 760px) {
+  .swipe-hint {
+    display: block;
+    text-align: center;
+    font-size: 11.5px;
+    letter-spacing: 1px;
+    color: var(--ink-3);
+    padding: 2px 0 8px;
+    user-select: none;
+  }
+}

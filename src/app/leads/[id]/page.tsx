@@ -1,10 +1,45 @@
 "use client";
 
-import { useCallback, useEffect, useState, use } from "react";
+import { useCallback, useEffect, useRef, useState, use } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { Lead, DraftMessage } from "@/lib/leads";
 import { api, getWho, REPS, LEAD_SOURCES, INQUIRY_METHODS } from "@/lib/client";
 import { Linkify, StaleBadge, StatusBadge, fmtDays } from "@/components/ui";
+
+type Adjacent = { id: string; name: string } | null;
+
+/** The previous/next OPEN lead in priority order (shared by the swipe
+ *  gesture and the Last/Next buttons — one fetch, one source of truth). */
+function useAdjacentLeads(currentId: string | undefined): { prev: Adjacent; next: Adjacent; ready: boolean } {
+  const [state, setState] = useState<{ prev: Adjacent; next: Adjacent; ready: boolean }>({ prev: null, next: null, ready: false });
+  useEffect(() => {
+    if (!currentId) return;
+    let live = true;
+    import("@/lib/client").then(({ fetchLeads, prioritySort }) =>
+      fetchLeads().then((r) => {
+        if (!live) return;
+        const open = prioritySort(r.leads.filter((l) => l.statusBucket === "new" || l.statusBucket === "active"));
+        const i = open.findIndex((l) => l.id === currentId);
+        const pick = (dir: 1 | -1): Adjacent => {
+          const seq =
+            i >= 0
+              ? dir === 1
+                ? [...open.slice(i + 1), ...open.slice(0, i)]
+                : [...open.slice(0, i).reverse(), ...open.slice(i + 1).reverse()]
+              : dir === 1
+                ? open
+                : [...open].reverse();
+          const n = seq.find((l) => l.id !== currentId);
+          return n ? { id: n.id, name: n.name } : null;
+        };
+        setState({ prev: pick(-1), next: pick(1), ready: true });
+      }).catch(() => setState({ prev: null, next: null, ready: true }))
+    );
+    return () => { live = false; };
+  }, [currentId]);
+  return state;
+}
 
 export default function LeadDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -17,6 +52,33 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
   const [savingNote, setSavingNote] = useState(false);
   const [compose, setCompose] = useState<"sms" | "email" | null>(null);
   const typeOptions = useLeadTypeOptions();
+  const router = useRouter();
+  const adj = useAdjacentLeads(lead?.id);
+
+  // Swipe left → next lead, swipe right → last lead (mobile). Passive: we only
+  // read coordinates, never preventDefault, so vertical scroll is untouched.
+  const swipe = useRef({ x: 0, y: 0, t: 0, skip: true });
+  function onTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0];
+    const el = e.target as HTMLElement;
+    // Skip when the gesture starts on something interactive/scrollable, or at
+    // the very left edge (reserved for the browser's back-swipe).
+    const skip =
+      t.clientX < 24 ||
+      Boolean(el.closest("input,textarea,select,button,a,.table-wrap,.timeline"));
+    swipe.current = { x: t.clientX, y: t.clientY, t: Date.now(), skip };
+  }
+  function onTouchEnd(e: React.TouchEvent) {
+    if (swipe.current.skip) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - swipe.current.x;
+    const dy = t.clientY - swipe.current.y;
+    // A deliberate horizontal flick: far enough, fast enough, mostly sideways.
+    if (Date.now() - swipe.current.t > 800) return;
+    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2) return;
+    if (dx < 0 && adj.next) router.push(`/leads/${encodeURIComponent(adj.next.id)}`);
+    else if (dx > 0 && adj.prev) router.push(`/leads/${encodeURIComponent(adj.prev.id)}`);
+  }
 
   const load = useCallback(
     (fresh = false) =>
@@ -78,7 +140,8 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
   const pending = lead.drafts.filter((d) => d.status === "pending");
 
   return (
-    <>
+    <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <div className="swipe-hint">‹ swipe to move between leads ›</div>
       <div className="page-head">
         <Link href="/leads" className="muted">← Leads</Link>
         <h1>{lead.name}</h1>
@@ -105,8 +168,8 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
         )}
         {lead.phoneDialable && <CallButton leadId={lead.id} onFlash={setFlash} onDone={loadSoon} />}
         <SnoozeButton leadId={lead.id} onFlash={setFlash} onDone={loadSoon} />
-        <AdjacentLeadButton currentId={lead.id} dir={-1} />
-        <AdjacentLeadButton currentId={lead.id} dir={1} />
+        <AdjacentLeadButton target={adj.prev} ready={adj.ready} dir={-1} />
+        <AdjacentLeadButton target={adj.next} ready={adj.ready} dir={1} />
       </div>
 
       {flash && <div className="banner info">{flash}</div>}
@@ -236,45 +299,22 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
       </div>
 
       <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end", gap: 8 }}>
-        <AdjacentLeadButton currentId={lead.id} dir={-1} />
-        <AdjacentLeadButton currentId={lead.id} dir={1} />
+        <AdjacentLeadButton target={adj.prev} ready={adj.ready} dir={-1} />
+        <AdjacentLeadButton target={adj.next} ready={adj.ready} dir={1} />
       </div>
-    </>
+    </div>
   );
 }
 
 /**
- * Jump to the next/previous open (new/active) lead in the working list's
- * order, so a rep can grind through the pipeline (or step back one to
- * double-check something) without bouncing back to Leads.
+ * Last/Next lead button — presentational; the target comes from the page's
+ * useAdjacentLeads hook (also drives the swipe gesture), so button and swipe
+ * always agree and there's a single fetch.
  */
-function AdjacentLeadButton({ currentId, dir }: { currentId: string; dir: 1 | -1 }) {
-  const [target, setTarget] = useState<{ id: string; name: string } | null | undefined>(undefined);
-
-  useEffect(() => {
-    import("@/lib/client").then(({ fetchLeads, prioritySort }) =>
-      fetchLeads().then((r) => {
-        const open = prioritySort(r.leads.filter((l) => l.statusBucket === "new" || l.statusBucket === "active"));
-        const i = open.findIndex((l) => l.id === currentId);
-        // Adjacent open lead in the chosen direction (wraps around); if the
-        // current lead isn't open (won/lost/etc.), start from the list edge.
-        const candidates =
-          i >= 0
-            ? dir === 1
-              ? [...open.slice(i + 1), ...open.slice(0, i)]
-              : [...open.slice(0, i).reverse(), ...open.slice(i + 1).reverse()]
-            : dir === 1
-              ? open
-              : [...open].reverse();
-        const n = candidates.find((l) => l.id !== currentId);
-        setTarget(n ? { id: n.id, name: n.name } : null);
-      }).catch(() => setTarget(null))
-    );
-  }, [currentId, dir]);
-
+function AdjacentLeadButton({ target, ready, dir }: { target: Adjacent; ready: boolean; dir: 1 | -1 }) {
   const label = dir === 1 ? "Next lead" : "Last lead";
-  if (target === undefined) return <button className="btn ghost" disabled>{dir === 1 ? `${label} ›` : `‹ ${label}`}</button>;
-  if (target === null) return null;
+  if (!ready) return <button className="btn ghost" disabled>{dir === 1 ? `${label} ›` : `‹ ${label}`}</button>;
+  if (!target) return null;
   const first = target.name.split(" ")[0];
   return (
     <Link href={`/leads/${encodeURIComponent(target.id)}`} className="btn ghost" title={`Jump to ${target.name}`}>
