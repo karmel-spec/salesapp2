@@ -33,6 +33,20 @@ export default function LeadsPage() {
     fetchLeads().then((r) => setLeads(r.leads)).catch((e) => setError(e.message));
   }, []);
 
+  // Default view for a signed-in rep (e.g. Brigham): their own Active leads.
+  // Deep links (?bucket=…&stale=1) and manual filter changes always win.
+  useEffect(() => {
+    if (!leads) return;
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("bucket") || q.get("stale") || q.get("rep")) return;
+    const me = getWho();
+    if (me !== "app" && leads.some((l) => l.effectiveRep === me || l.effectiveSubRep === me)) {
+      setRep(me);
+      setBucket("active");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leads === null]);
+
   const reps = useMemo(() => {
     if (!leads) return [];
     // Sally retired — her historical leads keep her badge, but she's not a filter option.
