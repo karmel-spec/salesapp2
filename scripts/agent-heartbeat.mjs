@@ -142,6 +142,35 @@ if (fs.existsSync(profilesDir)) {
 }
 all.push(...loadOpenClawJobs(path.join(HOME, ".openclaw", "cron", "jobs.json")));
 
+/* OpenClaw agents managed inside a running gateway (newer versions keep
+   schedules internally): report presence + gateway liveness per agent.
+   Skipped entirely when no OpenClaw gateway runs (retired installs). */
+function openclawGatewayRunning() {
+  try {
+    return execSync("pgrep -f 'openclaw.*gateway' | head -1", { encoding: "utf8", timeout: 5000 }).trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+const clawAgentsDir = path.join(HOME, ".openclaw", "agents");
+if (fs.existsSync(clawAgentsDir) && openclawGatewayRunning()) {
+  for (const slug of fs.readdirSync(clawAgentsDir)) {
+    if (slug === "main" || slug.startsWith(".")) continue;
+    all.push({
+      profile: slug,
+      cron: {
+        name: "openclaw gateway",
+        enabled: true,
+        schedule: "resident",
+        nextRunAt: null,
+        lastRunAt: null,
+        lastStatus: "ok",
+        lastError: null,
+      },
+    });
+  }
+}
+
 const registryPath = [
   path.join(HOME, "salesapp2", "src", "lib", "agent-registry.json"),
   path.join(HOME, "blp", "agent-registry.json"),
