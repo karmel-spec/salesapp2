@@ -52,25 +52,46 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (input.messageText || "").trim();
+    // Service signals (tuning, moves, scheduling) — customer-service traffic,
+    // not sales. Don't wake Arnold for these even on a matched lead.
+    const looksService = /\b(tun(e|ing)|reschedul|re-?schedule|appointment|move(r|d|ing)?|moving|pick ?up|deliver|invoice|receipt|warrant|repair visit)\b/i.test(body);
     const detail = body
       ? `📥 SalesCaptain message from ${name || phone}: "${body.slice(0, 500)}"`
       : `📥 SalesCaptain message from ${name || phone} — they're waiting for a reply (full text in SalesCaptain).`;
 
     if (!lead) {
+      // Not in the sales pipeline — likely a tuning/service contact. Quiet FYI
+      // for whoever runs customer service; nothing enters the sales app.
       notifyTelegram(
-        `📥 <b>SalesCaptain message — no matching lead</b> (${name || phone})` +
-          `${body ? `:\n"${body.slice(0, 300)}"` : " — waiting for a reply."}\n` +
-          `→ If this is a lead, open them and log it, or add them as a new lead.`
+        `💬 <b>SalesCaptain message</b> (not a sales lead) — ${name || phone}` +
+          `${body ? `:\n"${body.slice(0, 300)}"` : " — reply waiting in SalesCaptain."}`
       ).catch(() => {});
-      return NextResponse.json({ matched: false });
+      return NextResponse.json({ matched: false, service: true });
     }
 
+    // A matched lead writing about tuning/moves is a service touch, not a
+    // sales reply: log it (so the history is complete) but tag it and don't
+    // reset the sales-quiet clock or wake Arnold to draft.
     await appendTimeline(
       lead,
       shape,
-      { at: input.at || new Date().toISOString(), who: lead.name, kind: "inbound", text: detail },
-      { touchLastContact: true }
+      {
+        at: input.at || new Date().toISOString(),
+        who: lead.name,
+        kind: "inbound",
+        text: looksService ? `${detail} [service — tuning/move, not a sales reply]` : detail,
+      },
+      { touchLastContact: !looksService }
     );
+
+    if (looksService) {
+      notifyTelegram(
+        `💬 <b>${lead.name} (a sales lead) messaged about service</b> via SalesCaptain — handle as customer service, not a sales follow-up.` +
+          `${body ? `\n"${body.slice(0, 300)}"` : ""}`
+      ).catch(() => {});
+      return NextResponse.json({ matched: true, service: true, leadId: lead.id, leadName: lead.name, how });
+    }
+
     notifyTelegram(
       `📥 <b>${lead.name} messaged via SalesCaptain</b> (${how}) — it's our turn.` +
         `${body ? `\n"${body.slice(0, 300)}"` : ""}`
