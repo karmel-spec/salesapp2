@@ -59,6 +59,8 @@ export interface TimelineEvent {
   who: string;
   kind: string; // note | sms_out | email_out | call | status | assign | draft
   text: string;
+  editedBy?: string; // audit trail when a rep edits an entry after the fact
+  editedAt?: string;
 }
 
 export interface Lead {
@@ -227,7 +229,14 @@ function normalizeTimeline(raw: unknown[]): TimelineEvent[] {
     .map((entry) => {
       const e = (entry ?? {}) as Record<string, unknown>;
       if (typeof e.at === "string" && typeof e.kind === "string") {
-        return { at: e.at, who: String(e.who ?? "team"), kind: e.kind, text: String(e.text ?? "") };
+        return {
+          at: e.at,
+          who: String(e.who ?? "team"),
+          kind: e.kind,
+          text: String(e.text ?? ""),
+          ...(typeof e.editedBy === "string" ? { editedBy: e.editedBy } : {}),
+          ...(typeof e.editedAt === "string" ? { editedAt: e.editedAt } : {}),
+        };
       }
       const at = typeof e.at === "string" ? e.at : typeof e.date === "string" ? e.date : "";
       const type = String(e.type ?? e.kind ?? "note").toLowerCase();
@@ -697,4 +706,36 @@ export async function tidySheetSections(): Promise<{ moved: { name: string; buck
     moved.push({ name: misplaced.name, bucket: misplaced.statusBucket });
   }
   return { moved };
+}
+
+/** One human-readable App Activity line per timeline event (append format). */
+function activityLine(ev: TimelineEvent): string {
+  const stamp = new Date(ev.at);
+  return `[${stamp.toLocaleDateString("en-US")} ${ev.who} · ${ev.kind}] ${ev.text}${ev.editedBy ? ` (edited by ${ev.editedBy})` : ""}`;
+}
+
+/**
+ * Edit a past timeline entry (rep fixed a typo, added detail, corrected a
+ * call note). Keeps an audit trail on the event and rebuilds the App
+ * Activity column so the sheet's readable log matches.
+ */
+export async function updateTimelineEvent(
+  lead: Lead,
+  shape: SheetShape,
+  index: number,
+  text: string,
+  who: string
+): Promise<TimelineEvent> {
+  if (index < 0 || index >= lead.timeline.length) throw new Error(`No timeline entry at index ${index}`);
+  const s = await ensureAppColumns(shape);
+  const timeline = [...lead.timeline];
+  const ev = { ...timeline[index], text: text.trim(), editedBy: who, editedAt: new Date().toISOString() };
+  timeline[index] = ev;
+  const target = await ensureRowCurrent(lead, s);
+  await writeCells([
+    { row: target.row, col: requireCol(s, "timelineJson"), value: JSON.stringify(timeline) },
+    { row: target.row, col: requireCol(s, "appActivity"), value: timeline.map(activityLine).join("\n") },
+  ]);
+  invalidateCache();
+  return ev;
 }

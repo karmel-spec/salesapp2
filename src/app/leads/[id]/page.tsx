@@ -186,12 +186,14 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
             </form>
             <ul className="timeline">
               {[...lead.timeline].reverse().map((ev, i) => (
-                <li key={i}>
-                  <div className="meta">
-                    {new Date(ev.at).toLocaleString()} · {ev.who} · {ev.kind}
-                  </div>
-                  <div className="body"><Linkify text={ev.text} /></div>
-                </li>
+                <TimelineEntry
+                  key={`${ev.at}-${i}`}
+                  leadId={lead.id}
+                  ev={ev}
+                  index={lead.timeline.length - 1 - i}
+                  onFlash={setFlash}
+                  onDone={loadSoon}
+                />
               ))}
               {lead.activityTimeline && (
                 <li>
@@ -277,6 +279,79 @@ function AdjacentLeadButton({ currentId, dir }: { currentId: string; dir: 1 | -1
     <Link href={`/leads/${encodeURIComponent(target.id)}`} className="btn ghost" title={`Jump to ${target.name}`}>
       {dir === 1 ? `${label}: ${first} ›` : `‹ ${label}: ${first}`}
     </Link>
+  );
+}
+
+/** One activity entry — click ✎ to edit past notes (audit-trailed). */
+function TimelineEntry({
+  leadId, ev, index, onFlash, onDone,
+}: {
+  leadId: string;
+  ev: Lead["timeline"][number];
+  index: number;
+  onFlash: (s: string) => void;
+  onDone: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    if (text.trim() === ev.text.trim()) { setEditing(false); return; }
+    setBusy(true);
+    try {
+      await api(`/api/leads/${encodeURIComponent(leadId)}/timeline`, {
+        method: "PATCH",
+        body: JSON.stringify({ index, text, who: getWho() }),
+      });
+      onFlash("✓ Activity entry updated");
+      setEditing(false);
+      onDone();
+    } catch (e) {
+      onFlash(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <li>
+      <div className="meta">
+        {new Date(ev.at).toLocaleString()} · {ev.who} · {ev.kind}
+        {ev.editedBy && <span title={ev.editedAt ? new Date(ev.editedAt).toLocaleString() : undefined}> · ✎ edited by {ev.editedBy}</span>}
+        {!editing && (
+          <button
+            className="btn ghost small"
+            style={{ marginLeft: 8, padding: "1px 7px", fontSize: 11, minHeight: 0 }}
+            title="Edit this entry"
+            onClick={() => { setText(ev.text); setEditing(true); }}
+          >
+            ✎
+          </button>
+        )}
+      </div>
+      {editing ? (
+        <div style={{ marginTop: 4 }}>
+          <textarea
+            rows={3}
+            style={{ width: "100%" }}
+            value={text}
+            autoFocus
+            disabled={busy}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") setEditing(false); }}
+          />
+          <div style={{ marginTop: 6, display: "flex", gap: 8 }}>
+            <button className="btn small" onClick={save} disabled={busy || !text.trim()}>
+              {busy ? "Saving…" : "Save"}
+            </button>
+            <button className="btn ghost small" onClick={() => setEditing(false)}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <div className="body"><Linkify text={ev.text} /></div>
+      )}
+    </li>
   );
 }
 
