@@ -107,6 +107,45 @@ def main() -> None:
         body = strip_quoted(plain_body(msg))[:2000]
         received = email.utils.parsedate_to_datetime(msg.get("Date")) if msg.get("Date") else None
 
+        # SalesCaptain text/webchat notification (no-reply@salescaptain.com):
+        # "<Name> sent a message to Brigham Larson Pianos at <date>, <time> and
+        # is currently waiting for a reply." Parse the sender + any message text
+        # and route to the SalesCaptain handler instead of the email handler.
+        if "salescaptain.com" in from_email.lower():
+            full = f"{subject}\n{body}"
+            m = re.search(r"^\s*(.+?)\s+sent a message to\b", full, re.M)
+            sender = (m.group(1).strip() if m else "").strip()
+            phone = ""
+            pm = re.search(r"\+?1?\D?(\d{3})\D?(\d{3})\D?(\d{4})", sender)
+            if pm:
+                phone = pm.group(1) + pm.group(2) + pm.group(3)
+                sender = ""  # the "name" was actually a raw number
+            # Message text, if the email includes it after the waiting line.
+            tm = re.search(r"waiting for a reply[.:]?\s*(.+)", body, re.S)
+            text = (tm.group(1).strip()[:1000] if tm else "")
+            payload = json.dumps({
+                "senderName": sender,
+                "senderPhone": phone,
+                "messageText": text,
+                "at": received.isoformat() if received else None,
+            }).encode()
+            req = urllib.request.Request(
+                f"{APP_URL}/api/salescaptain/inbound",
+                data=payload,
+                headers={"Content-Type": "application/json", "x-blp-key": key},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=30) as res:
+                    result = json.load(res)
+                tag = "MATCHED " + result.get("leadName", "") if result.get("matched") else "no lead match"
+                print(f"uid {uid}: [SalesCaptain] {tag} ({sender or phone})")
+                last_uid = uid
+            except Exception as e:
+                print(f"uid {uid}: SalesCaptain POST failed ({e}) — will retry")
+                break
+            continue
+
         payload = json.dumps({
             "fromEmail": from_email,
             "fromName": from_name,
