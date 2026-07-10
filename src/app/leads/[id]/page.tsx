@@ -171,6 +171,8 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
             </dl>
           </div>
 
+          <InstructArnoldCard lead={lead} onFlash={setFlash} onDone={loadSoon} />
+
           <div className="card">
             <h2>Activity</h2>
             <form onSubmit={logActivity} style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
@@ -179,7 +181,6 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
                 <option value="call">Call</option>
                 <option value="sms_out">Text (manual)</option>
                 <option value="email_out">Email (manual)</option>
-                <option value="followup">Next follow-up instructions</option>
               </select>
               <input style={{ flex: 1 }} placeholder="Log a note, call, or touch…" value={note} onChange={(e) => setNote(e.target.value)} />
               <button className="btn small" disabled={savingNote || !note.trim()}>Log</button>
@@ -283,6 +284,70 @@ function AdjacentLeadButton({ currentId, dir }: { currentId: string; dir: 1 | -1
 }
 
 /** One activity entry — click ✎ to edit past notes (audit-trailed). */
+/**
+ * Instructions for Arnold — the rep's next-step orders for this lead.
+ * Recorded on the timeline, pinged to Telegram, delivered to his brain.
+ */
+function InstructArnoldCard({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: string) => void; onDone: () => void }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const standing = [...lead.timeline].reverse().filter((ev) => ev.kind === "followup").slice(0, 3);
+
+  async function send(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const r = await api<{ detail: string }>(`/api/leads/${encodeURIComponent(lead.id)}/instruct`, {
+        method: "POST",
+        body: JSON.stringify({ text, who: getWho() }),
+      });
+      onFlash(`✓ ${r.detail}`);
+      setText("");
+      onDone();
+    } catch (err) {
+      onFlash(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 18, borderLeft: "3px solid var(--crimson)" }}>
+      <h2>Instructions for Arnold</h2>
+      <div className="muted" style={{ marginBottom: 10 }}>
+        Tell Arnold what to do next on this lead — he rewrites his drafts to follow it, and the team
+        sees it on Telegram. Your instructions outrank his standing strategy.
+      </div>
+      <form onSubmit={send}>
+        <textarea
+          rows={3}
+          placeholder="e.g. He's back from vacation July 20 — offer the Hailun 121 showroom visit then. Don't bring up financing."
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+        <button className="btn" style={{ marginTop: 8 }} disabled={busy || !text.trim()}>
+          {busy ? "Sending…" : "Send to Arnold"}
+        </button>
+      </form>
+      {standing.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <div className="label" style={{ fontSize: 11.5, textTransform: "uppercase", letterSpacing: 1, color: "var(--ink-3)" }}>
+            Standing instructions
+          </div>
+          {standing.map((ev, i) => (
+            <div key={i} style={{ padding: "6px 0", borderBottom: "1px solid #f0ece6" }}>
+              <div className="muted" style={{ fontSize: 11.5 }}>
+                {new Date(ev.at).toLocaleDateString()} · {ev.who}{i === 0 ? " · newest (Arnold obeys this one)" : ""}
+              </div>
+              <div style={{ fontSize: 13.5 }}>{ev.text}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TimelineEntry({
   leadId, ev, index, onFlash, onDone,
 }: {
