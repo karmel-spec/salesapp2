@@ -924,7 +924,7 @@
     ]
   },
   "marcus": {
-    "mission": "Chief marketing coordination across BLP marketing agents, campaign priorities, cross-agent planning, reporting, and strategic execution.",
+    "mission": "_Created: 2026-04-29 by Walter_ _Upgraded: 2026-04-30 by Karmel + Walter — strategic refocus_",
     "responsibilities": [
       "Maintain a clear operating lane for Chief Marketing Agent work.",
       "Keep decisions, briefs, outputs, and reusable guidance in the BLP Knowledge Vault.",
@@ -954,23 +954,27 @@
     "requestedCrons": [
       "Marcus Weekly Marketing Command Brief"
     ],
-    "vaultFolder": "Agents/Marcus Larson (Chief Marketing Agent)",
+    "vaultFolder": "Agents/marcus",
     "docs": [
       [
-        "Agent Profile",
-        "~/Documents/BLP Knowledge Vault/Agents/Marcus Larson (Chief Marketing Agent)/Marcus Larson (Chief Marketing Agent) - Agent Profile.md"
+        "IDENTITY",
+        "~/Documents/BLP Knowledge Vault/Agents/marcus/IDENTITY.md"
       ],
       [
-        "Operating Manual",
-        "~/Documents/BLP Knowledge Vault/Agents/Marcus Larson (Chief Marketing Agent)/Marcus Larson (Chief Marketing Agent) - Operating Manual.md"
+        "SOUL",
+        "~/Documents/BLP Knowledge Vault/Agents/marcus/SOUL.md"
       ],
       [
-        "Current Projects",
-        "~/Documents/BLP Knowledge Vault/Agents/Marcus Larson (Chief Marketing Agent)/Marcus Larson (Chief Marketing Agent) - Current Projects.md"
+        "MEMORY",
+        "~/Documents/BLP Knowledge Vault/Agents/marcus/MEMORY.md"
       ],
       [
-        "Cron Jobs",
-        "~/Documents/BLP Knowledge Vault/Agents/Marcus Larson (Chief Marketing Agent)/Marcus Larson (Chief Marketing Agent) - Cron Jobs.md"
+        "AGENTS",
+        "~/Documents/BLP Knowledge Vault/Agents/marcus/AGENTS.md"
+      ],
+      [
+        "STATUS",
+        "~/Documents/BLP Knowledge Vault/Agents/marcus/STATUS.md"
       ]
     ]
   },

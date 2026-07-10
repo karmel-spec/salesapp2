@@ -78,7 +78,7 @@ for (const dir of fs.readdirSync(AGENTS_DIR)) {
 }
 
 /* ---- Identity-file agents: Agents/<slug>/IDENTITY.md (arnold, ivory, melody) ---- */
-for (const slug of ["ivory", "melody", "arnold"]) {
+for (const slug of ["ivory", "melody", "arnold", "marcus"]) {
   const folder = path.join(AGENTS_DIR, slug);
   const identity = read(path.join(folder, "IDENTITY.md"));
   if (!identity) continue;
