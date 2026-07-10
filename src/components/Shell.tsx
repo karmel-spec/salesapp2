@@ -50,6 +50,21 @@ function WhoAmI() {
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Navigating (or Esc) closes the mobile drawer.
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [pathname]);
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDrawerOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drawerOpen]);
+
   if (pathname === "/login") return <>{children}</>;
 
   return (
@@ -60,7 +75,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <img src="/blp-logo.png" alt="Brigham Larson Pianos" className="brand-logo" />
           <div className="brand-sub">Sales Console</div>
         </div>
-        <nav className="nav">
+        <button
+          className="nav-burger"
+          aria-label={drawerOpen ? "Close menu" : "Open menu"}
+          aria-expanded={drawerOpen}
+          onClick={() => setDrawerOpen((v) => !v)}
+        >
+          ☰
+        </button>
+        {drawerOpen && <div className="nav-backdrop" onClick={() => setDrawerOpen(false)} />}
+        <nav className={`nav${drawerOpen ? " open" : ""}`}>
           {NAV.map((item) => {
             const active =
               item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
