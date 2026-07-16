@@ -43,6 +43,11 @@ export const config = {
   // Claude API when the Hermes webhook isn't reachable.
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || "",
 
+  // Optional: Google Maps JavaScript API key for the Lead Map page. Without
+  // it the page falls back to the built-in US atlas (no key required).
+  // Restrict the key to the Maps JavaScript API + this site's domains.
+  googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || "",
+
   // Safety: without a team passcode the app is in open/dev mode — real
   // customer sends are disabled there unless explicitly forced.
   dryRunSends:
@@ -85,5 +90,6 @@ export function integrationStatus() {
     telegram: Boolean(config.telegramBotToken && config.telegramChatId),
     claudeFallback: Boolean(config.anthropicApiKey),
     googleLogin: Boolean(config.googleOauthClientId && config.googleOauthClientSecret),
+    googleMaps: Boolean(config.googleMapsApiKey),
   };
 }
