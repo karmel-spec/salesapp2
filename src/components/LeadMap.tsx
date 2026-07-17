@@ -50,7 +50,38 @@ export interface LeadMapProps {
 }
 
 export function LeadMap(props: LeadMapProps) {
-  return props.mapsApiKey ? <GoogleLeadMap {...props} /> : <UsAtlasMap {...props} />;
+  const [authFailed, setAuthFailed] = useState(false);
+
+  // Fall back to the atlas when Google rejects the key, so the team still
+  // has a working map instead of Google's error dialog. gm_authFailure only
+  // covers auth failures; billing/API-enablement problems are announced
+  // solely via console.error ("… BillingNotEnabledMapError"), so sniff those.
+  useEffect(() => {
+    (window as unknown as { gm_authFailure?: () => void }).gm_authFailure = () => setAuthFailed(true);
+    const orig = console.error;
+    console.error = (...args: unknown[]) => {
+      if (args.some((a) => typeof a === "string" && a.includes("MapError"))) setAuthFailed(true);
+      orig(...args);
+    };
+    return () => {
+      console.error = orig;
+    };
+  }, []);
+
+  if (!props.mapsApiKey || authFailed) {
+    return (
+      <>
+        <UsAtlasMap {...props} />
+        {authFailed && (
+          <div className="banner bad" style={{ marginTop: 8 }}>
+            ⚠ Google Maps rejected the API key (check billing / API enablement / key restrictions
+            in Google Cloud Console) — showing the built-in atlas instead.
+          </div>
+        )}
+      </>
+    );
+  }
+  return <GoogleLeadMap {...props} />;
 }
 
 /* ── Built-in SVG atlas ─────────────────────────────────────────────── */
@@ -177,10 +208,12 @@ function loadGoogleMaps(key: string): Promise<any> {
     mapsLoader = new Promise((resolve, reject) => {
       const w = window as any;
       if (w.google?.maps) return resolve(w.google);
+      // loading=async wants a callback — google.maps isn't guaranteed to be
+      // ready at the script's own onload event.
+      w.__blpMapsReady = () => resolve(w.google);
       const s = document.createElement("script");
-      s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly`;
+      s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&loading=async&callback=__blpMapsReady`;
       s.async = true;
-      s.onload = () => resolve((window as any).google);
       s.onerror = () => {
         mapsLoader = null;
         reject(new Error("Google Maps failed to load — check the API key"));
@@ -201,20 +234,29 @@ function GoogleLeadMap({ pins, selectedState, selectedLeadId, onSelectLead, maps
   const markersRef = useRef<any[]>([]);
   const infoRef = useRef<any>(null);
   const [error, setError] = useState("");
+  // Flipped once the async Maps script + map object exist — the marker
+  // effect keys off this (a ref change alone never re-runs an effect).
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let dead = false;
     loadGoogleMaps(mapsApiKey)
       .then((google) => {
         if (dead || !holder.current || mapRef.current) return;
-        mapRef.current = new google.maps.Map(holder.current, {
+        const map = new google.maps.Map(holder.current, {
           center: { lat: 39.5, lng: -98.35 },
           zoom: 4,
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: true,
         });
+        mapRef.current = map;
         infoRef.current = new google.maps.InfoWindow();
+        // The map measures its container when constructed, which can be
+        // mid-layout — kick it whenever the holder's size settles/changes.
+        const ro = new ResizeObserver(() => google.maps.event.trigger(map, "resize"));
+        ro.observe(holder.current);
+        setReady(true);
       })
       .catch((e) => setError(e.message));
     return () => {
@@ -262,7 +304,7 @@ function GoogleLeadMap({ pins, selectedState, selectedLeadId, onSelectLead, maps
       map.fitBounds(bounds, 40);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pins, mapRef.current]);
+  }, [pins, ready]);
 
   // Focusing a state zooms to its pins.
   useEffect(() => {
