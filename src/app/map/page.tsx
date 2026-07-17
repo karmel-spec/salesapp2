@@ -34,7 +34,6 @@ export default function MapPage() {
   const [bucket, setBucket] = useState<Bucket>("open");
   const [rep, setRep] = useState("all");
   const [minHeat, setMinHeat] = useState(0);
-  const [staleOnly, setStaleOnly] = useState(false);
   const [selectedState, setSelectedState] = useState("");
   const [selectedLeadId, setSelectedLeadId] = useState("");
   const [showUnlocated, setShowUnlocated] = useState(false);
@@ -58,10 +57,9 @@ export default function MapPage() {
       (l) =>
         inBucket(l, bucket) &&
         (rep === "all" || l.rep === rep || l.subRep === rep) &&
-        (minHeat === 0 || (Number(l.score) || 0) >= minHeat) &&
-        (!staleOnly || l.isStale)
+        (minHeat === 0 || (Number(l.score) || 0) >= minHeat)
     );
-  }, [data, bucket, rep, minHeat, staleOnly]);
+  }, [data, bucket, rep, minHeat]);
 
   const pins: Pin[] = useMemo(
     () => filtered.filter((l) => l.geo).map((l) => ({ ...l, lat: l.geo!.lat, lng: l.geo!.lng })),
@@ -124,10 +122,6 @@ export default function MapPage() {
           <option value={8}>🔥 Hot (8+)</option>
           <option value={5}>Warm (5+)</option>
         </select>
-        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13.5 }}>
-          <input type="checkbox" checked={staleOnly} onChange={(e) => setStaleOnly(e.target.checked)} />
-          Stale only
-        </label>
         {selectedState && (
           <span className="badge stale" style={{ cursor: "pointer" }} onClick={() => setSelectedState("")}>
             {STATE_NAMES[selectedState] || selectedState} ✕
