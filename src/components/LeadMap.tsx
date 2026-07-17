@@ -207,9 +207,11 @@ function loadGoogleMaps(key: string): Promise<any> {
   if (!mapsLoader) {
     mapsLoader = new Promise((resolve, reject) => {
       const w = window as any;
-      if (w.google?.maps) return resolve(w.google);
+      if (w.google?.maps?.Map) return resolve(w.google);
       // loading=async wants a callback — google.maps isn't guaranteed to be
-      // ready at the script's own onload event.
+      // ready at the script's own onload event. The callback handshake can
+      // still be missed (HMR, double mounts), so poll as a fallback: resolve
+      // as soon as the Map constructor exists, however we got there.
       w.__blpMapsReady = () => resolve(w.google);
       const s = document.createElement("script");
       s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&loading=async&callback=__blpMapsReady`;
@@ -219,6 +221,17 @@ function loadGoogleMaps(key: string): Promise<any> {
         reject(new Error("Google Maps failed to load — check the API key"));
       };
       document.head.appendChild(s);
+      const started = Date.now();
+      const poll = setInterval(() => {
+        if (w.google?.maps?.Map) {
+          clearInterval(poll);
+          resolve(w.google);
+        } else if (Date.now() - started > 15000) {
+          clearInterval(poll);
+          mapsLoader = null;
+          reject(new Error("Google Maps timed out — check the API key / network"));
+        }
+      }, 100);
     });
   }
   return mapsLoader;
@@ -269,6 +282,9 @@ function GoogleLeadMap({ pins, selectedState, selectedLeadId, onSelectLead, maps
     const google = (window as any).google;
     const map = mapRef.current;
     if (!google?.maps || !map) return;
+    // The map often measures its div mid-layout and draws tiles in a small
+    // box — force a re-measure before every marker pass / fitBounds.
+    google.maps.event.trigger(map, "resize");
     markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = pins.map((p) => {
       const marker = new google.maps.Marker({
@@ -302,6 +318,21 @@ function GoogleLeadMap({ pins, selectedState, selectedLeadId, onSelectLead, maps
       const bounds = new google.maps.LatLngBounds();
       pins.forEach((p) => bounds.extend({ lat: p.lat, lng: p.lng }));
       map.fitBounds(bounds, 40);
+      // The map sometimes keeps a stale (tiny) measurement of its div and
+      // the legacy "resize" trigger is a no-op in current Maps versions.
+      // A real 1px size change is always picked up by its own observer, but
+      // it must persist across frames — changing and reverting within one
+      // frame coalesces to nothing. Grow, let it paint, revert, re-fit.
+      const timers = [
+        setTimeout(() => {
+          if (holder.current) holder.current.style.height = "561px";
+        }, 350),
+        setTimeout(() => {
+          if (holder.current) holder.current.style.height = "560px";
+        }, 550),
+        setTimeout(() => map.fitBounds(bounds, 40), 800),
+      ];
+      return () => timers.forEach(clearTimeout);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pins, ready]);
