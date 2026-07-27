@@ -102,7 +102,13 @@ async function sendSms(to: string, body: string): Promise<string> {
       Authorization: "Basic " + Buffer.from(`${sid}:${tok}`).toString("base64"),
       "Content-Type": "application/x-www-form-urlencoded",
     },
-    body: new URLSearchParams({ To: to, From: from, Body: body }),
+    body: new URLSearchParams({
+      To: to, From: from, Body: body,
+      // route through the A2P-registered service when configured (matches src/lib/comms.ts)
+      ...(process.env.TWILIO_MESSAGING_SERVICE_SID
+        ? { MessagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID }
+        : {}),
+    }),
   });
   const json = (await res.json()) as { sid?: string; message?: string };
   if (!res.ok) throw new Error(`Twilio send failed (${res.status}): ${json.message || "unknown"}`);
