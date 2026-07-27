@@ -92,7 +92,7 @@ function corsHeaders(origin: string): Record<string, string> {
 export default async (req: Request) => {
   const origin = req.headers.get("origin") || "";
   const base = corsHeaders(origin);
-  if (req.method === "OPTIONS") return new Response("", { status: 204, headers: base });
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: base });
   const headers = { ...base, "content-type": "application/json" };
   const fail = (status: number, error: string) =>
     new Response(JSON.stringify({ error }), { status, headers });
