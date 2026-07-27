@@ -28,5 +28,8 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // .netlify/functions are standalone endpoints with their own key auth
+  // (e.g. curtis-orders for the Shop Manager) — the passcode-cookie redirect
+  // must not swallow them.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|\\.netlify/).*)"],
 };
