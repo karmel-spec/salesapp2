@@ -10,13 +10,33 @@
  *   POST {key, tab, updates:[{row,col,value}]}   cell edits (1-based row/col)
  *   POST {key, tab, append:[v1,…,vN]}            append a row
  *
- * Auth: `key` must equal BLP_APP_ACCESS_KEY (same team passcode that
- * gates the sales console). CORS-restricted to the shop app origins.
+ * Auth (either works):
+ *   · Authorization: Bearer <Google ID token> — the Shop Manager's sign-in;
+ *     verified against Google, must be an admin email / company domain
+ *     (mirrors BLPShop's draft-client-update function).
+ *   · `key` equal to BLP_APP_ACCESS_KEY (team passcode fallback).
+ * CORS-restricted to the shop app origins.
  */
 import * as crypto from "node:crypto";
 
 const SHEET_ID = "1DxvDQ9WlhxXfiZaKGpdJLOOPNMBfVA9PsHGuLe55pmc";
 const TABS = ["Requested", "Completed, paid, received"];
+// same identity rules as the Shop Manager's gate
+const SHOP_GOOGLE_CLIENT_ID = "118454775893-17u7t3glh8eu4kffhe7b42jl71apre4f.apps.googleusercontent.com";
+const ADMIN_DOMAIN = "brighamlarsonpianos.com";
+const ADMIN_EMAILS = ["brighamlarson@gmail.com", "brighamlarsonpianos@gmail.com", "pianoshop.blp@gmail.com"];
+
+async function verifyGoogle(idToken: string): Promise<string | null> {
+  if (!idToken) return null;
+  const r = await fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(idToken));
+  if (!r.ok) return null;
+  const info = (await r.json()) as Record<string, string>;
+  if (info.aud !== SHOP_GOOGLE_CLIENT_ID) return null;
+  if (String(info.email_verified) !== "true") return null;
+  const email = String(info.email || "").toLowerCase();
+  if (email.endsWith("@" + ADMIN_DOMAIN) || ADMIN_EMAILS.includes(email)) return email;
+  return null;
+}
 const ALLOW = [
   "https://blpshop.netlify.app",
   "http://localhost:4180",
@@ -84,7 +104,7 @@ function corsHeaders(origin: string): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": ALLOW.includes(origin) ? origin : ALLOW[0],
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "content-type",
+    "Access-Control-Allow-Headers": "content-type, authorization",
     "Vary": "Origin",
   };
 }
@@ -99,9 +119,15 @@ export default async (req: Request) => {
 
   try {
     const appKey = process.env.BLP_APP_ACCESS_KEY || "";
+    const bearer = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+    const googleUser = bearer ? await verifyGoogle(bearer) : null;
+    const authed = (key: string) => !!googleUser || (!!appKey && key === appKey);
+    const authErr = bearer && !googleUser
+      ? "Google sign-in expired or not authorized — reload the page to sign in again"
+      : "sign in (or passcode) required";
     if (req.method === "GET") {
       const key = new URL(req.url).searchParams.get("key") || "";
-      if (appKey && key !== appKey) return fail(401, "wrong passcode");
+      if (!authed(key)) return fail(401, authErr);
       const ranges = TABS.map((t) => `ranges=${encodeURIComponent(`'${t}'!A1:N1500`)}`).join("&");
       const out = await sheets(`/values:batchGet?${ranges}&majorDimension=ROWS`);
       const tabs: Record<string, string[][]> = {};
@@ -114,8 +140,7 @@ export default async (req: Request) => {
         updates?: { row: number; col: number; value: string }[];
         append?: string[];
       };
-      if (!appKey) return fail(503, "BLP_APP_ACCESS_KEY not configured on the server");
-      if ((body.key || "") !== appKey) return fail(401, "wrong passcode");
+      if (!authed(body.key || "")) return fail(401, authErr);
       const tab = body.tab || "";
       if (!TABS.includes(tab)) return fail(400, "unknown tab");
       if (body.updates?.length) {
