@@ -61,6 +61,10 @@ export interface TimelineEvent {
   text: string;
   editedBy?: string; // audit trail when a rep edits an entry after the fact
   editedAt?: string;
+  /** Inbox feature: set when a rep acknowledges an inbound customer reply.
+   *  Unset on an "inbound" event = NEW (unread) client response. */
+  readBy?: string;
+  readAt?: string;
 }
 
 export interface Lead {
@@ -236,6 +240,8 @@ function normalizeTimeline(raw: unknown[]): TimelineEvent[] {
           text: String(e.text ?? ""),
           ...(typeof e.editedBy === "string" ? { editedBy: e.editedBy } : {}),
           ...(typeof e.editedAt === "string" ? { editedAt: e.editedAt } : {}),
+          ...(typeof e.readBy === "string" ? { readBy: e.readBy } : {}),
+          ...(typeof e.readAt === "string" ? { readAt: e.readAt } : {}),
         };
       }
       const at = typeof e.at === "string" ? e.at : typeof e.date === "string" ? e.date : "";
@@ -712,6 +718,49 @@ export async function tidySheetSections(): Promise<{ moved: { name: string; buck
 function activityLine(ev: TimelineEvent): string {
   const stamp = new Date(ev.at);
   return `[${stamp.toLocaleDateString("en-US")} ${ev.who} · ${ev.kind}] ${ev.text}${ev.editedBy ? ` (edited by ${ev.editedBy})` : ""}`;
+}
+
+/**
+ * Inbox: acknowledge inbound customer replies on one lead. Events are
+ * matched by their `at` timestamp (indexes drift when new events append).
+ * Patches timelineJson ONLY — no App Activity noise, no stale-clock touch.
+ */
+export async function markInboundRead(lead: Lead, shape: SheetShape, ats: string[], who: string): Promise<number> {
+  const s = await ensureAppColumns(shape);
+  const target = await ensureRowCurrent(lead, s);
+  const now = new Date().toISOString();
+  let changed = 0;
+  const timeline = target.timeline.map((e) => {
+    if (e.kind !== "inbound" || e.readAt || !ats.includes(e.at)) return e;
+    changed++;
+    return { ...e, readBy: who, readAt: now };
+  });
+  if (!changed) return 0;
+  await writeCells([{ row: target.row, col: requireCol(s, "timelineJson"), value: JSON.stringify(timeline) }]);
+  invalidateCache();
+  return changed;
+}
+
+/** Inbox: acknowledge EVERY unread client reply (one batched write). */
+export async function markAllInboundRead(who: string): Promise<number> {
+  const { leads, shape } = await getLeads(true);
+  const s = await ensureAppColumns(shape);
+  const col = requireCol(s, "timelineJson");
+  const now = new Date().toISOString();
+  const cells: { row: number; col: number; value: string }[] = [];
+  let changed = 0;
+  for (const l of leads) {
+    if (!l.timeline.some((e) => e.kind === "inbound" && !e.readAt)) continue;
+    const timeline = l.timeline.map((e) => {
+      if (e.kind !== "inbound" || e.readAt) return e;
+      changed++;
+      return { ...e, readBy: who, readAt: now };
+    });
+    cells.push({ row: l.row, col, value: JSON.stringify(timeline) });
+  }
+  if (cells.length) await writeCells(cells);
+  invalidateCache();
+  return changed;
 }
 
 /**

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { REPS } from "@/lib/client";
+import { REPS, api } from "@/lib/client";
 
 const NAV = [
   { href: "/", label: "Dashboard" },
@@ -46,6 +46,40 @@ function WhoAmI() {
         </option>
       ))}
     </select>
+  );
+}
+
+/**
+ * Always-visible "New Client Responses" alert. Sits fixed in the top-right
+ * corner on every page, polls the inbox, and deep-links to the Activity
+ * inbox. Hidden when everything has been acknowledged.
+ */
+function InboxAlert() {
+  const pathname = usePathname();
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    let dead = false;
+    const tick = () =>
+      api<{ unread: number }>("/api/inbox?count=1")
+        .then((r) => {
+          if (!dead) setUnread(r.unread);
+        })
+        .catch(() => {}); // quiet — the pill just stays as-is until next poll
+    tick();
+    const iv = setInterval(tick, 45_000);
+    return () => {
+      dead = true;
+      clearInterval(iv);
+    };
+    // Re-check on navigation so acknowledging in Activity updates the pill fast.
+  }, [pathname]);
+
+  if (!unread) return null;
+  return (
+    <Link href="/activity?filter=inbound" className="inbox-alert" aria-live="polite">
+      📥 {unread} New Client Response{unread === 1 ? "" : "s"}
+    </Link>
   );
 }
 
@@ -117,6 +151,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
       <main className="main">{children}</main>
+      <InboxAlert />
     </div>
   );
 }
