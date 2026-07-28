@@ -60,8 +60,9 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * Acknowledge client replies as read.
+ * Acknowledge client replies as read — or flip them back to unread.
  * Body: { who, leadId, ats: [iso…] } for one lead, or { who, all: true }.
+ * Add { unread: true } to clear the read mark instead of setting it.
  */
 export async function POST(req: NextRequest) {
   const guard = requireSession(req);
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
     if (!found) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
     const ats = Array.isArray(body.ats) ? body.ats.map(String) : [];
     if (!ats.length) return NextResponse.json({ error: "ats[] required" }, { status: 400 });
-    const changed = await markInboundRead(found.lead, found.shape, ats, who);
+    const changed = await markInboundRead(found.lead, found.shape, ats, who, body.unread !== true);
     return NextResponse.json({ changed });
   } catch (err) {
     return jsonError(err);

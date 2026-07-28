@@ -721,19 +721,33 @@ function activityLine(ev: TimelineEvent): string {
 }
 
 /**
- * Inbox: acknowledge inbound customer replies on one lead. Events are
- * matched by their `at` timestamp (indexes drift when new events append).
- * Patches timelineJson ONLY — no App Activity noise, no stale-clock touch.
+ * Inbox: acknowledge inbound customer replies on one lead — or flip them
+ * back to unread (read=false). Events are matched by their `at` timestamp
+ * (indexes drift when new events append). Patches timelineJson ONLY — no
+ * App Activity noise, no stale-clock touch.
  */
-export async function markInboundRead(lead: Lead, shape: SheetShape, ats: string[], who: string): Promise<number> {
+export async function markInboundRead(
+  lead: Lead,
+  shape: SheetShape,
+  ats: string[],
+  who: string,
+  read = true
+): Promise<number> {
   const s = await ensureAppColumns(shape);
   const target = await ensureRowCurrent(lead, s);
   const now = new Date().toISOString();
   let changed = 0;
   const timeline = target.timeline.map((e) => {
-    if (e.kind !== "inbound" || e.readAt || !ats.includes(e.at)) return e;
+    if (e.kind !== "inbound" || !ats.includes(e.at)) return e;
+    if (read) {
+      if (e.readAt) return e; // already read
+      changed++;
+      return { ...e, readBy: who, readAt: now };
+    }
+    if (!e.readAt) return e; // already unread
     changed++;
-    return { ...e, readBy: who, readAt: now };
+    const { readBy: _rb, readAt: _ra, ...rest } = e;
+    return rest;
   });
   if (!changed) return 0;
   await writeCells([{ row: target.row, col: requireCol(s, "timelineJson"), value: JSON.stringify(timeline) }]);
