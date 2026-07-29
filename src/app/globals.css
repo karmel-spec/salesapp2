@@ -652,3 +652,13 @@ tbody tr:hover { background: #faf7f2; }
 .unfiled-summary { font-size: 12.5px; margin: 3px 0 7px; }
 .unfiled-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .unfiled-actions select { max-width: 420px; flex: 1; min-width: 220px; }
+
+/* Photo attachments inside thread bubbles */
+.bubble-photo {
+  display: block;
+  max-width: 100%;
+  max-height: 260px;
+  border-radius: 10px;
+  margin-top: 6px;
+  border: 1px solid var(--line);
+}

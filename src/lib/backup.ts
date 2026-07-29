@@ -47,7 +47,9 @@ async function drive(path: string, init?: RequestInit): Promise<any> {
 
 export async function listBackups(): Promise<BackupFile[]> {
   const folder = requireFolder();
-  const q = encodeURIComponent(`'${folder}' in parents and trashed = false`);
+  // Name filter keeps retention pruning away from anything else living in
+  // the folder (e.g. the sales-app-media photo subfolder).
+  const q = encodeURIComponent(`'${folder}' in parents and name contains 'leads-log-backup-' and trashed = false`);
   const data = await drive(
     `/files?q=${q}&orderBy=createdTime desc&pageSize=60&fields=files(id,name,createdTime,size,webViewLink)&supportsAllDrives=true&includeItemsFromAllDrives=true`
   );

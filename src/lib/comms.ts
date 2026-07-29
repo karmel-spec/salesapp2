@@ -5,9 +5,9 @@ import { config } from "./config";
  * In open/dev mode (no team passcode) sends are DRY-RUN by default —
  * logged, never delivered — so local development can't text customers. */
 
-export async function sendSms(to: string, body: string): Promise<{ sid: string }> {
+export async function sendSms(to: string, body: string, mediaUrls: string[] = []): Promise<{ sid: string }> {
   if (config.dryRunSends) {
-    console.log(`[DRY-RUN] SMS to ${to}: ${body.slice(0, 120)}`);
+    console.log(`[DRY-RUN] SMS to ${to}: ${body.slice(0, 120)}${mediaUrls.length ? ` +${mediaUrls.length} media` : ""}`);
     return { sid: "DRYRUN-SMS" };
   }
   if (!config.twilioAccountSid || !config.twilioAuthToken || !config.twilioFrom) {
@@ -25,16 +25,21 @@ export async function sendSms(to: string, body: string): Promise<{ sid: string }
           Buffer.from(`${config.twilioAccountSid}:${config.twilioAuthToken}`).toString("base64"),
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: new URLSearchParams({
-        To: to,
-        From: config.twilioFrom,
-        Body: body,
-        // Route through the A2P-registered service for opt-out compliance;
-        // From pins the branded number (it's in the service's pool).
-        ...(config.twilioMessagingServiceSid
-          ? { MessagingServiceSid: config.twilioMessagingServiceSid }
-          : {}),
-      }),
+      body: (() => {
+        const params = new URLSearchParams({
+          To: to,
+          From: config.twilioFrom,
+          Body: body,
+          // Route through the A2P-registered service for opt-out compliance;
+          // From pins the branded number (it's in the service's pool).
+          ...(config.twilioMessagingServiceSid
+            ? { MessagingServiceSid: config.twilioMessagingServiceSid }
+            : {}),
+        });
+        // MMS: each photo is a repeated MediaUrl form field.
+        for (const url of mediaUrls) params.append("MediaUrl", url);
+        return params;
+      })(),
     }
   );
   const json = (await res.json()) as any;
@@ -77,13 +82,20 @@ export async function startBridgeCall(repPhone: string, leadPhone: string): Prom
   return { sid: json.sid };
 }
 
+export interface EmailAttachment {
+  filename: string;
+  contentType: string;
+  content: Buffer;
+}
+
 export async function sendEmail(
   to: string,
   subject: string,
-  body: string
+  body: string,
+  attachments: EmailAttachment[] = []
 ): Promise<{ messageId: string }> {
   if (config.dryRunSends) {
-    console.log(`[DRY-RUN] email to ${to} ("${subject}"): ${body.slice(0, 120)}`);
+    console.log(`[DRY-RUN] email to ${to} ("${subject}"): ${body.slice(0, 120)}${attachments.length ? ` +${attachments.length} attachment(s)` : ""}`);
     return { messageId: "DRYRUN-EMAIL" };
   }
   if (!config.smtpPass) {
@@ -101,6 +113,9 @@ export async function sendEmail(
     subject,
     text: emailText(body),
     html: emailHtml(body),
+    ...(attachments.length
+      ? { attachments: attachments.map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType })) }
+      : {}),
   });
   return { messageId: info.messageId };
 }

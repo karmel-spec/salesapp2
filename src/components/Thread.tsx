@@ -57,13 +57,22 @@ export function Thread({ lead, maxHeight }: { lead: Lead; maxHeight?: number }) 
         }
         const fromClient = e.kind === "inbound";
         const channel = e.kind === "email_out" || /email/i.test(e.text.slice(0, 30)) ? "✉️" : "📱";
+        // "📷 Photo: <url>" lines (attachments) render as inline images.
+        const photos = [...e.text.matchAll(/📷 Photo: (https?:\/\/\S+)/g)].map((m) => m[1]);
+        const textSansPhotos = e.text.replace(/\n?📷 Photo: https?:\/\/\S+/g, "").trimEnd();
         return (
           <div key={i} className={`bubble-row ${fromClient ? "client" : "blp"}`}>
             <div className="bubble">
               <div className="bubble-meta">
                 {fromClient ? `${channel} ${lead.name.split(" ")[0]}` : `${channel} ${e.who} (BLP)`} · {stamp}
               </div>
-              <Linkify text={e.text} />
+              <Linkify text={textSansPhotos} />
+              {photos.map((url) => (
+                <a key={url} href={url} target="_blank" rel="noreferrer">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt="attached photo" className="bubble-photo" />
+                </a>
+              ))}
             </div>
           </div>
         );

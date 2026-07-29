@@ -665,8 +665,33 @@ function ComposePanel({
   const [subject, setSubject] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [photo, setPhoto] = useState<{ name: string; type: string; dataBase64: string; preview: string } | null>(null);
   const isEmail = channel === "email";
   const to = isEmail ? lead.emailClean : lead.phoneDialable;
+
+  function pickPhoto(file: File | undefined) {
+    setErr("");
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setErr("Only photos (images) can be attached.");
+      return;
+    }
+    if (file.size > 3_500_000) {
+      setErr("That photo is over 3.5 MB — please pick a smaller one (or screenshot it).");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result);
+      setPhoto({
+        name: file.name,
+        type: file.type,
+        dataBase64: dataUrl.split(",")[1] || "",
+        preview: dataUrl,
+      });
+    };
+    reader.readAsDataURL(file);
+  }
 
   async function send() {
     setBusy(true);
@@ -674,7 +699,13 @@ function ComposePanel({
     try {
       const r = await api<{ detail: string }>(`/api/leads/${encodeURIComponent(lead.id)}/send`, {
         method: "POST",
-        body: JSON.stringify({ channel, body, subject, who: getWho() }),
+        body: JSON.stringify({
+          channel,
+          body,
+          subject,
+          who: getWho(),
+          ...(photo ? { photo: { name: photo.name, type: photo.type, dataBase64: photo.dataBase64 } } : {}),
+        }),
       });
       onFlash(`✓ ${r.detail}`);
       onDone();
@@ -710,14 +741,34 @@ function ComposePanel({
         onChange={(e) => setBody(e.target.value)}
         autoFocus={!isEmail}
       />
-      <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
+      {photo && (
+        <div style={{ marginTop: 8, display: "flex", gap: 10, alignItems: "center" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photo.preview} alt={photo.name} style={{ height: 64, borderRadius: 8, border: "1px solid var(--line)" }} />
+          <span className="muted" style={{ fontSize: 12 }}>📷 {photo.name}</span>
+          <button className="btn ghost small" onClick={() => setPhoto(null)}>✕ remove</button>
+        </div>
+      )}
+      <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <button
           className="btn"
           onClick={send}
           disabled={busy || !body.trim() || (isEmail && !subject.trim())}
         >
-          {busy ? "Sending…" : `Send ${isEmail ? "email" : "text"}`}
+          {busy ? "Sending…" : `Send ${isEmail ? "email" : "text"}${photo ? " + photo" : ""}`}
         </button>
+        <label className="btn ghost small" style={{ cursor: "pointer" }}>
+          📷 {photo ? "Change photo" : "Attach photo"}
+          <input
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              pickPhoto(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+        </label>
         <span className="muted" style={{ fontSize: 12 }}>
           sends immediately as {getWho() || "you"} — {isEmail ? "from info@brighamlarsonpianos.com" : "from the store number"} — and lands in the lead's activity
         </span>
