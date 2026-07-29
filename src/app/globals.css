@@ -644,3 +644,11 @@ tbody tr:hover { background: #faf7f2; }
   cursor: pointer;
 }
 .linklike:hover { text-decoration: underline; }
+
+/* ── Unfiled Plaud calls (Dashboard) ── */
+.unfiled-row { padding: 10px 0; border-top: 1px solid var(--line); }
+.unfiled-row:first-of-type { border-top: none; }
+.unfiled-meta { font-size: 13.5px; }
+.unfiled-summary { font-size: 12.5px; margin: 3px 0 7px; }
+.unfiled-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.unfiled-actions select { max-width: 420px; flex: 1; min-width: 220px; }

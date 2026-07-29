@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Lead } from "@/lib/leads";
 import { api, fetchLeads } from "@/lib/client";
 import { RepBadge, StaleBadge, StatusBadge, fmtDays, pendingDrafts } from "@/components/ui";
+import { UnfiledCalls } from "@/components/UnfiledCalls";
 
 export default function Dashboard() {
   const [leads, setLeads] = useState<Lead[] | null>(null);
@@ -78,6 +79,8 @@ export default function Dashboard() {
         </div>
       )}
       {sweepResult && <div className="banner info">{sweepResult}</div>}
+
+      <UnfiledCalls leads={leads} />
 
       <div className="grid tiles" style={{ marginBottom: 18 }}>
         <Link href="/leads?bucket=open" className="card tile linky">

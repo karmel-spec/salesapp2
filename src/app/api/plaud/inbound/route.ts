@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLeads, appendTimeline, type Lead } from "@/lib/leads";
+import { addUnfiled } from "@/lib/plaud-unfiled";
 import { notifyTelegram, notifyArnoldWebhook } from "@/lib/arnold";
 import { isValidArnoldKey } from "@/lib/auth";
 import { jsonError } from "@/lib/api";
@@ -146,12 +147,28 @@ export async function POST(req: NextRequest) {
     const mins = input.durationSec ? Math.round(input.durationSec / 60) : null;
 
     if (!lead) {
-      notifyTelegram(
-        `📞 <b>Plaud call with no matching lead</b>${input.title ? ` — "${input.title}"` : ""}` +
-          `${mins ? ` (${mins} min)` : ""}\nSummary: ${summary.slice(0, 350)}\n` +
-          `→ If this was a lead call, open the lead and paste the summary as a Call activity.`
-      ).catch(() => {});
-      return NextResponse.json({ matched: false });
+      // Queue it for two-click filing on the Dashboard ("Unfiled calls").
+      let queued = false;
+      try {
+        queued = await addUnfiled({
+          recordingId: input.recordingId,
+          startedAt: input.startedAt || "",
+          title: input.title || "",
+          durationSec: input.durationSec ?? null,
+          summary,
+          transcriptExcerpt: input.transcriptExcerpt || "",
+        });
+      } catch {
+        /* read-only mode etc. — the Telegram ping below still fires */
+      }
+      if (queued) {
+        notifyTelegram(
+          `📞 <b>Plaud call with no matching lead</b>${input.title ? ` — "${input.title}"` : ""}` +
+            `${mins ? ` (${mins} min)` : ""}\nSummary: ${summary.slice(0, 350)}\n` +
+            `→ File it from the Dashboard's "Unfiled call recordings" card (two clicks).`
+        ).catch(() => {});
+      }
+      return NextResponse.json({ matched: false, queued });
     }
 
     await appendTimeline(
