@@ -108,6 +108,41 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 4. Greeting scan — calls open with "Hi Daniel," / "Is this Daniel?"
+    //    even when the last name is never spoken. A greeted first name that
+    //    matches exactly ONE open lead (or, among several, the only one
+    //    touched in the last 14 days) is a safe file.
+    if (!lead && input.transcriptExcerpt) {
+      const TEAM = new Set(["brigham", "karmel", "melissa", "alisa", "arnold", "susie", "sally", "larson", "there", "guys"]);
+      const text = `${input.title || ""}\n${input.transcriptExcerpt.slice(0, 3000)}`;
+      const greeted: string[] = [];
+      for (const m of text.matchAll(
+        /\b(?:hi|hello|hey|hiya|good\s+(?:morning|afternoon|evening)|is\s+this|speaking\s+with|calling\s+for)[ ,]+([a-z][a-z'’-]{2,})/gi
+      )) {
+        const n = m[1].toLowerCase();
+        if (!TEAM.has(n) && !greeted.includes(n)) greeted.push(n);
+      }
+      const open = leads.filter((l) => l.statusBucket === "new" || l.statusBucket === "active");
+      for (const n of greeted) {
+        const c = open.filter((l) => l.firstName.trim().toLowerCase() === n);
+        if (c.length === 1) {
+          lead = c[0];
+          how = `greeted as "${c[0].firstName}" (unique open lead)`;
+          break;
+        }
+        if (c.length > 1) {
+          const recent = c.filter(
+            (l) => l.lastTouchISO && Date.now() - Date.parse(l.lastTouchISO) < 14 * 86400000
+          );
+          if (recent.length === 1) {
+            lead = recent[0];
+            how = `greeted as "${recent[0].firstName}" (only recently-active match)`;
+            break;
+          }
+        }
+      }
+    }
+
     const mins = input.durationSec ? Math.round(input.durationSec / 60) : null;
 
     if (!lead) {

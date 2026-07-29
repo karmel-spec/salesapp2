@@ -120,18 +120,31 @@ async function main() {
     } catch {
       /* transcript may still be processing — summary alone is fine */
     }
-    const res = await fetch(`${APP_URL}/api/plaud/inbound`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-blp-key": key() },
-      body: JSON.stringify({
-        recordingId: rec.id,
-        title: meta.title,
-        startedAt: meta.startedAt || (rec.started ? new Date(rec.started.replace(" ", "T")).toISOString() : null),
-        durationSec: meta.durationSec,
-        summary: summary.slice(0, 4000),
-        transcriptExcerpt,
-      }),
+    const payload = JSON.stringify({
+      recordingId: rec.id,
+      title: meta.title,
+      startedAt: meta.startedAt || (rec.started ? new Date(rec.started.replace(" ", "T")).toISOString() : null),
+      durationSec: meta.durationSec,
+      summary: summary.slice(0, 4000),
+      transcriptExcerpt,
     });
+    // One retry — serverless cold starts / dev-server recompiles drop the
+    // occasional connection, and a crash here loses the whole run's state.
+    let res;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        res = await fetch(`${APP_URL}/api/plaud/inbound`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-blp-key": key() },
+          body: payload,
+        });
+        break;
+      } catch (e) {
+        if (attempt >= 2) throw e;
+        console.log(`${rec.id}: fetch failed — retrying in 3s`);
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+    }
     const body = await res.json().catch(() => ({}));
     console.log(`${rec.id}: ${res.status} matched=${body.matched} ${body.leadName || ""} ${body.how || ""}`);
     if (res.ok) seen.add(rec.id);
