@@ -71,16 +71,35 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Lead name mentioned in the title or summary.
+    // 3. Lead name mentioned in the title, summary, or transcript. The
+    //    transcript is the workhorse — customers are greeted by name on the
+    //    call even when the AI summary never names them. Normalize away
+    //    punctuation/line breaks so "Darren,\nBalls" or "Darren's" still hit.
     if (!lead) {
-      const haystack = `${input.title || ""} ${summary}`.toLowerCase();
+      const norm = (s: string) => ` ${s.toLowerCase().replace(/[^a-z]+/g, " ")} `;
+      const haystack = norm(`${input.title || ""} ${summary} ${input.transcriptExcerpt || ""}`);
       lead = leads.find(
         (l) =>
           l.firstName &&
           l.lastName &&
-          haystack.includes(`${l.firstName} ${l.lastName}`.toLowerCase())
+          haystack.includes(norm(`${l.firstName} ${l.lastName}`).slice(1, -1))
       );
       if (lead) how = "name match";
+      // Last resort: a first name that is UNIQUE across open leads, spoken
+      // in the call and paired with the last name somewhere in the text.
+      if (!lead) {
+        const open = leads.filter((l) => l.statusBucket === "new" || l.statusBucket === "active");
+        const candidates = open.filter((l) => {
+          if (!l.firstName || l.firstName.length < 4 || !l.lastName || l.lastName.length < 4) return false;
+          const first = ` ${l.firstName.toLowerCase()} `;
+          const last = ` ${l.lastName.toLowerCase()} `;
+          return haystack.includes(first) && haystack.includes(last);
+        });
+        if (candidates.length === 1) {
+          lead = candidates[0];
+          how = "first+last name spoken";
+        }
+      }
     }
 
     const mins = input.durationSec ? Math.round(input.durationSec / 60) : null;

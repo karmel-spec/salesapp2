@@ -22,6 +22,7 @@ const APP_URL = process.env.BLP_APP_URL || "https://blpsalesapp.netlify.app";
 const STATE_FILE = path.join(HOME, ".blp-plaud-watcher-state.json");
 const PLAUD = process.env.PLAUD_BIN || path.join(HOME, ".hermes", "node", "bin", "plaud");
 const MAX_PER_RUN = 5;
+const DAYS = process.env.PLAUD_DAYS || "2"; // look-back window (override for backfills)
 
 function key() {
   const env = fs.readFileSync(path.join(HOME, "salesapp2", ".env.local"), "utf8");
@@ -89,7 +90,7 @@ async function main() {
   const state = fs.existsSync(STATE_FILE) ? JSON.parse(fs.readFileSync(STATE_FILE, "utf8")) : { seen: [] };
   const seen = new Set(state.seen || []);
 
-  const recordings = parseRecordings(plaud(["recent", "--days", "2"]));
+  const recordings = parseRecordings(plaud(["recent", "--days", DAYS]));
   const fresh = recordings.filter((r) => !seen.has(r.id)).slice(0, MAX_PER_RUN);
   if (!fresh.length) {
     console.log("no new recordings");
@@ -110,6 +111,15 @@ async function main() {
       continue;
     }
     const meta = fileMeta(rec.id);
+    // The transcript is where lead names actually live ("Hi Darren, this is
+    // Brigham…") — titles/summaries rarely name the customer. Send the
+    // opening minutes so the console's name matcher has something real.
+    let transcriptExcerpt = "";
+    try {
+      transcriptExcerpt = plaud(["transcript", rec.id]).trim().slice(0, 6000);
+    } catch {
+      /* transcript may still be processing — summary alone is fine */
+    }
     const res = await fetch(`${APP_URL}/api/plaud/inbound`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-blp-key": key() },
@@ -119,6 +129,7 @@ async function main() {
         startedAt: meta.startedAt || (rec.started ? new Date(rec.started.replace(" ", "T")).toISOString() : null),
         durationSec: meta.durationSec,
         summary: summary.slice(0, 4000),
+        transcriptExcerpt,
       }),
     });
     const body = await res.json().catch(() => ({}));
