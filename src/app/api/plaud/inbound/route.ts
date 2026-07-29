@@ -76,24 +76,30 @@ export async function POST(req: NextRequest) {
     //    call even when the AI summary never names them. Normalize away
     //    punctuation/line breaks so "Darren,\nBalls" or "Darren's" still hit.
     if (!lead) {
-      const norm = (s: string) => ` ${s.toLowerCase().replace(/[^a-z]+/g, " ")} `;
+      const norm = (s: string) => ` ${s.toLowerCase().replace(/[^a-z]+/g, " ").trim()} `;
       const haystack = norm(`${input.title || ""} ${summary} ${input.transcriptExcerpt || ""}`);
-      lead = leads.find(
-        (l) =>
-          l.firstName &&
-          l.lastName &&
-          haystack.includes(norm(`${l.firstName} ${l.lastName}`).slice(1, -1))
-      );
+      // A needle must keep real letters after normalization — junk names
+      // like "? ?" normalize to whitespace and would match everything.
+      const needle = (s: string) => {
+        const n = norm(s);
+        return n.replace(/ /g, "").length >= 5 ? n : null;
+      };
+      lead = leads.find((l) => {
+        if (!l.firstName || !l.lastName) return false;
+        const n = needle(`${l.firstName} ${l.lastName}`);
+        return Boolean(n && haystack.includes(n));
+      });
       if (lead) how = "name match";
-      // Last resort: a first name that is UNIQUE across open leads, spoken
-      // in the call and paired with the last name somewhere in the text.
+      // Last resort: first AND last name both spoken somewhere in the call,
+      // unique across open leads.
       if (!lead) {
+        const letters = (s: string) => s.toLowerCase().replace(/[^a-z]/g, "");
         const open = leads.filter((l) => l.statusBucket === "new" || l.statusBucket === "active");
         const candidates = open.filter((l) => {
-          if (!l.firstName || l.firstName.length < 4 || !l.lastName || l.lastName.length < 4) return false;
-          const first = ` ${l.firstName.toLowerCase()} `;
-          const last = ` ${l.lastName.toLowerCase()} `;
-          return haystack.includes(first) && haystack.includes(last);
+          const first = letters(l.firstName);
+          const last = letters(l.lastName);
+          if (first.length < 4 || last.length < 4) return false;
+          return haystack.includes(` ${first} `) && haystack.includes(` ${last} `);
         });
         if (candidates.length === 1) {
           lead = candidates[0];

@@ -106,7 +106,7 @@ async function main() {
       console.log(`${rec.id}: summary not ready (${String(e).slice(0, 80)})`);
       continue;
     }
-    if (!summary || /no summary/i.test(summary)) {
+    if (!summary || /no summary|not available|still processing|processing in progress/i.test(summary)) {
       console.log(`${rec.id}: no summary yet — will retry`);
       continue;
     }
