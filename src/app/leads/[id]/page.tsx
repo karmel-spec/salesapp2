@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { Lead, DraftMessage } from "@/lib/leads";
 import { api, getWho, REPS, LEAD_SOURCES, INQUIRY_METHODS } from "@/lib/client";
 import { Linkify, StaleBadge, StatusBadge, fmtDays } from "@/components/ui";
+import { Thread } from "@/components/Thread";
 
 type Adjacent = { id: string; name: string } | null;
 
@@ -295,6 +296,16 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
                   ))}
               </>
             )}
+          </div>
+
+          <div className="card" style={{ marginTop: 18 }}>
+            <h2>
+              💬 Conversation{" "}
+              <span className="muted" style={{ fontFamily: "var(--sans)", fontWeight: 400, fontSize: 13 }}>
+                — texts, emails &amp; calls with {lead.name.split(" ")[0]}
+              </span>
+            </h2>
+            <Thread lead={lead} maxHeight={460} />
           </div>
         </div>
       </div>

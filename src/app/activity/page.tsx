@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { Lead } from "@/lib/leads";
 import { api, fetchLeads, getWho } from "@/lib/client";
 import { Linkify } from "@/components/ui";
+import { Thread } from "@/components/Thread";
 
 type Row = {
   at: string;
@@ -41,39 +42,17 @@ const FILTERS: { key: string; label: string; kinds: string[] }[] = [
   { key: "notes", label: "Notes & edits", kinds: ["note", "edit", "assign", "created"] },
 ];
 
-/** Timeline kinds that are actual customer↔BLP communication. */
-const THREAD_KINDS = new Set(["inbound", "sms_out", "email_out", "call", "call_attempt", "meeting", "visit"]);
-
 /**
  * Conversation popup: the full back-and-forth between one client and BLP,
  * oldest first — customer messages on the left, BLP's on the right.
  */
 function ThreadModal({ lead, onClose }: { lead: Lead; onClose: () => void }) {
-  const threadRef = useRef<HTMLDivElement>(null);
-
-  const thread = useMemo(
-    () =>
-      lead.timeline
-        .filter((e) => THREAD_KINDS.has(e.kind))
-        .slice()
-        .sort((a, b) => {
-          const t = (s: string) => {
-            const d = new Date(s);
-            return isNaN(d.getTime()) ? 0 : d.getTime();
-          };
-          return t(a.at) - t(b.at);
-        }),
-    [lead]
-  );
-
-  // Esc closes; the thread pane (NOT the page) starts at the newest message.
+  // Esc closes.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
-    const t = threadRef.current;
-    if (t) t.scrollTop = t.scrollHeight;
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
@@ -93,37 +72,7 @@ function ThreadModal({ lead, onClose }: { lead: Lead; onClose: () => void }) {
             ✕
           </button>
         </div>
-        <div className="thread" ref={threadRef}>
-          {thread.length === 0 && <div className="muted">No messages logged with this client yet.</div>}
-          {thread.map((e, i) => {
-            const d = new Date(e.at);
-            const valid = !isNaN(d.getTime());
-            const stamp = valid
-              ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) +
-                " · " +
-                d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-              : e.at;
-            if (e.kind === "call" || e.kind === "call_attempt" || e.kind === "meeting" || e.kind === "visit") {
-              return (
-                <div key={i} className="thread-sys">
-                  📞 {stamp} · {e.who} — {e.text}
-                </div>
-              );
-            }
-            const fromClient = e.kind === "inbound";
-            const channel = e.kind === "email_out" || /email/i.test(e.text.slice(0, 30)) ? "✉️" : "📱";
-            return (
-              <div key={i} className={`bubble-row ${fromClient ? "client" : "blp"}`}>
-                <div className="bubble">
-                  <div className="bubble-meta">
-                    {fromClient ? `${channel} ${lead.name.split(" ")[0]}` : `${channel} ${e.who} (BLP)`} · {stamp}
-                  </div>
-                  <Linkify text={e.text} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <Thread lead={lead} />
       </div>
     </div>
   );
