@@ -5,8 +5,9 @@
  *      BLP buffing and electroplating sheet (same columns as the pad), and
  *   2. emails the request to the plating company from
  *      info@brighamlarsonpianos.com (SMTP app password, same env the sales
- *      console uses). Recipient = PLATING_TO_EMAIL, falling back to info@
- *      itself (office forwards) until that env var is set.
+ *      console uses). Recipient = New England Chrome Plating (Necp1@msn.com,
+ *      per Brigham 2026-07-27), overridable via PLATING_TO_EMAIL; info@ is
+ *      always cc'd.
  * The client separately stamps the piano's concurrent-task pill
  * ("Submitted") through the existing piano-tasks endpoint.
  *
@@ -163,7 +164,7 @@ export default async (req: Request) => {
       if (!pass) {
         note += (note ? " · " : "") + "Email not sent: SMTP_PASS not configured";
       } else {
-        const to = (process.env.PLATING_TO_EMAIL || INFO).trim();
+        const to = (process.env.PLATING_TO_EMAIL || "Necp1@msn.com").trim();
         const lines = [
           `Plating / buffing request from Brigham Larson Pianos`,
           ``, `Piano: ${piano}`, `Serial: ${serial}`,
@@ -189,8 +190,6 @@ export default async (req: Request) => {
           text: lines.join("\n"),
         });
         emailed = true;
-        if (to.toLowerCase() === INFO)
-          note += (note ? " · " : "") + "Sent to info@ (set PLATING_TO_EMAIL to the plating company's address)";
       }
     }
 
