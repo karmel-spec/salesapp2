@@ -31,7 +31,9 @@ export async function GET(req: NextRequest) {
       leadType: l.leadType,
       pianoType: l.pianoType,
       daysSinceContact: l.daysSinceContact,
-      geo: extractGeo(l.headline, l.notes, l.activityTimeline, l.appActivity),
+      // The dedicated Address field is the most authoritative source, then
+      // free text: headline, notes, activity histories.
+      geo: extractGeo(l.address, l.headline, l.notes, l.activityTimeline, l.appActivity),
     }));
     return NextResponse.json({ leads: out, mapsApiKey: config.googleMapsApiKey });
   } catch (err) {

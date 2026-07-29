@@ -28,6 +28,7 @@ export const COLS = {
   phone: "Customer Phone Number",
   email: "Customer Email",
   social: "Customer Social Media Handle",
+  address: "Customer Address",
   source: "Source of Business?",
   inquiryMethod: "Inquiry Method",
   leadType: "Type of Lead",
@@ -103,6 +104,7 @@ export interface Lead {
   email: string;
   emailClean: string;
   social: string;
+  address: string;
   source: string;
   inquiryMethod: string;
   leadType: string;
@@ -374,6 +376,7 @@ function rowToLead(row: string[], rowNumber: number, shape: SheetShape, now: Dat
     email: get("email"),
     emailClean,
     social: get("social").trim(),
+    address: get("address").trim(),
     source: get("source").trim(),
     inquiryMethod: get("inquiryMethod").trim(),
     leadType: get("leadType").trim(),
@@ -469,7 +472,7 @@ export async function updateLeadFields(
   invalidateCache();
 }
 
-const AUTO_COLS: (keyof typeof COLS)[] = ["blpId", "appActivity", "timelineJson", "arnoldDraftJson", "subRep", "openedBy", "closedBy"];
+const AUTO_COLS: (keyof typeof COLS)[] = ["blpId", "appActivity", "timelineJson", "arnoldDraftJson", "subRep", "openedBy", "closedBy", "address"];
 
 /**
  * The hidden app columns may not exist yet in a fresh sheet; add any missing
@@ -524,6 +527,7 @@ export async function createLead(input: {
   phone?: string;
   email?: string;
   social?: string;
+  address?: string;
   notes?: string;
   source?: string;
   inquiryMethod?: string;
@@ -564,6 +568,7 @@ export async function createLead(input: {
   set("phone", input.phone || "");
   set("email", input.email || "");
   set("social", input.social || "");
+  set("address", input.address || "");
   set("notes", input.notes || "");
   set("source", input.source || "");
   set("inquiryMethod", input.inquiryMethod || "");

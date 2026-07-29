@@ -222,6 +222,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
               <dt>Phone</dt><dd><InlineText lead={lead} field="phone" value={lead.phone} hint={lead.phoneDialable ? ` → ${lead.phoneDialable}` : ""} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Email</dt><dd><InlineText lead={lead} field="email" value={lead.email} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Social handle</dt><dd><InlineText lead={lead} field="social" value={lead.social} onFlash={setFlash} onDone={loadSoon} /></dd>
+              <dt>Address</dt><dd><InlineText lead={lead} field="address" value={lead.address} hint={lead.address ? "" : " — with City, ST it pins on the US Sales Map"} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Type of lead</dt><dd><InlineSelect lead={lead} field="leadType" value={lead.leadType} options={typeOptions} addNew onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Piano</dt><dd><InlineText lead={lead} field="pianoType" value={lead.pianoType} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Source of business</dt><dd><InlineSelect lead={lead} field="source" value={lead.source} options={LEAD_SOURCES} onFlash={setFlash} onDone={loadSoon} /></dd>

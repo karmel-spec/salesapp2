@@ -151,7 +151,7 @@ function NewLeadForm({ onDone }: { onDone: () => void }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [f, setF] = useState({
-    firstName: "", lastName: "", headline: "", phone: "", email: "", social: "",
+    firstName: "", lastName: "", headline: "", phone: "", email: "", social: "", address: "",
     source: "", inquiryMethod: "", leadType: "", pianoType: "", notes: "", capturedBy: "",
     openedBy: "Brigham", score: "",
   });
@@ -196,13 +196,20 @@ function NewLeadForm({ onDone }: { onDone: () => void }) {
           [
             ["firstName", "First name *"], ["lastName", "Last name"], ["headline", "Headline"],
             ["phone", "Phone"], ["email", "Email"], ["social", "Social handle"],
+            ["address", "Address"],
           ] as const
         ).map(([key, label]) => (
           <div key={key}>
             <label className="field">{label}</label>
             <input
               style={{ width: "100%" }}
-              placeholder={key === "social" ? "e.g. @jane.doe on Instagram / FB Marketplace link" : undefined}
+              placeholder={
+                key === "social"
+                  ? "e.g. @jane.doe on Instagram / FB Marketplace link"
+                  : key === "address"
+                    ? "street, City, ST zip — pins the lead on the US Sales Map"
+                    : undefined
+              }
               value={f[key]}
               onChange={(e) => setF({ ...f, [key]: e.target.value })}
             />

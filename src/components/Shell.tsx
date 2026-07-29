@@ -8,7 +8,7 @@ import { REPS, api } from "@/lib/client";
 const NAV = [
   { href: "/", label: "Dashboard" },
   { href: "/leads", label: "Leads" },
-  { href: "/map", label: "Map" },
+  { href: "/map", label: "US Sales Map" },
   { href: "/approvals", label: "Approvals" },
   { href: "/activity", label: "Activity" },
   { href: "/reports", label: "Reports" },
