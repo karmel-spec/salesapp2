@@ -17,6 +17,7 @@ interface UnfiledItem {
   title: string;
   durationSec: number | null;
   summary: string;
+  audioUrl?: string;
 }
 
 export function UnfiledCalls({ leads }: { leads: Lead[] }) {
@@ -84,6 +85,11 @@ export function UnfiledCalls({ leads }: { leads: Lead[] }) {
               <span className="muted"> {[stamp, mins].filter(Boolean).join(" · ")}</span>
             </div>
             <div className="unfiled-summary muted">{rec.summary.slice(0, 220)}{rec.summary.length > 220 ? "…" : ""}</div>
+            {rec.audioUrl && (
+              <audio controls preload="none" src={rec.audioUrl} style={{ width: "100%", maxWidth: 420, height: 34, margin: "4px 0 8px" }}>
+                <a href={rec.audioUrl}>🎧 Listen to the call</a>
+              </audio>
+            )}
             <div className="unfiled-actions">
               <select
                 value={picks[rec.recordingId] || ""}

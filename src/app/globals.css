@@ -662,3 +662,32 @@ tbody tr:hover { background: #faf7f2; }
   margin-top: 6px;
   border: 1px solid var(--line);
 }
+
+/* Call audio player inside threads */
+.thread-audio { display: block; width: 100%; max-width: 380px; height: 34px; margin: 6px auto 0; }
+
+/* ── BLP Apps dropdown (sidebar) ── */
+.apps-menu { margin-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.12); padding-top: 8px; }
+.apps-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  background: none;
+  border: none;
+  color: rgba(243, 239, 233, 0.78);
+  font-size: 14px;
+  font-family: var(--sans);
+  padding: 9px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.apps-toggle:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.apps-link {
+  display: block;
+  padding: 7px 12px 7px 26px;
+  border-radius: 8px;
+  color: rgba(243, 239, 233, 0.66);
+  font-size: 13.5px;
+}
+.apps-link:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }

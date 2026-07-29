@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     const items = (await listUnfiled())
       .filter((c) => c.status === "open")
       .sort((a, b) => (b.startedAt || b.receivedAt).localeCompare(a.startedAt || a.receivedAt));
-    // The transcript excerpt stays server-side — the card only needs the summary.
+    // The transcript excerpt stays server-side — the card needs summary + audio.
     return NextResponse.json({ items: items.map(({ transcriptExcerpt: _t, ...rest }) => rest) });
   } catch (err) {
     return jsonError(err);
@@ -57,7 +57,8 @@ export async function POST(req: NextRequest) {
         text:
           `📞 Call summary${mins ? ` (${mins} min)` : ""}${item.title ? ` — "${item.title}"` : ""}:\n` +
           `${item.summary.slice(0, 1500)}\n` +
-          `(Plaud recording ${item.recordingId} — filed by ${who})`,
+          `(Plaud recording ${item.recordingId} — filed by ${who})` +
+          (item.audioUrl ? `\n🎧 Audio: ${item.audioUrl}` : ""),
       },
       { touchLastContact: true }
     );

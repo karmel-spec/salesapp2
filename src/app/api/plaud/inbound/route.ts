@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
       summary?: string;
       transcriptExcerpt?: string;
       phoneHint?: string;
+      audioUrl?: string; // 24h-signed Plaud download link
     };
     const summary = (input.summary || "").trim();
     if (!input.recordingId || !summary) {
@@ -157,6 +158,7 @@ export async function POST(req: NextRequest) {
           durationSec: input.durationSec ?? null,
           summary,
           transcriptExcerpt: input.transcriptExcerpt || "",
+          audioUrl: input.audioUrl || "",
         });
       } catch {
         /* read-only mode etc. — the Telegram ping below still fires */
@@ -181,7 +183,8 @@ export async function POST(req: NextRequest) {
         text:
           `📞 Call summary${mins ? ` (${mins} min)` : ""}${input.title ? ` — "${input.title}"` : ""}:\n` +
           `${summary.slice(0, 1500)}${input.transcriptExcerpt ? `\n\nTranscript excerpt: ${input.transcriptExcerpt.slice(0, 400)}` : ""}\n` +
-          `(Plaud recording ${input.recordingId} — full transcript in the Plaud app)`,
+          `(Plaud recording ${input.recordingId} — full transcript in the Plaud app)` +
+          (input.audioUrl ? `\n🎧 Audio: ${input.audioUrl}` : ""),
       },
       { touchLastContact: true }
     );

@@ -10,7 +10,7 @@ import { ensureTab, readTab, writeTab } from "./sheets";
 const TAB = "Plaud Unfiled";
 const HEADER = [
   "recordingId", "receivedAt", "startedAt", "title", "durationSec",
-  "summary", "transcriptExcerpt", "status", "filedTo", "filedBy", "filedAt",
+  "summary", "transcriptExcerpt", "status", "filedTo", "filedBy", "filedAt", "audioUrl",
 ];
 
 export interface UnfiledCall {
@@ -21,6 +21,7 @@ export interface UnfiledCall {
   durationSec: number | null;
   summary: string;
   transcriptExcerpt: string;
+  audioUrl: string;
   status: "open" | "filed" | "dismissed";
   filedTo: string;
   filedBy: string;
@@ -39,6 +40,7 @@ function parse(rows: string[][]): UnfiledCall[] {
     durationSec: Number(get(r, "durationSec")) || null,
     summary: get(r, "summary"),
     transcriptExcerpt: get(r, "transcriptExcerpt"),
+    audioUrl: get(r, "audioUrl"),
     status: (get(r, "status") as UnfiledCall["status"]) || "open",
     filedTo: get(r, "filedTo"),
     filedBy: get(r, "filedBy"),
@@ -51,7 +53,7 @@ function serialize(items: UnfiledCall[]): string[][] {
     HEADER,
     ...items.map((c) => [
       c.recordingId, c.receivedAt, c.startedAt, c.title, c.durationSec == null ? "" : String(c.durationSec),
-      c.summary, c.transcriptExcerpt, c.status, c.filedTo, c.filedBy, c.filedAt,
+      c.summary, c.transcriptExcerpt, c.status, c.filedTo, c.filedBy, c.filedAt, c.audioUrl,
     ]),
   ];
 }
@@ -69,6 +71,7 @@ export async function addUnfiled(item: Omit<UnfiledCall, "receivedAt" | "status"
     ...item,
     summary: item.summary.slice(0, 4000),
     transcriptExcerpt: (item.transcriptExcerpt || "").slice(0, 6000),
+    audioUrl: item.audioUrl || "",
     receivedAt: new Date().toISOString(),
     status: "open",
     filedTo: "",

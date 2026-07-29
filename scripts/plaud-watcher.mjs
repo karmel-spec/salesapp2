@@ -120,6 +120,13 @@ async function main() {
     } catch {
       /* transcript may still be processing — summary alone is fine */
     }
+    // 24h-signed audio link — lets reps listen before matching/filing.
+    let audioUrl = "";
+    try {
+      audioUrl = (plaud(["audio", rec.id]).match(/https:\/\/\S+/) || [])[0] || "";
+    } catch {
+      /* audio link is best-effort */
+    }
     const payload = JSON.stringify({
       recordingId: rec.id,
       title: meta.title,
@@ -127,6 +134,7 @@ async function main() {
       durationSec: meta.durationSec,
       summary: summary.slice(0, 4000),
       transcriptExcerpt,
+      audioUrl,
     });
     // One retry — serverless cold starts / dev-server recompiles drop the
     // occasional connection, and a crash here loses the whole run's state.

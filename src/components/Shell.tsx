@@ -16,6 +16,35 @@ const NAV = [
   { href: "/settings", label: "Settings" },
 ];
 
+/** The rest of the BLP app family — external links in a collapsible group. */
+const BLP_APPS = [
+  { href: "https://blpshop.netlify.app", label: "Shop App" },
+  { href: "https://blpcrm.netlify.app", label: "CRM" },
+  { href: "https://blpstoremap.netlify.app", label: "Store Map" },
+  { href: "https://blpmap.netlify.app", label: "US Marketing Map" },
+  { href: "https://pianologapp.netlify.app", label: "Piano Log App" },
+  { href: "https://pianotechnologylibrary.com", label: "PTL" },
+  // { href: "TODO", label: "Operations" }, // waiting on the deployed URL
+];
+
+function BlpAppsMenu() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="apps-menu">
+      <button className="apps-toggle" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        <span>🎹 BLP Apps</span>
+        <span aria-hidden>{open ? "▾" : "▸"}</span>
+      </button>
+      {open &&
+        BLP_APPS.map((a) => (
+          <a key={a.href} href={a.href} target="_blank" rel="noreferrer" className="apps-link">
+            {a.label} <span aria-hidden>↗</span>
+          </a>
+        ))}
+    </div>
+  );
+}
+
 function WhoAmI() {
   const [who, setWho] = useState("");
   useEffect(() => {
@@ -129,6 +158,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
+          <BlpAppsMenu />
           <div className="who-wrap">
             <WhoAmI />
           </div>

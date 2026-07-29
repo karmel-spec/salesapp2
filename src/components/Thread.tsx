@@ -49,9 +49,16 @@ export function Thread({ lead, maxHeight }: { lead: Lead; maxHeight?: number }) 
             d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
           : e.at;
         if (e.kind === "call" || e.kind === "call_attempt" || e.kind === "meeting" || e.kind === "visit") {
+          const audio = e.text.match(/🎧 Audio: (https?:\/\/\S+)/)?.[1];
+          const sysText = e.text.replace(/\n?🎧 Audio: https?:\/\/\S+/g, "");
           return (
             <div key={i} className="thread-sys">
-              📞 {stamp} · {e.who} — {e.text.slice(0, 200)}
+              📞 {stamp} · {e.who} — {sysText.slice(0, 200)}
+              {audio && (
+                <audio controls preload="none" src={audio} className="thread-audio">
+                  <a href={audio}>🎧 Listen</a>
+                </audio>
+              )}
             </div>
           );
         }
