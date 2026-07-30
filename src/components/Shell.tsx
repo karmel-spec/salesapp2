@@ -18,13 +18,13 @@ const NAV = [
 
 /** The rest of the BLP app family — external links in a collapsible group. */
 const BLP_APPS = [
-  { href: "https://blpshop.netlify.app", label: "Shop App" },
+  { href: "https://brighamlarsonpianos.tech", label: "Shop App" },
   { href: "https://blpcrm.netlify.app", label: "CRM" },
   { href: "https://blpstoremap.netlify.app", label: "Store Map" },
   { href: "https://blpmap.netlify.app", label: "US Marketing Map" },
   { href: "https://pianologapp.netlify.app", label: "Piano Log App" },
   { href: "https://pianotechnologylibrary.com", label: "PTL" },
-  // { href: "TODO", label: "Operations" }, // waiting on the deployed URL
+  { href: "https://brighamlarsonpianos.org", label: "Operations" },
 ];
 
 function BlpAppsMenu() {
