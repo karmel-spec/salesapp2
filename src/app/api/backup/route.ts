@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runBackup, listBackups } from "@/lib/backup";
+import { runBackup, listBackups, backupsConfigured } from "@/lib/backup";
 import { requireSession, jsonError } from "@/lib/api";
 import { isValidArnoldKey } from "@/lib/auth";
 import { config } from "@/lib/config";
@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   const guard = requireSession(req);
   if (guard) return guard;
   try {
-    if (!config.driveBackupFolderId) {
+    if (!backupsConfigured()) {
       return NextResponse.json({ configured: false, serviceAccount: config.googleClientEmail, files: [] });
     }
     const files = await listBackups();

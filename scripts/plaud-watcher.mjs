@@ -24,11 +24,44 @@ const PLAUD = process.env.PLAUD_BIN || path.join(HOME, ".hermes", "node", "bin",
 const MAX_PER_RUN = 5;
 const DAYS = process.env.PLAUD_DAYS || "2"; // look-back window (override for backfills)
 
-function key() {
+function envVal(name) {
   const env = fs.readFileSync(path.join(HOME, "salesapp2", ".env.local"), "utf8");
-  const m = env.match(/^BLP_ARNOLD_ACCESS_KEY=(.+)$/m);
-  if (!m) throw new Error("BLP_ARNOLD_ACCESS_KEY missing");
-  return m[1].trim();
+  const m = env.match(new RegExp(`^${name}=(.+)$`, "m"));
+  return m ? m[1].trim() : "";
+}
+
+function key() {
+  const v = envVal("BLP_ARNOLD_ACCESS_KEY");
+  if (!v) throw new Error("BLP_ARNOLD_ACCESS_KEY missing");
+  return v;
+}
+
+/**
+ * Make the call audio permanent: Plaud's download links die after 24h, so
+ * pull the MP3 and park it in the public Supabase bucket. Returns the
+ * forever-URL, or "" (caller falls back to the temporary Plaud link).
+ */
+async function archiveAudio(recordingId, plaudUrl) {
+  const base = envVal("SUPABASE_URL");
+  const skey = envVal("SUPABASE_SERVICE_KEY");
+  if (!base || !skey || !plaudUrl) return "";
+  try {
+    const audio = await fetch(plaudUrl);
+    if (!audio.ok) throw new Error(`download ${audio.status}`);
+    const bytes = Buffer.from(await audio.arrayBuffer());
+    if (bytes.length > 80_000_000) throw new Error("audio too large");
+    const objectPath = `call-audio/${recordingId}.mp3`;
+    const up = await fetch(`${base}/storage/v1/object/blp-media/${objectPath}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${skey}`, "Content-Type": "audio/mpeg", "x-upsert": "true" },
+      body: bytes,
+    });
+    if (!up.ok) throw new Error(`upload ${up.status}: ${(await up.text()).slice(0, 120)}`);
+    return `${base}/storage/v1/object/public/blp-media/${objectPath}`;
+  } catch (e) {
+    console.log(`${recordingId}: audio archive failed (${String(e.message || e).slice(0, 80)}) — using 24h link`);
+    return "";
+  }
 }
 
 function plaud(args) {
@@ -120,13 +153,15 @@ async function main() {
     } catch {
       /* transcript may still be processing — summary alone is fine */
     }
-    // 24h-signed audio link — lets reps listen before matching/filing.
+    // Audio: grab Plaud's 24h link, then archive the MP3 to Supabase for a
+    // permanent URL (falls back to the temporary link if that fails).
     let audioUrl = "";
     try {
       audioUrl = (plaud(["audio", rec.id]).match(/https:\/\/\S+/) || [])[0] || "";
     } catch {
       /* audio link is best-effort */
     }
+    audioUrl = (await archiveAudio(rec.id, audioUrl)) || audioUrl;
     const payload = JSON.stringify({
       recordingId: rec.id,
       title: meta.title,
