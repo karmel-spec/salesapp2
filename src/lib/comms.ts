@@ -106,7 +106,7 @@ export interface EmailAttachment {
  * inbox (and the reply watcher mirrors them to the lead's timeline).
  * Everyone else sends from the shared info@ identity.
  */
-function senderFor(who: string): { user: string; pass: string; fromName: string } {
+export function senderFor(who: string): { user: string; pass: string; fromName: string } {
   const slug = (who || "").trim().toUpperCase().replace(/[^A-Z]/g, "");
   const user = slug ? process.env[`SMTP_USER_${slug}`] : undefined;
   const pass = slug ? process.env[`SMTP_PASS_${slug}`] : undefined;

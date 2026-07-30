@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getLead, saveDrafts, appendTimeline, type DraftMessage } from "@/lib/leads";
-import { sendSms, sendEmail } from "@/lib/comms";
+import { sendSms, sendEmail, senderFor } from "@/lib/comms";
 import { notifyArnoldWebhook, notifyTelegram } from "@/lib/arnold";
 import { requireSession, jsonError } from "@/lib/api";
 import { config } from "@/lib/config";
@@ -38,6 +38,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       subject?: string;
       feedback?: string;
       who?: string;
+      sendAs?: string; // email identity: "" = info@, rep name = their mailbox
     };
     const idx = lead.drafts.findIndex(
       (d) => d.createdAt === input.createdAt && d.channel === input.channel && d.status === "pending"
@@ -106,15 +107,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       }
       if (!finalSubject) return NextResponse.json({ error: "Email subject is required" }, { status: 400 });
       trackId = crypto.randomBytes(12).toString("hex");
+      const identity = input.sendAs !== undefined ? input.sendAs : who;
+      const fromAddr = senderFor(identity).user;
       const { messageId } = await sendEmail(
         lead.emailClean,
         finalSubject,
         finalBody,
         [],
         `${config.publicBaseUrl}/api/track/${trackId}.gif`,
-        who
+        identity
       );
-      deliveryNote = `Email "${finalSubject}" sent to ${lead.emailClean} (${messageId})`;
+      deliveryNote = `Email "${finalSubject}" sent to ${lead.emailClean} from ${fromAddr} (${messageId})`;
     }
 
     draft.status = "sent";

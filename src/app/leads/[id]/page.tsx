@@ -152,9 +152,6 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
         <RepSelect lead={lead} onFlash={setFlash} onDone={loadSoon} />
         <SubRepSelect lead={lead} onFlash={setFlash} onDone={loadSoon} />
         <span className="spacer" />
-        <button className="btn" onClick={askArnold} disabled={asking}>
-          {asking ? "Asking Arnold…" : "Ask Arnold for a draft"}
-        </button>
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", margin: "10px 0 16px" }}>
@@ -275,7 +272,13 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
 
         <div>
           <div className="card">
-            <h2>Arnold&apos;s drafts</h2>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 12 }}>
+              <h2 style={{ marginBottom: 0 }}>Arnold&apos;s drafts</h2>
+              <span style={{ flex: 1 }} />
+              <button className="btn small" onClick={askArnold} disabled={asking}>
+                {asking ? "Asking Arnold…" : "Ask Arnold for a draft"}
+              </button>
+            </div>
             {pending.length === 0 && (
               <div className="muted" style={{ marginBottom: 8 }}>
                 No pending drafts. Ask Arnold to suggest the next text + email for this lead.
@@ -779,9 +782,30 @@ function ComposePanel({
   );
 }
 
+/** Email identities the app can send from — fetched once per page. */
+let senderCache: { key: string; label: string }[] | null = null;
+function useSenders(): { key: string; label: string }[] {
+  const [senders, setSenders] = useState(senderCache || [{ key: "", label: "info@brighamlarsonpianos.com" }]);
+  useEffect(() => {
+    if (senderCache) return;
+    api<{ senders: { key: string; label: string }[] }>("/api/senders")
+      .then((r) => {
+        senderCache = r.senders;
+        setSenders(r.senders);
+      })
+      .catch(() => {});
+  }, []);
+  return senders;
+}
+
 function DraftCard({ leadId, draft, lead, onDone }: { leadId: string; draft: DraftMessage; lead: Lead; onDone: () => void }) {
   const [body, setBody] = useState(draft.body);
   const [subject, setSubject] = useState(draft.subject || "");
+  const senders = useSenders();
+  const [sendAs, setSendAs] = useState<string | null>(null); // null = not chosen yet
+  // Default to the signed-in rep's own mailbox when they have one.
+  const effectiveSendAs =
+    sendAs !== null ? sendAs : senders.some((x) => x.key === getWho()) ? getWho() : "";
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [coaching, setCoaching] = useState(false);
@@ -796,6 +820,7 @@ function DraftCard({ leadId, draft, lead, onDone }: { leadId: string; draft: Dra
         method: "POST",
         body: JSON.stringify({
           createdAt: draft.createdAt, channel: draft.channel, action, body, subject,
+          sendAs: draft.channel === "email" ? effectiveSendAs : undefined,
           feedback: action === "train" ? feedback.trim() : undefined, who: getWho(),
         }),
       });
@@ -831,8 +856,24 @@ function DraftCard({ leadId, draft, lead, onDone }: { leadId: string; draft: Dra
       <textarea rows={draft.channel === "sms" ? 3 : 8} value={body} onChange={(e) => setBody(e.target.value)} />
       <div className="actions">
         <button className="btn small" onClick={() => act("approve_send")} disabled={busy}>
-          {busy ? "Working…" : draft.channel === "sms" ? "Approve & send text" : "Approve & send from info@"}
+          {busy ? "Working…" : draft.channel === "sms" ? "Approve & send text" : "Approve & send"}
         </button>
+        {draft.channel === "email" && senders.length > 1 && (
+          <select
+            value={effectiveSendAs}
+            onChange={(e) => setSendAs(e.target.value)}
+            aria-label="Send from"
+            title="Which mailbox this email sends from (replies go there too)"
+            style={{ fontSize: 12.5, padding: "5px 8px", maxWidth: 230 }}
+          >
+            {senders.map((x) => (
+              <option key={x.key} value={x.key}>from {x.label}</option>
+            ))}
+          </select>
+        )}
+        {draft.channel === "email" && senders.length === 1 && (
+          <span className="muted" style={{ fontSize: 12 }}>from {senders[0].label}</span>
+        )}
         <button className="btn ghost small" onClick={() => act("dismiss")} disabled={busy}>Dismiss</button>
         <button className="btn ghost small" onClick={() => setCoaching((v) => !v)} disabled={busy}>🎓 Train Arnold</button>
       </div>
