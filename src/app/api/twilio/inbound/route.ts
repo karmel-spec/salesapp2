@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getLeads, appendTimeline } from "@/lib/leads";
 import { notifyTelegram, notifyArnoldWebhook } from "@/lib/arnold";
+import { autoFolder } from "@/lib/folders";
 import { config } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
@@ -62,6 +63,7 @@ export async function POST(req: NextRequest) {
           at: new Date().toISOString(),
           who: lead.name,
           kind: "inbound",
+          folder: autoFolder(lead.leadType, lead.headline, body),
           text: `📥 Customer texted: "${body}"`,
         },
         { touchLastContact: true }

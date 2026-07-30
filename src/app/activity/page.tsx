@@ -19,6 +19,7 @@ type Row = {
   read: boolean; // inbound only: acknowledged as read?
   readBy?: string;
   openedAt?: string; // email_out only: customer opened the email
+  folder?: string; // inbound only: inbox folder ("" = general inbox)
   leadScore: number;
   leadValue: number;
 };
@@ -68,12 +69,26 @@ function isEmailReply(r: Row): boolean {
   return /email/i.test(r.text.slice(0, 30));
 }
 
+/** Email-inbox style one-liner: subject (emails) + message snippet. */
+function replySummary(r: Row): { subject: string; snippet: string } {
+  const subject = r.text.match(/\("([^"]{1,90})"\)/)?.[1] || "";
+  let body = r.text;
+  const colon = body.indexOf(":");
+  if (colon > -1 && colon < 60) body = body.slice(colon + 1);
+  body = body.replace(/^[\s"“]+/, "").replace(/\s+/g, " ").trim();
+  return { subject, snippet: body.slice(0, 110) };
+}
+
 export default function ActivityPage() {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState(() => initialFilter());
   const [who, setWho] = useState("all");
   const [sortMode, setSortMode] = useState("unread");
+  const [folders, setFolders] = useState<string[]>(["Leads", "Tuning", "Moving"]);
+  const [folderFilter, setFolderFilter] = useState<string>("inbox"); // "inbox" | "all" | folder name
+  const [addingFolder, setAddingFolder] = useState(false);
+  const [newFolder, setNewFolder] = useState("");
   const [marking, setMarking] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null); // lead whose conversation is open
   const [leftPct, setLeftPct] = useState(55); // resizable split (% width of the list)
@@ -87,6 +102,7 @@ export default function ActivityPage() {
 
   useEffect(() => {
     reload();
+    api<{ folders: string[] }>("/api/folders").then((r) => setFolders(r.folders)).catch(() => {});
     const v = Number(localStorage.getItem("blp_activity_split"));
     if (v >= 28 && v <= 72) {
       setLeftPct(v);
@@ -147,6 +163,7 @@ export default function ActivityPage() {
           read: e.kind === "inbound" ? Boolean(e.readAt) : true,
           readBy: e.readBy,
           openedAt: e.openedAt,
+          folder: e.folder || "",
           leadScore: Number(l.score) || 0,
           leadValue: leadValue(l),
         });
@@ -161,6 +178,16 @@ export default function ActivityPage() {
 
   const unreadCount = useMemo(() => rows.filter((r) => r.kind === "inbound" && !r.read).length, [rows]);
 
+  const folderCounts = useMemo(() => {
+    const counts: Record<string, number> = { inbox: 0 };
+    for (const r of rows) {
+      if (r.kind !== "inbound" || r.read) continue;
+      const key = (r.folder || "").toLowerCase() || "inbox";
+      counts[key] = (counts[key] || 0) + 1;
+    }
+    return counts;
+  }, [rows]);
+
   const whoOptions = useMemo(
     () => Array.from(new Set(rows.map((r) => r.who).filter(Boolean))).sort(),
     [rows]
@@ -174,6 +201,15 @@ export default function ActivityPage() {
     // Sorts apply to the inbox view (rows start newest-first; sorts are
     // stable, so ties keep that order).
     if (filter === "inbound") {
+      if (folderFilter === "inbox") {
+        const keep = out.filter((r) => !r.folder);
+        out.length = 0;
+        out.push(...keep);
+      } else if (folderFilter !== "all") {
+        const keep = out.filter((r) => (r.folder || "").toLowerCase() === folderFilter.toLowerCase());
+        out.length = 0;
+        out.push(...keep);
+      }
       const t = (r: Row) => {
         const d = new Date(r.at);
         return isNaN(d.getTime()) ? 0 : d.getTime();
@@ -201,7 +237,7 @@ export default function ActivityPage() {
       }
     }
     return out.slice(0, 250);
-  }, [rows, filter, who, sortMode]);
+  }, [rows, filter, who, sortMode, folderFilter]);
 
   /** Flip events read in local state so the UI reacts instantly. */
   function applyRead(leadId: string | null, ats: string[] | null) {
@@ -268,6 +304,49 @@ export default function ActivityPage() {
     }
   }
 
+  /** File a response into a folder ("" = general inbox). */
+  async function fileTo(r: Row, folder: string) {
+    setLeads((cur) =>
+      cur
+        ? cur.map((l) =>
+            l.id !== r.leadId
+              ? l
+              : {
+                  ...l,
+                  timeline: l.timeline.map((e) =>
+                    e.kind === "inbound" && e.at === r.at ? { ...e, folder: folder || undefined } : e
+                  ),
+                }
+          )
+        : cur
+    );
+    try {
+      await api("/api/inbox", {
+        method: "POST",
+        body: JSON.stringify({ leadId: r.leadId, ats: [r.at], folder, who: getWho() }),
+      });
+    } catch {
+      reload();
+    }
+  }
+
+  async function createFolder() {
+    const name = newFolder.trim();
+    if (!name) return;
+    try {
+      const r = await api<{ folders: string[] }>("/api/folders", {
+        method: "POST",
+        body: JSON.stringify({ name, who: getWho() }),
+      });
+      setFolders(r.folders);
+      setFolderFilter(name);
+      setAddingFolder(false);
+      setNewFolder("");
+    } catch {
+      /* keep the input open */
+    }
+  }
+
   async function ackAll() {
     setMarking(true);
     applyRead(null, null); // optimistic
@@ -325,16 +404,113 @@ export default function ActivityPage() {
       </div>
 
       {filter === "inbound" && (
-        <p className="muted" style={{ fontSize: 13, margin: "0 0 10px" }}>
-          Your client-response inbox. <strong>Bold</strong> = new — the checkbox marks read/unread; click a
-          response to open the conversation beside it.
-        </p>
+        <>
+          <div className="folder-row">
+            {[
+              { key: "inbox", label: "📥 Inbox" },
+              { key: "all", label: "All" },
+              ...folders.map((f) => ({ key: f, label: `📁 ${f}` })),
+            ].map((f) => (
+              <button
+                key={f.key}
+                className={`folder-chip${folderFilter.toLowerCase() === f.key.toLowerCase() ? " active" : ""}`}
+                onClick={() => setFolderFilter(f.key)}
+              >
+                {f.label}
+                {f.key !== "all" && (folderCounts[f.key.toLowerCase()] || 0) > 0 && (
+                  <span className="unread-count">{folderCounts[f.key.toLowerCase()]}</span>
+                )}
+              </button>
+            ))}
+            {addingFolder ? (
+              <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                <input
+                  placeholder="New folder name"
+                  value={newFolder}
+                  onChange={(e) => setNewFolder(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && createFolder()}
+                  style={{ padding: "4px 8px", fontSize: 13 }}
+                  autoFocus
+                />
+                <button className="btn small" onClick={createFolder} disabled={!newFolder.trim()}>Add</button>
+                <button className="btn small ghost" onClick={() => setAddingFolder(false)}>✕</button>
+              </span>
+            ) : (
+              <button className="folder-chip" onClick={() => setAddingFolder(true)}>＋ New folder</button>
+            )}
+          </div>
+          <p className="muted" style={{ fontSize: 13, margin: "0 0 10px" }}>
+            <strong>Bold</strong> = new. The checkbox marks read/unread, the 📁 menu files a response into a
+            folder, and clicking it opens the conversation beside the list.
+          </p>
+        </>
       )}
 
       <div className="split" ref={splitRef}>
         <div className="split-left" style={{ width: threadLead ? `${leftPct}%` : "100%" }}>
           <div className="card">
             {visible.length === 0 && <div className="muted">No activity matches this filter yet.</div>}
+            {filter === "inbound" ? (
+              <div className="inbox-list">
+                {visible.map((r, i) => {
+                  const d = new Date(r.at);
+                  const valid = !isNaN(d.getTime());
+                  const stamp = valid
+                    ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
+                      " · " +
+                      d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+                    : "—";
+                  const isUnread = !r.read;
+                  const { subject, snippet } = replySummary(r);
+                  return (
+                    <div
+                      key={`${r.leadId}-${r.at}-${i}`}
+                      className={`inbox-row${isUnread ? " unread" : ""}${threadLead && r.leadId === threadLead.id ? " thread-open" : ""}`}
+                      onClick={() => openResponse(r)}
+                      title={r.read && r.readBy ? `Read by ${r.readBy} — click to open the conversation` : "Click to open the conversation"}
+                    >
+                      <input
+                        type="checkbox"
+                        className="read-check"
+                        checked={r.read}
+                        title={r.read ? "Read — uncheck to mark as NEW again" : "Check to mark as read"}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          if (r.read) unackOne(r);
+                          else ackOne(r);
+                        }}
+                      />
+                      <span className="ib-icon" title={isEmailReply(r) ? "Email reply" : "Text reply"}>
+                        {isEmailReply(r) ? "✉️" : "💬"}
+                      </span>
+                      <span className="ib-name">{r.leadName}</span>
+                      <span className="ib-snippet">
+                        {subject && <strong>{subject}</strong>}
+                        {subject && snippet ? " — " : ""}
+                        {snippet}
+                      </span>
+                      <select
+                        className="file-select"
+                        value={r.folder || ""}
+                        title="File this response into a folder"
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          fileTo(r, e.target.value);
+                        }}
+                      >
+                        <option value="">📥 Inbox</option>
+                        {folders.map((f) => (
+                          <option key={f} value={f}>📁 {f}</option>
+                        ))}
+                      </select>
+                      <span className="ib-time">{stamp}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
             <ul className="timeline">
               {visible.map((r, i) => {
                 const d = new Date(r.at);
@@ -383,6 +559,23 @@ export default function ActivityPage() {
                           }}
                         />
                       )}
+                      {r.kind === "inbound" && (
+                        <select
+                          className="file-select"
+                          value={r.folder || ""}
+                          title="File this response into a folder"
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            fileTo(r, e.target.value);
+                          }}
+                        >
+                          <option value="">📥 Inbox</option>
+                          {folders.map((f) => (
+                            <option key={f} value={f}>📁 {f}</option>
+                          ))}
+                        </select>
+                      )}
                       {isUnread && <span className="new-chip">NEW</span>}
                       {stamp} · {meta.icon}{" "}
                       <strong>{meta.label}</strong> · {r.who} ·{" "}
@@ -409,6 +602,7 @@ export default function ActivityPage() {
                 );
               })}
             </ul>
+            )}
           </div>
         </div>
 
@@ -432,7 +626,13 @@ export default function ActivityPage() {
               <div className="card thread-panel">
                 <div className="thread-panel-head">
                   <div>
-                    <strong style={{ fontFamily: "var(--serif)", fontSize: 17 }}>{threadLead.name}</strong>
+                    <Link
+                      href={`/leads/${encodeURIComponent(threadLead.id)}`}
+                      style={{ fontFamily: "var(--serif)", fontSize: 17, fontWeight: 700, textDecoration: "underline", textDecorationColor: "var(--line)" }}
+                      title="Open the full lead"
+                    >
+                      {threadLead.name}
+                    </Link>
                     {threadLead.headline && <div className="muted">{threadLead.headline}</div>}
                   </div>
                   <span style={{ flex: 1 }} />

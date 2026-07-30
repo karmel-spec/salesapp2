@@ -3,6 +3,7 @@ import { getLeads, appendTimeline, type Lead } from "@/lib/leads";
 import { notifyTelegram, notifyArnoldWebhook } from "@/lib/arnold";
 import { isValidArnoldKey } from "@/lib/auth";
 import { jsonError } from "@/lib/api";
+import { autoFolder } from "@/lib/folders";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -79,6 +80,7 @@ export async function POST(req: NextRequest) {
         at: input.at || new Date().toISOString(),
         who: lead.name,
         kind: "inbound",
+        folder: autoFolder(lead.leadType, lead.headline, `${detail}`),
         text: looksService ? `${detail} [service — tuning/move, not a sales reply]` : detail,
       },
       { touchLastContact: !looksService }

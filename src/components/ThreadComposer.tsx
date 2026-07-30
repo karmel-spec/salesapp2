@@ -19,7 +19,7 @@ interface Template {
   body: string;
 }
 
-type Mode = "sms" | "email" | "call";
+type Mode = "sms" | "email" | "call" | "note";
 
 function fill(text: string, lead: Lead): string {
   return text
@@ -57,7 +57,15 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
     setBusy(true);
     setErr("");
     try {
-      if (mode === "call") {
+      if (mode === "note") {
+        await api(`/api/leads/${encodeURIComponent(lead.id)}/timeline`, {
+          method: "POST",
+          body: JSON.stringify({ kind: "note", text: body, who: getWho() }),
+        });
+        setFlash("✓ Internal note saved to this lead's activity (the client never sees it)");
+        setBody("");
+        onSent();
+      } else if (mode === "call") {
         localStorage.setItem("blp_rep_phone", repPhone);
         const r = await api<{ detail?: string }>(`/api/leads/${encodeURIComponent(lead.id)}/call`, {
           method: "POST",
@@ -118,6 +126,7 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
             ["sms", "💬 Text", Boolean(lead.phoneDialable), `no dialable number ("${lead.phone || "—"}")`],
             ["email", "✉️ Email", Boolean(lead.emailClean), `no valid email ("${lead.email || "—"}")`],
             ["call", "📞 Call", Boolean(lead.phoneDialable), "no dialable number"],
+            ["note", "📝 Internal note", true, ""],
           ] as [Mode, string, boolean, string][]
         ).map(([m, label, enabled, why]) => (
           <button
@@ -130,7 +139,7 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
             {label}
           </button>
         ))}
-        {mode !== "call" && (
+        {(mode === "sms" || mode === "email") && (
           <div className="tpl-wrap">
             <button
               className="btn small ghost"
@@ -224,7 +233,13 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
           )}
           <textarea
             rows={3}
-            placeholder={mode === "email" ? `Email ${lead.name.split(" ")[0]}…` : `Text ${lead.name.split(" ")[0]}…`}
+            placeholder={
+              mode === "note"
+                ? "Internal note for the team — the client never sees this…"
+                : mode === "email"
+                  ? `Email ${lead.name.split(" ")[0]}…`
+                  : `Text ${lead.name.split(" ")[0]}…`
+            }
             value={body}
             onChange={(e) => setBody(e.target.value)}
             style={{ marginTop: 8 }}
@@ -235,10 +250,12 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
               disabled={busy || !body.trim() || (mode === "email" && !subject.trim())}
               onClick={send}
             >
-              {busy ? "Sending…" : mode === "email" ? "Send email" : "Send text"}
+              {busy ? "Saving…" : mode === "note" ? "Save note" : mode === "email" ? "Send email" : "Send text"}
             </button>
             <span className="muted" style={{ fontSize: 11.5 }}>
-              sends as {getWho() === "app" ? "the team" : getWho()} · lands in this conversation
+              {mode === "note"
+                ? "team-only — saved to the lead's activity log"
+                : `sends as ${getWho() === "app" ? "the team" : getWho()} · lands in this conversation`}
             </span>
           </div>
         </>

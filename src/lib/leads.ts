@@ -70,6 +70,8 @@ export interface TimelineEvent {
    *  and the first time the customer opened it. */
   trackId?: string;
   openedAt?: string;
+  /** Inbox folder this inbound response is filed under ("" = general inbox). */
+  folder?: string;
 }
 
 export interface Lead {
@@ -250,6 +252,7 @@ function normalizeTimeline(raw: unknown[]): TimelineEvent[] {
           ...(typeof e.readAt === "string" ? { readAt: e.readAt } : {}),
           ...(typeof e.trackId === "string" ? { trackId: e.trackId } : {}),
           ...(typeof e.openedAt === "string" ? { openedAt: e.openedAt } : {}),
+          ...(typeof e.folder === "string" ? { folder: e.folder } : {}),
         };
       }
       const at = typeof e.at === "string" ? e.at : typeof e.date === "string" ? e.date : "";
@@ -789,6 +792,27 @@ export async function recordEmailOpen(trackId: string): Promise<{ leadName: stri
     return { leadName: l.name };
   }
   return null;
+}
+
+/** Inbox: file inbound responses into a folder ("" moves back to the
+ *  general inbox). Patches timelineJson only. */
+export async function setInboundFolder(lead: Lead, shape: SheetShape, ats: string[], folder: string): Promise<number> {
+  const s = await ensureAppColumns(shape);
+  const target = await ensureRowCurrent(lead, s);
+  let changed = 0;
+  const timeline = target.timeline.map((e) => {
+    if (e.kind !== "inbound" || !ats.includes(e.at)) return e;
+    changed++;
+    if (!folder) {
+      const { folder: _f, ...rest } = e;
+      return rest;
+    }
+    return { ...e, folder };
+  });
+  if (!changed) return 0;
+  await writeCells([{ row: target.row, col: requireCol(s, "timelineJson"), value: JSON.stringify(timeline) }]);
+  invalidateCache();
+  return changed;
 }
 
 /** Inbox: acknowledge EVERY unread client reply (one batched write). */

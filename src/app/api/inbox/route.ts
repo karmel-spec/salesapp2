@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getLeads, getLead, markInboundRead, markAllInboundRead } from "@/lib/leads";
+import { getLeads, getLead, markInboundRead, markAllInboundRead, setInboundFolder } from "@/lib/leads";
 import { requireSession, jsonError } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +14,7 @@ export interface InboxItem {
   read: boolean;
   readBy?: string;
   readAt?: string;
+  folder?: string;
 }
 
 /**
@@ -42,6 +43,7 @@ export async function GET(req: NextRequest) {
           read: Boolean(e.readAt),
           readBy: e.readBy,
           readAt: e.readAt,
+          folder: e.folder || "",
         });
       }
     }
@@ -78,6 +80,11 @@ export async function POST(req: NextRequest) {
     if (!found) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
     const ats = Array.isArray(body.ats) ? body.ats.map(String) : [];
     if (!ats.length) return NextResponse.json({ error: "ats[] required" }, { status: 400 });
+    // File into a folder ("" = back to the general inbox).
+    if (typeof body.folder === "string") {
+      const changed = await setInboundFolder(found.lead, found.shape, ats, body.folder.trim());
+      return NextResponse.json({ changed });
+    }
     const changed = await markInboundRead(found.lead, found.shape, ats, who, body.unread !== true);
     return NextResponse.json({ changed });
   } catch (err) {
