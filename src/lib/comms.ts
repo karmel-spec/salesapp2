@@ -52,18 +52,30 @@ export async function sendSms(to: string, body: string, mediaUrls: string[] = []
  * when they answer, dial the customer with the store number as caller ID.
  * Inline TwiML — no webhook endpoint required.
  */
-export async function startBridgeCall(repPhone: string, leadPhone: string): Promise<{ sid: string }> {
+export async function startBridgeCall(
+  repPhone: string,
+  leadPhone: string,
+  opts: { leadId?: string } = {}
+): Promise<{ sid: string }> {
   if (config.dryRunSends) {
-    console.log(`[DRY-RUN] bridge call ${repPhone} → ${leadPhone}`);
+    console.log(`[DRY-RUN] bridge call ${repPhone} → ${leadPhone} (recorded, lead ${opts.leadId || "?"})`);
     return { sid: "DRYRUN-CALL" };
   }
   if (!config.twilioAccountSid || !config.twilioAuthToken) {
     throw new Error("Twilio not configured: set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN");
   }
   const esc = (s: string) => s.replace(/[<>&"']/g, "");
+  // Recording: dual-channel from answer; the customer hears the consent
+  // announcement (whisper leg → /api/twilio/consent) before joining, and
+  // the finished recording lands at /api/twilio/recording for archive +
+  // transcript + summary + filing.
+  const cb = `${config.publicBaseUrl}/api/twilio/recording?direction=outbound${opts.leadId ? `&amp;leadId=${encodeURIComponent(opts.leadId)}` : ""}`;
   const twiml =
-    `<Response><Say>Connecting you to the customer now.</Say>` +
-    `<Dial callerId="${esc(config.twilioCallerId)}" timeout="25">${esc(leadPhone)}</Dial></Response>`;
+    `<Response><Say>Connecting you to the customer now. This call is recorded for quality purposes.</Say>` +
+    `<Dial callerId="${esc(config.twilioCallerId)}" timeout="25" record="record-from-answer-dual" ` +
+    `recordingStatusCallback="${cb}" recordingStatusCallbackEvent="completed">` +
+    `<Number url="${esc(config.publicBaseUrl)}/api/twilio/consent">${esc(leadPhone)}</Number>` +
+    `</Dial></Response>`;
   const res = await fetch(
     `https://api.twilio.com/2010-04-01/Accounts/${config.twilioAccountSid}/Calls.json`,
     {

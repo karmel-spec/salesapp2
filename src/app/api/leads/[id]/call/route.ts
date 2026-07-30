@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const repPhone = digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith("1") ? `+${digits}` : "";
     if (!repPhone) return NextResponse.json({ error: "Enter your 10-digit phone number — it rings first" }, { status: 400 });
 
-    const { sid } = await startBridgeCall(repPhone, lead.phoneDialable);
+    const { sid } = await startBridgeCall(repPhone, lead.phoneDialable, { leadId: lead.id });
     await appendTimeline(lead, shape, {
       at: new Date().toISOString(),
       who: body.who || "app",
