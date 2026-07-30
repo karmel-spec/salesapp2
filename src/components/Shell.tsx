@@ -12,7 +12,6 @@ const NAV = [
   { href: "/approvals", label: "Approvals" },
   { href: "/activity", label: "Activity" },
   { href: "/reports", label: "Reports" },
-  { href: "/agents", label: "Agents" },
   { href: "/settings", label: "Settings" },
 ];
 
@@ -24,6 +23,7 @@ const BLP_APPS = [
   { href: "https://blpmap.netlify.app", label: "US Marketing Map" },
   { href: "https://pianologapp.netlify.app", label: "Piano Log App" },
   { href: "https://pianotechnologylibrary.com", label: "PTL" },
+  { href: "https://blpagents.netlify.app", label: "Agent App" },
 ];
 
 function BlpAppsMenu() {
