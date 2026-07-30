@@ -40,10 +40,63 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
   const [showTemplates, setShowTemplates] = useState(false);
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [templateName, setTemplateName] = useState("");
+  const [scheduling, setScheduling] = useState(false);
+  const [sendAt, setSendAt] = useState("");
+  const [pendingScheduled, setPendingScheduled] = useState<
+    { id: string; channel: string; sendAt: string; body: string }[]
+  >([]);
 
   useEffect(() => {
     setRepPhone(localStorage.getItem("blp_rep_phone") || "");
   }, []);
+
+  useEffect(() => {
+    api<{ items: { id: string; channel: string; sendAt: string; body: string; status: string }[] }>(
+      `/api/scheduled?leadId=${encodeURIComponent(lead.id)}`
+    )
+      .then((r) => setPendingScheduled(r.items.filter((x) => x.status === "pending")))
+      .catch(() => {});
+  }, [lead.id]);
+
+  async function schedule() {
+    setBusy(true);
+    setErr("");
+    try {
+      const r = await api<{ item: { id: string; channel: string; sendAt: string; body: string } }>("/api/scheduled", {
+        method: "POST",
+        body: JSON.stringify({
+          leadId: lead.id,
+          channel: mode,
+          subject,
+          body,
+          sendAt: new Date(sendAt).toISOString(),
+          who: getWho(),
+          sendAs: getWho() === "app" ? "" : getWho(),
+        }),
+      });
+      setPendingScheduled((cur) => [...cur, r.item]);
+      setFlash(`🕐 Scheduled for ${new Date(sendAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`);
+      setBody("");
+      setSubject("");
+      setScheduling(false);
+      setSendAt("");
+      onSent();
+      setTimeout(() => setFlash(""), 6000);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancelScheduled(id: string) {
+    setPendingScheduled((cur) => cur.filter((x) => x.id !== id));
+    try {
+      await api("/api/scheduled", { method: "POST", body: JSON.stringify({ cancelId: id }) });
+    } catch {
+      /* the list refreshes next visit */
+    }
+  }
 
   function loadTemplates() {
     if (templates === null) {
@@ -252,6 +305,29 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
             >
               {busy ? "Saving…" : mode === "note" ? "Save note" : mode === "email" ? "Send email" : "Send text"}
             </button>
+            {mode !== "note" && !scheduling && (
+              <button className="btn small ghost" disabled={busy} onClick={() => setScheduling(true)} title="Pick a date & time to send this later">
+                🕐 Schedule
+              </button>
+            )}
+            {mode !== "note" && scheduling && (
+              <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                <input
+                  type="datetime-local"
+                  value={sendAt}
+                  onChange={(e) => setSendAt(e.target.value)}
+                  style={{ padding: "4px 8px", fontSize: 13 }}
+                />
+                <button
+                  className="btn small"
+                  disabled={busy || !sendAt || !body.trim() || (mode === "email" && !subject.trim())}
+                  onClick={schedule}
+                >
+                  🕐 Schedule it
+                </button>
+                <button className="btn small ghost" onClick={() => setScheduling(false)}>✕</button>
+              </span>
+            )}
             <span className="muted" style={{ fontSize: 11.5 }}>
               {mode === "note"
                 ? "team-only — saved to the lead's activity log"
@@ -259,6 +335,19 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
             </span>
           </div>
         </>
+      )}
+
+      {pendingScheduled.length > 0 && (
+        <div style={{ marginTop: 10, borderTop: "1px dashed var(--line)", paddingTop: 8 }}>
+          {pendingScheduled.map((x) => (
+            <div key={x.id} className="muted" style={{ fontSize: 12.5, display: "flex", gap: 8, alignItems: "center", padding: "2px 0" }}>
+              🕐 {x.channel === "email" ? "Email" : "Text"} scheduled{" "}
+              {new Date(x.sendAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} — “
+              {x.body.slice(0, 60)}{x.body.length > 60 ? "…" : ""}”
+              <button className="linklike" onClick={() => cancelScheduled(x.id)}>cancel</button>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
