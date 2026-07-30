@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLead, updateLeadFields, appendTimeline, COLS } from "@/lib/leads";
+import { extractGeo } from "@/lib/geo";
 import { requireSession, jsonError } from "@/lib/api";
 import { isValidArnoldKey } from "@/lib/auth";
 
@@ -17,7 +18,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const force = req.nextUrl.searchParams.get("refresh") === "1";
     const found = await getLead(id, force);
     if (!found) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
-    return NextResponse.json({ lead: found.lead });
+    const l = found.lead;
+    return NextResponse.json({
+      lead: l,
+      // Best-known location (Summary Bar + map) — same miner the map uses.
+      geo: extractGeo(l.address, l.headline, l.notes, l.activityTimeline, l.appActivity),
+    });
   } catch (err) {
     return jsonError(err);
   }

@@ -40,6 +40,7 @@ export const COLS = {
   appActivity: "App Activity",
   timelineJson: "timeline_data_json",
   arnoldDraftJson: "arnold_draft_json",
+  briefJson: "brief_json",
 } as const;
 
 export type StatusBucket = "new" | "active" | "snoozed" | "won" | "lost" | "inactive" | "support" | "unqualified" | "closed";
@@ -72,6 +73,13 @@ export interface TimelineEvent {
   openedAt?: string;
   /** Inbox folder this inbound response is filed under ("" = general inbox). */
   folder?: string;
+}
+
+/** Cached AI briefing for the Summary Bar (regenerated when the timeline moves). */
+export interface LeadBrief {
+  leftOff: string;
+  nextAction: string;
+  asOf: string; // `at` of the newest timeline event when generated
 }
 
 export interface Lead {
@@ -122,6 +130,7 @@ export interface Lead {
   appActivity: string;
   timeline: TimelineEvent[];
   drafts: DraftMessage[];
+  brief: LeadBrief | null;
 }
 
 export interface SheetShape {
@@ -397,6 +406,7 @@ function rowToLead(row: string[], rowNumber: number, shape: SheetShape, now: Dat
     appActivity: get("appActivity"),
     timeline,
     drafts: safeJson<DraftMessage[]>(get("arnoldDraftJson"), []),
+    brief: safeJson<LeadBrief | null>(get("briefJson"), null),
   };
 }
 
@@ -481,7 +491,7 @@ export async function updateLeadFields(
   invalidateCache();
 }
 
-const AUTO_COLS: (keyof typeof COLS)[] = ["blpId", "appActivity", "timelineJson", "arnoldDraftJson", "subRep", "openedBy", "closedBy", "address"];
+const AUTO_COLS: (keyof typeof COLS)[] = ["blpId", "appActivity", "timelineJson", "arnoldDraftJson", "subRep", "openedBy", "closedBy", "address", "briefJson"];
 
 /**
  * The hidden app columns may not exist yet in a fresh sheet; add any missing
@@ -518,6 +528,12 @@ export async function appendTimeline(
     fields.lastContact = stamp.toLocaleDateString("en-US");
   }
   await updateLeadFields(lead, s, fields);
+}
+
+/** Cache the AI briefing on the lead's row. */
+export async function saveBrief(lead: Lead, shape: SheetShape, brief: LeadBrief): Promise<void> {
+  const s = await ensureAppColumns(shape);
+  await updateLeadFields(lead, s, { briefJson: JSON.stringify(brief) });
 }
 
 /** Replace the lead's draft list (Arnold suggestions + approval state). */

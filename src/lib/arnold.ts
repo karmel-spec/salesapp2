@@ -91,6 +91,69 @@ const DRAFT_SCHEMA = {
   additionalProperties: false as const,
 };
 
+const BRIEF_SCHEMA = {
+  type: "object",
+  properties: {
+    leftOff: {
+      type: "string",
+      description: "1-2 sentences: where the conversation stands — what the customer last said/did and what they're waiting on",
+    },
+    nextAction: {
+      type: "string",
+      description: "ONE imperative sentence: the recommended next move, with channel, timing, phone number, and price anchor when known",
+    },
+  },
+  required: ["leftOff", "nextAction"],
+  additionalProperties: false,
+} as const;
+
+/**
+ * Arnold's internal lead briefing for the Summary Bar: "where we left off"
+ * + "recommended next action". Internal-facing (unlike his ghostwritten
+ * drafts), so he speaks as the team's Chief Sales Agent.
+ */
+export async function generateBriefViaApi(lead: Lead): Promise<{ leftOff: string; nextAction: string }> {
+  if (!config.anthropicApiKey) {
+    throw new Error("ANTHROPIC_API_KEY not configured");
+  }
+  const client = new Anthropic({ apiKey: config.anthropicApiKey });
+  const events = lead.timeline.slice(-14).map((e) => {
+    const d = new Date(e.at);
+    const stamp = isNaN(d.getTime()) ? e.at : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return `[${stamp} · ${e.who} · ${e.kind}] ${e.text.replace(/\s+/g, " ").slice(0, 320)}`;
+  });
+  const context = [
+    `Lead: ${lead.name} — ${lead.headline || "(no headline)"}`,
+    `Status: ${lead.status || "New"} | Type: ${lead.leadType || "?"} | Piano: ${lead.pianoType || "?"} | Heat: ${lead.score || "?"}/10 | $ value/quote: ${lead.value || "none recorded"}`,
+    `Days since last contact: ${lead.daysSinceContact ?? "?"} | Assigned: ${lead.effectiveRep}${lead.effectiveSubRep ? ` (+${lead.effectiveSubRep})` : ""}`,
+    lead.notes ? `Notes: ${lead.notes.replace(/\s+/g, " ").slice(0, 400)}` : "",
+    "Recent activity (oldest to newest):",
+    ...events,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const response = await client.messages.create({
+    model: "claude-opus-4-8",
+    max_tokens: 3000,
+    thinking: { type: "adaptive" },
+    system:
+      "You are Arnold, Chief Sales Agent at Brigham Larson Pianos. This is an INTERNAL briefing shown to the " +
+      "human sales team at the top of a lead's page — never customer-facing, so speak as yourself. Before a rep " +
+      "even scrolls, tell them exactly where this lead stands and the one move to make next. Be concrete: pull " +
+      "real prices, dates, times, phone numbers, and piano details from the history. If the customer is waiting " +
+      "on US, say so bluntly. If a call or visit was scheduled, lead with it.",
+    messages: [{ role: "user", content: `Brief the team on this lead:\n\n${context}` }],
+    output_config: { effort: "low", format: { type: "json_schema", schema: BRIEF_SCHEMA } },
+  });
+  if (response.stop_reason === "refusal") {
+    throw new Error("Briefing was declined");
+  }
+  const text = response.content.find((c) => c.type === "text");
+  const parsed = JSON.parse(text && "text" in text ? text.text : "{}") as { leftOff?: string; nextAction?: string };
+  return { leftOff: (parsed.leftOff || "").slice(0, 400), nextAction: (parsed.nextAction || "").slice(0, 300) };
+}
+
 /**
  * Fallback draft generation via the Claude API, writing in Arnold's voice.
  * Only used when ANTHROPIC_API_KEY is set and Arnold's webhook isn't.

@@ -7,6 +7,8 @@ import type { Lead, DraftMessage } from "@/lib/leads";
 import { api, getWho, REPS, LEAD_SOURCES, INQUIRY_METHODS } from "@/lib/client";
 import { Linkify, StaleBadge, StatusBadge, fmtDays } from "@/components/ui";
 import { Thread } from "@/components/Thread";
+import { SummaryBar } from "@/components/SummaryBar";
+import type { LeadGeo } from "@/lib/geo-shared";
 import { ThreadComposer } from "@/components/ThreadComposer";
 
 type Adjacent = { id: string; name: string } | null;
@@ -46,6 +48,7 @@ function useAdjacentLeads(currentId: string | undefined): { prev: Adjacent; next
 export default function LeadDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [lead, setLead] = useState<Lead | null>(null);
+  const [geo, setGeo] = useState<LeadGeo | null>(null);
   const [error, setError] = useState("");
   const [flash, setFlash] = useState("");
   const [asking, setAsking] = useState(false);
@@ -84,8 +87,11 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
 
   const load = useCallback(
     (fresh = false) =>
-      api<{ lead: Lead }>(`/api/leads/${encodeURIComponent(id)}${fresh ? "?refresh=1" : ""}`)
-        .then((r) => setLead(r.lead))
+      api<{ lead: Lead; geo: LeadGeo | null }>(`/api/leads/${encodeURIComponent(id)}${fresh ? "?refresh=1" : ""}`)
+        .then((r) => {
+          setLead(r.lead);
+          setGeo(r.geo ?? null);
+        })
         .catch((e) => setError(e.message)),
     [id]
   );
@@ -153,6 +159,8 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
         <SubRepSelect lead={lead} onFlash={setFlash} onDone={loadSoon} />
         <span className="spacer" />
       </div>
+
+      <SummaryBar lead={lead} geo={geo} />
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", margin: "10px 0 16px" }}>
         {lead.phoneDialable && (
