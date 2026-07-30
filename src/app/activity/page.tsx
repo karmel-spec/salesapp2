@@ -49,7 +49,7 @@ const FILTERS: { key: string; label: string; kinds: string[] }[] = [
 ];
 
 const SORTS: { key: string; label: string }[] = [
-  { key: "unread", label: "NEW first" },
+  { key: "unread", label: "Unread" },
   { key: "newest", label: "Newest first" },
   { key: "oldest-unread", label: "Waiting longest (unread)" },
   { key: "texts", label: "Texts first" },
