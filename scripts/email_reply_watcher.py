@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""info@ reply watcher — closes the inbound-email gap.
+"""Reply watcher — closes the inbound-email gap for EVERY sending identity.
 
-Polls the info@brighamlarsonpianos.com inbox over IMAP (Gmail app password,
-same credential the console sends with) and POSTs each new message to the
-Sales Console's /api/email/inbound. The server decides whether the sender is
-a lead; if so the reply lands on the lead's timeline, pings the team on
-Telegram, and wakes Arnold to rewrite his drafts. Non-lead mail is ignored.
+Polls each configured mailbox over IMAP (Gmail app passwords: info@ always;
+per-rep boxes like brigham@ when SMTP_USER_<REP>/SMTP_PASS_<REP> exist) and
+POSTs each new message to the Sales Console's /api/email/inbound. The server
+decides whether the sender is a lead; if so the reply lands on the lead's
+timeline, pings the team on Telegram, and wakes Arnold to rewrite his
+drafts. Non-lead mail is ignored.
 
 Installed as LaunchAgent com.blp.email-watcher (every 5 minutes).
-State (last-seen IMAP UID, All Mail namespace) lives in
+State (per-account last-seen IMAP UID, All Mail namespace) lives in
 ~/.blp-email-watcher-state.json.
 """
 import email
@@ -17,6 +18,7 @@ import imaplib
 import json
 import pathlib
 import re
+import urllib.error
 import urllib.request
 from email.header import decode_header, make_header
 
@@ -25,7 +27,6 @@ STATE_FILE = HOME / ".blp-email-watcher-state.json"
 ENV_FILE = HOME / "salesapp2" / ".env.local"
 APP_URL = "https://blpsalesapp.netlify.app"
 IMAP_HOST = "imap.gmail.com"
-USER = "info@brighamlarsonpianos.com"
 # On the very first run (no state), only look back this many days.
 FIRST_RUN_LOOKBACK_DAYS = 3
 
@@ -67,11 +68,42 @@ def strip_quoted(text: str) -> str:
     return out or text.strip()
 
 
+def env_opt(key: str) -> str:
+    m = re.search(rf"^{key}=(.+)$", ENV_FILE.read_text(), re.M)
+    return m.group(1).strip() if m else ""
+
+
+def accounts() -> list:
+    """Every mailbox we send from: info@ plus any SMTP_USER_<REP> pairs."""
+    out = [("info@brighamlarsonpianos.com", env("SMTP_PASS"))]
+    text = ENV_FILE.read_text()
+    for m in re.finditer(r"^SMTP_USER_([A-Z]+)=(.+)$", text, re.M):
+        user = m.group(2).strip()
+        pw = env_opt(f"SMTP_PASS_{m.group(1)}")
+        if pw and user.lower() != out[0][0]:
+            out.append((user, pw))
+    return out
+
+
 def main() -> None:
-    password = env("SMTP_PASS")
     key = env("BLP_ARNOLD_ACCESS_KEY")
     state = json.loads(STATE_FILE.read_text()) if STATE_FILE.exists() else {}
-    last_uid = int(state.get("last_uid", 0))
+    per_account = state.get("accounts", {})
+    # Legacy single-account state carries over to info@.
+    if "last_uid" in state and "info@brighamlarsonpianos.com" not in per_account:
+        per_account["info@brighamlarsonpianos.com"] = int(state["last_uid"])
+    accts = accounts()
+    internal = {u.lower() for u, _ in accts}
+    for user, password in accts:
+        try:
+            poll_account(user, password, key, per_account, internal)
+        except Exception as e:
+            print(f"{user}: poll failed ({e}) — will retry next run")
+    STATE_FILE.write_text(json.dumps({"accounts": per_account}))
+
+
+def poll_account(USER: str, password: str, key: str, per_account: dict, internal: set) -> None:
+    last_uid = int(per_account.get(USER, 0))
 
     imap = imaplib.IMAP4_SSL(IMAP_HOST)
     imap.login(USER, password)
@@ -89,7 +121,7 @@ def main() -> None:
     # Gmail returns the last message again for "N:*" when nothing is new.
     uids = [u for u in uids if u > last_uid]
     if not uids:
-        print("no new mail")
+        print(f"{USER}: no new mail")
         imap.logout()
         return
 
@@ -100,7 +132,7 @@ def main() -> None:
             continue
         msg = email.message_from_bytes(msg_data[0][1])
         from_name, from_email = email.utils.parseaddr(msg.get("From", ""))
-        if not from_email or from_email.lower() == USER:
+        if not from_email or from_email.lower() in internal:
             last_uid = uid
             continue
         subject = str(make_header(decode_header(msg.get("Subject", "")))) if msg.get("Subject") else ""
@@ -153,10 +185,20 @@ def main() -> None:
                 with urllib.request.urlopen(req, timeout=30) as res:
                     result = json.load(res)
                 tag = "MATCHED " + result.get("leadName", "") if result.get("matched") else "no lead match"
-                print(f"uid {uid}: [SalesCaptain] {tag} ({sender or phone})")
+                print(f"{USER} uid {uid}: [SalesCaptain] {tag} ({sender or phone})")
                 last_uid = uid
+                per_account[USER] = last_uid
+            except urllib.error.HTTPError as e:
+                if 400 <= e.code < 500:
+                    # Unparseable notification — skip it rather than jamming the queue.
+                    print(f"{USER} uid {uid}: SalesCaptain rejected ({e.code}) — skipped")
+                    last_uid = uid
+                    per_account[USER] = last_uid
+                    continue
+                print(f"{USER} uid {uid}: SalesCaptain POST failed ({e}) — will retry")
+                break
             except Exception as e:
-                print(f"uid {uid}: SalesCaptain POST failed ({e}) — will retry")
+                print(f"{USER} uid {uid}: SalesCaptain POST failed ({e}) — will retry")
                 break
             continue
 
@@ -178,17 +220,18 @@ def main() -> None:
                 result = json.load(res)
             if result.get("matched"):
                 matched += 1
-                print(f"uid {uid}: MATCHED lead {result.get('leadName')} ({from_email})")
+                print(f"{USER} uid {uid}: MATCHED lead {result.get('leadName')} ({from_email})")
             else:
-                print(f"uid {uid}: no lead match ({from_email})")
+                print(f"{USER} uid {uid}: no lead match ({from_email})")
             last_uid = uid  # advance only after the console accepted the message
+            per_account[USER] = last_uid
         except Exception as e:
-            print(f"uid {uid}: console POST failed ({e}) — will retry next run")
+            print(f"{USER} uid {uid}: console POST failed ({e}) — will retry next run")
             break
 
-    STATE_FILE.write_text(json.dumps({"last_uid": last_uid}))
+    per_account[USER] = last_uid
     imap.logout()
-    print(f"done — {matched} lead repl{'y' if matched == 1 else 'ies'} captured, last_uid={last_uid}")
+    print(f"{USER}: done — {matched} lead repl{'y' if matched == 1 else 'ies'} captured, last_uid={last_uid}")
 
 
 if __name__ == "__main__":

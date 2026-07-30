@@ -111,7 +111,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         finalSubject,
         finalBody,
         [],
-        `${config.publicBaseUrl}/api/track/${trackId}.gif`
+        `${config.publicBaseUrl}/api/track/${trackId}.gif`,
+        who
       );
       deliveryNote = `Email "${finalSubject}" sent to ${lead.emailClean} (${messageId})`;
     }

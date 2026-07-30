@@ -713,3 +713,72 @@ tbody tr:hover { background: #faf7f2; }
   border-radius: 999px;
   margin-left: 6px;
 }
+
+/* ── Activity split view (replies list ⟷ conversation panel) ── */
+.split { display: flex; align-items: stretch; gap: 0; }
+.split-left { min-width: 0; transition: none; }
+.split-divider {
+  width: 10px;
+  cursor: col-resize;
+  flex: none;
+  position: relative;
+}
+.split-divider::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 2px;
+  background: var(--line);
+  border-radius: 2px;
+}
+.split-divider:hover::before { background: var(--crimson); }
+.split-right { flex: 1; min-width: 0; }
+.thread-panel { position: sticky; top: 12px; display: flex; flex-direction: column; }
+.thread-panel-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.thread-panel .thread { max-height: calc(100vh - 420px); min-height: 240px; }
+@media (max-width: 980px) {
+  .split { flex-direction: column; }
+  .split-left { width: 100% !important; }
+  .split-divider { display: none; }
+  .split-right { order: -1; margin-bottom: 14px; }
+  .thread-panel { position: static; }
+  .thread-panel .thread { max-height: 45vh; }
+}
+.timeline li.thread-open { background: var(--crimson-soft); border-radius: 0 8px 8px 0; }
+
+/* ── Conversation composer ── */
+.composer { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; }
+.composer-tabs { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.composer textarea { width: 100%; }
+.tpl-wrap { position: relative; margin-left: auto; }
+.tpl-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14);
+  min-width: 240px;
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 50;
+  padding: 4px;
+}
+.tpl-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--ink);
+}
+.tpl-item:hover { background: var(--crimson-soft); }
+.tpl-add { color: var(--crimson); font-weight: 600; border-top: 1px solid var(--line); border-radius: 0 0 6px 6px; }

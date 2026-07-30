@@ -7,6 +7,7 @@ import type { Lead, DraftMessage } from "@/lib/leads";
 import { api, getWho, REPS, LEAD_SOURCES, INQUIRY_METHODS } from "@/lib/client";
 import { Linkify, StaleBadge, StatusBadge, fmtDays } from "@/components/ui";
 import { Thread } from "@/components/Thread";
+import { ThreadComposer } from "@/components/ThreadComposer";
 
 type Adjacent = { id: string; name: string } | null;
 
@@ -306,6 +307,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
               </span>
             </h2>
             <Thread lead={lead} maxHeight={460} />
+            <ThreadComposer lead={lead} onSent={loadSoon} />
           </div>
         </div>
       </div>

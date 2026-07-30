@@ -88,28 +88,47 @@ export interface EmailAttachment {
   content: Buffer;
 }
 
+/**
+ * Per-rep sender identity. A rep with SMTP_USER_<REP> + SMTP_PASS_<REP>
+ * (Gmail app password) sends AS THEMSELVES — replies land in their own
+ * inbox (and the reply watcher mirrors them to the lead's timeline).
+ * Everyone else sends from the shared info@ identity.
+ */
+function senderFor(who: string): { user: string; pass: string; fromName: string } {
+  const slug = (who || "").trim().toUpperCase().replace(/[^A-Z]/g, "");
+  const user = slug ? process.env[`SMTP_USER_${slug}`] : undefined;
+  const pass = slug ? process.env[`SMTP_PASS_${slug}`] : undefined;
+  if (user && pass) {
+    const fromName = process.env[`SMTP_NAME_${slug}`] || `${who.trim()} Larson`;
+    return { user, pass, fromName };
+  }
+  return { user: config.smtpUser, pass: config.smtpPass, fromName: config.emailFromName };
+}
+
 export async function sendEmail(
   to: string,
   subject: string,
   body: string,
   attachments: EmailAttachment[] = [],
-  trackPixelUrl = "" // 1×1 open-tracking pixel appended to the HTML part
+  trackPixelUrl = "", // 1×1 open-tracking pixel appended to the HTML part
+  who = "" // rep name — picks the sender identity (see senderFor)
 ): Promise<{ messageId: string }> {
+  const sender = senderFor(who);
   if (config.dryRunSends) {
-    console.log(`[DRY-RUN] email to ${to} ("${subject}"): ${body.slice(0, 120)}${attachments.length ? ` +${attachments.length} attachment(s)` : ""}`);
+    console.log(`[DRY-RUN] email to ${to} from ${sender.user} ("${subject}"): ${body.slice(0, 120)}${attachments.length ? ` +${attachments.length} attachment(s)` : ""}`);
     return { messageId: "DRYRUN-EMAIL" };
   }
-  if (!config.smtpPass) {
+  if (!sender.pass) {
     throw new Error("Email not configured: set SMTP_PASS (app password for info@brighamlarsonpianos.com)");
   }
   const transport = createTransport({
     host: config.smtpHost,
     port: config.smtpPort,
     secure: config.smtpPort === 465,
-    auth: { user: config.smtpUser, pass: config.smtpPass },
+    auth: { user: sender.user, pass: sender.pass },
   });
   const info = await transport.sendMail({
-    from: `"${config.emailFromName}" <${config.smtpUser}>`,
+    from: `"${sender.fromName}" <${sender.user}>`,
     to,
     subject,
     text: emailText(body),

@@ -20,7 +20,7 @@ export async function fetchLeads(refresh = false) {
   return api<{ leads: Lead[]; writeEnabled: boolean }>(`/api/leads${refresh ? "?refresh=1" : ""}`);
 }
 
-export const REPS = ["Brigham", "Karmel", "Arnold", "Melissa", "Alisa"] as const;
+export const REPS = ["Brigham", "Karmel", "Arnold", "Melissa", "Alisa", "Susie", "Ezzy"] as const;
 
 /** Canonical pick-lists for lead fields (free-text history stays as "keep current"). */
 export const LEAD_SOURCES = ["Repeat customer", "Google", "YouTube", "TikTok", "Facebook", "Instagram", "Sign", "Referral", "Recital", "KSL", "Not sure"];

@@ -76,7 +76,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         subject,
         body,
         photoBuffer ? [{ filename: photoName, contentType: photoType, content: photoBuffer }] : [],
-        `${config.publicBaseUrl}/api/track/${trackId}.gif`
+        `${config.publicBaseUrl}/api/track/${trackId}.gif`,
+        who
       );
       deliveryNote = `Email "${subject}"${photoBuffer ? " (with photo)" : ""} sent to ${lead.emailClean} (${messageId})`;
     } else {

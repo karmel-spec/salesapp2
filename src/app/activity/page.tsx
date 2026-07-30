@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { Lead } from "@/lib/leads";
-import { api, fetchLeads, getWho } from "@/lib/client";
+import { api, fetchLeads, getWho, leadValue } from "@/lib/client";
 import { Linkify } from "@/components/ui";
 import { Thread } from "@/components/Thread";
+import { ThreadComposer } from "@/components/ThreadComposer";
 
 type Row = {
   at: string;
@@ -18,6 +19,8 @@ type Row = {
   read: boolean; // inbound only: acknowledged as read?
   readBy?: string;
   openedAt?: string; // email_out only: customer opened the email
+  leadScore: number;
+  leadValue: number;
 };
 
 const KIND_META: Record<string, { label: string; icon: string }> = {
@@ -43,41 +46,15 @@ const FILTERS: { key: string; label: string; kinds: string[] }[] = [
   { key: "notes", label: "Notes & edits", kinds: ["note", "edit", "assign", "created"] },
 ];
 
-/**
- * Conversation popup: the full back-and-forth between one client and BLP,
- * oldest first — customer messages on the left, BLP's on the right.
- */
-function ThreadModal({ lead, onClose }: { lead: Lead; onClose: () => void }) {
-  // Esc closes.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" role="dialog" aria-label={`Conversation with ${lead.name}`} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head">
-          <div>
-            <strong style={{ fontFamily: "var(--serif)", fontSize: 17 }}>{lead.name}</strong>
-            {lead.headline && <div className="muted">{lead.headline}</div>}
-          </div>
-          <span className="spacer" />
-          <Link className="btn small" href={`/leads/${encodeURIComponent(lead.id)}`}>
-            Open lead →
-          </Link>
-          <button className="btn small ghost" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
-        </div>
-        <Thread lead={lead} />
-      </div>
-    </div>
-  );
-}
+const SORTS: { key: string; label: string }[] = [
+  { key: "unread", label: "NEW first" },
+  { key: "newest", label: "Newest first" },
+  { key: "oldest-unread", label: "Waiting longest (unread)" },
+  { key: "texts", label: "Texts first" },
+  { key: "emails", label: "Emails first" },
+  { key: "hot", label: "Hottest leads first" },
+  { key: "value", label: "Highest $ value first" },
+];
 
 /** ?filter=inbound deep link (the top-corner alert lands here). */
 function initialFilter(): string {
@@ -86,17 +63,76 @@ function initialFilter(): string {
   return FILTERS.some((x) => x.key === f) ? f : "all";
 }
 
+/** Inbound replies arrive as "Customer texted…" or "Customer emailed…". */
+function isEmailReply(r: Row): boolean {
+  return /email/i.test(r.text.slice(0, 30));
+}
+
 export default function ActivityPage() {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState(() => initialFilter());
   const [who, setWho] = useState("all");
+  const [sortMode, setSortMode] = useState("unread");
   const [marking, setMarking] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null); // lead whose conversation is open
+  const [leftPct, setLeftPct] = useState(55); // resizable split (% width of the list)
+  const splitRef = useRef<HTMLDivElement>(null);
+  const dragState = useRef({ dragging: false, pct: 55 });
+
+  const reload = () =>
+    fetchLeads(true)
+      .then((r) => setLeads(r.leads))
+      .catch((e) => setError(e.message));
 
   useEffect(() => {
-    fetchLeads(true).then((r) => setLeads(r.leads)).catch((e) => setError(e.message));
+    reload();
+    const v = Number(localStorage.getItem("blp_activity_split"));
+    if (v >= 28 && v <= 72) {
+      setLeftPct(v);
+      dragState.current.pct = v;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Draggable divider between the replies list and the conversation panel.
+  useEffect(() => {
+    const move = (clientX: number) => {
+      if (!dragState.current.dragging || !splitRef.current) return;
+      const rect = splitRef.current.getBoundingClientRect();
+      const pct = Math.min(72, Math.max(28, ((clientX - rect.left) / rect.width) * 100));
+      dragState.current.pct = pct;
+      setLeftPct(pct);
+    };
+    const onMouse = (e: MouseEvent) => move(e.clientX);
+    const onTouch = (e: TouchEvent) => move(e.touches[0]?.clientX ?? 0);
+    const up = () => {
+      if (!dragState.current.dragging) return;
+      dragState.current.dragging = false;
+      document.body.style.userSelect = "";
+      localStorage.setItem("blp_activity_split", String(Math.round(dragState.current.pct)));
+    };
+    window.addEventListener("mousemove", onMouse);
+    window.addEventListener("touchmove", onTouch);
+    window.addEventListener("mouseup", up);
+    window.addEventListener("touchend", up);
+    return () => {
+      window.removeEventListener("mousemove", onMouse);
+      window.removeEventListener("touchmove", onTouch);
+      window.removeEventListener("mouseup", up);
+      window.removeEventListener("touchend", up);
+    };
+  }, []);
+
+  // Esc closes the conversation panel.
+  useEffect(() => {
+    if (!threadId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setThreadId(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [threadId]);
 
   const rows = useMemo(() => {
     if (!leads) return [];
@@ -110,6 +146,9 @@ export default function ActivityPage() {
           headline: l.headline || l.leadType || "",
           read: e.kind === "inbound" ? Boolean(e.readAt) : true,
           readBy: e.readBy,
+          openedAt: e.openedAt,
+          leadScore: Number(l.score) || 0,
+          leadValue: leadValue(l),
         });
       }
     }
@@ -132,13 +171,37 @@ export default function ActivityPage() {
     const out = rows
       .filter((r) => (kinds.length ? kinds.includes(r.kind) : true))
       .filter((r) => (who === "all" ? true : r.who === who));
-    // Inbox view: every NEW response floats to the top (newest first within
-    // each group) — read ones settle below.
+    // Sorts apply to the inbox view (rows start newest-first; sorts are
+    // stable, so ties keep that order).
     if (filter === "inbound") {
-      out.sort((a, b) => Number(a.read) - Number(b.read));
+      const t = (r: Row) => {
+        const d = new Date(r.at);
+        return isNaN(d.getTime()) ? 0 : d.getTime();
+      };
+      switch (sortMode) {
+        case "newest":
+          break;
+        case "oldest-unread":
+          out.sort((a, b) => Number(a.read) - Number(b.read) || t(a) - t(b));
+          break;
+        case "texts":
+          out.sort((a, b) => Number(isEmailReply(a)) - Number(isEmailReply(b)));
+          break;
+        case "emails":
+          out.sort((a, b) => Number(!isEmailReply(a)) - Number(!isEmailReply(b)));
+          break;
+        case "hot":
+          out.sort((a, b) => b.leadScore - a.leadScore);
+          break;
+        case "value":
+          out.sort((a, b) => b.leadValue - a.leadValue);
+          break;
+        default:
+          out.sort((a, b) => Number(a.read) - Number(b.read)); // NEW first
+      }
     }
     return out.slice(0, 250);
-  }, [rows, filter, who]);
+  }, [rows, filter, who, sortMode]);
 
   /** Flip events read in local state so the UI reacts instantly. */
   function applyRead(leadId: string | null, ats: string[] | null) {
@@ -165,7 +228,7 @@ export default function ActivityPage() {
     try {
       await api("/api/inbox", { method: "POST", body: JSON.stringify({ leadId: r.leadId, ats: [r.at], who: getWho() }) });
     } catch {
-      fetchLeads(true).then((res) => setLeads(res.leads)).catch(() => {});
+      reload();
     }
   }
 
@@ -201,7 +264,7 @@ export default function ActivityPage() {
         body: JSON.stringify({ leadId: r.leadId, ats: [r.at], who: getWho(), unread: true }),
       });
     } catch {
-      fetchLeads(true).then((res) => setLeads(res.leads)).catch(() => {});
+      reload();
     }
   }
 
@@ -211,7 +274,7 @@ export default function ActivityPage() {
     try {
       await api("/api/inbox", { method: "POST", body: JSON.stringify({ all: true, who: getWho() }) });
     } catch {
-      fetchLeads(true).then((res) => setLeads(res.leads)).catch(() => {});
+      reload();
     } finally {
       setMarking(false);
     }
@@ -220,6 +283,7 @@ export default function ActivityPage() {
   if (error) return <div className="banner bad">⚠ {error}</div>;
   if (!leads) return <div className="spin">Loading activity…</div>;
 
+  const threadLead = threadId ? leads.find((l) => l.id === threadId) || null : null;
   let lastDay = "";
 
   return (
@@ -246,6 +310,13 @@ export default function ActivityPage() {
             <option key={w} value={w}>{w}</option>
           ))}
         </select>
+        {filter === "inbound" && (
+          <select value={sortMode} onChange={(e) => setSortMode(e.target.value)} aria-label="Sort replies">
+            {SORTS.map((s) => (
+              <option key={s.key} value={s.key}>{s.label}</option>
+            ))}
+          </select>
+        )}
         {filter === "inbound" && unreadCount > 0 && (
           <button className="btn small ghost" onClick={ackAll} disabled={marking}>
             {marking ? "Marking…" : `✓ Mark all ${unreadCount} as read`}
@@ -255,98 +326,130 @@ export default function ActivityPage() {
 
       {filter === "inbound" && (
         <p className="muted" style={{ fontSize: 13, margin: "0 0 10px" }}>
-          Your client-response inbox. <strong>Bold</strong> = new — click a response to acknowledge it as read.
+          Your client-response inbox. <strong>Bold</strong> = new — the checkbox marks read/unread; click a
+          response to open the conversation beside it.
         </p>
       )}
 
-      <div className="card">
-        {visible.length === 0 && <div className="muted">No activity matches this filter yet.</div>}
-        <ul className="timeline">
-          {visible.map((r, i) => {
-            const d = new Date(r.at);
-            const valid = !isNaN(d.getTime());
-            const day = valid
-              ? d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
-              : "Earlier (undated)";
-            // Inbox view is sorted unread-first (not chronological), so per-day
-            // headers would repeat — each row shows its full date instead.
-            const showDay = filter !== "inbound" && day !== lastDay;
-            lastDay = day;
-            const meta = KIND_META[r.kind] || { label: r.kind, icon: "•" };
-            const isUnread = r.kind === "inbound" && !r.read;
-            const stamp = valid
-              ? filter === "inbound"
-                ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
-                  ", " +
-                  d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-                : d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-              : r.at || "—";
-            return (
-              <li
-                key={`${r.leadId}-${r.at}-${i}`}
-                className={isUnread ? "unread" : undefined}
-                onClick={() => openResponse(r)}
-                title={
-                  r.kind === "inbound"
-                    ? isUnread
-                      ? "Click to open the conversation (marks it read)"
-                      : "Click to open the conversation"
-                    : undefined
-                }
-                style={r.kind === "inbound" ? { cursor: "pointer" } : undefined}
-              >
-                {showDay && (
-                  <div style={{ fontFamily: "var(--serif)", fontWeight: 600, fontSize: 15, margin: "10px 0 6px" }}>
-                    {day}
-                  </div>
-                )}
-                <div className="meta">
-                  {r.kind === "inbound" && (
-                    <input
-                      type="checkbox"
-                      className="read-check"
-                      checked={r.read}
-                      title={r.read ? "Read — uncheck to mark as NEW again" : "Check to mark as read"}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        if (r.read) unackOne(r);
-                        else ackOne(r);
-                      }}
-                    />
-                  )}
-                  {isUnread && <span className="new-chip">NEW</span>}
-                  {stamp} · {meta.icon}{" "}
-                  <strong>{meta.label}</strong> · {r.who} ·{" "}
-                  <Link
-                    href={`/leads/${encodeURIComponent(r.leadId)}`}
-                    style={{ textDecoration: "underline" }}
-                    onClick={(e) => e.stopPropagation()}
+      <div className="split" ref={splitRef}>
+        <div className="split-left" style={{ width: threadLead ? `${leftPct}%` : "100%" }}>
+          <div className="card">
+            {visible.length === 0 && <div className="muted">No activity matches this filter yet.</div>}
+            <ul className="timeline">
+              {visible.map((r, i) => {
+                const d = new Date(r.at);
+                const valid = !isNaN(d.getTime());
+                const day = valid
+                  ? d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
+                  : "Earlier (undated)";
+                // The inbox view isn't chronological, so per-day headers would
+                // repeat — each row shows its full date instead.
+                const showDay = filter !== "inbound" && day !== lastDay;
+                lastDay = day;
+                const meta = KIND_META[r.kind] || { label: r.kind, icon: "•" };
+                const isUnread = r.kind === "inbound" && !r.read;
+                const stamp = valid
+                  ? filter === "inbound"
+                    ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
+                      ", " +
+                      d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+                    : d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+                  : r.at || "—";
+                return (
+                  <li
+                    key={`${r.leadId}-${r.at}-${i}`}
+                    className={`${isUnread ? "unread" : ""}${threadLead && r.leadId === threadLead.id ? " thread-open" : ""}`}
+                    onClick={() => openResponse(r)}
+                    title={r.kind === "inbound" ? "Click to open the conversation" : undefined}
+                    style={r.kind === "inbound" ? { cursor: "pointer" } : undefined}
                   >
-                    {r.leadName}
-                  </Link>
-                  {r.headline && <span className="muted"> — {r.headline}</span>}
-                  {r.kind === "inbound" && r.read && r.readBy && (
-                    <span className="muted"> · ✓ read by {r.readBy}</span>
-                  )}
-                  {r.kind === "email_out" && r.openedAt && (
-                    <span className="opened-chip" title={`Customer opened this email ${new Date(r.openedAt).toLocaleString()}`}>
-                      👁 opened{" "}
-                      {new Date(r.openedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                    </span>
-                  )}
-                </div>
-                <div className="body"><Linkify text={r.text} /></div>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+                    {showDay && (
+                      <div style={{ fontFamily: "var(--serif)", fontWeight: 600, fontSize: 15, margin: "10px 0 6px" }}>
+                        {day}
+                      </div>
+                    )}
+                    <div className="meta">
+                      {r.kind === "inbound" && (
+                        <input
+                          type="checkbox"
+                          className="read-check"
+                          checked={r.read}
+                          title={r.read ? "Read — uncheck to mark as NEW again" : "Check to mark as read"}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            if (r.read) unackOne(r);
+                            else ackOne(r);
+                          }}
+                        />
+                      )}
+                      {isUnread && <span className="new-chip">NEW</span>}
+                      {stamp} · {meta.icon}{" "}
+                      <strong>{meta.label}</strong> · {r.who} ·{" "}
+                      <Link
+                        href={`/leads/${encodeURIComponent(r.leadId)}`}
+                        style={{ textDecoration: "underline" }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {r.leadName}
+                      </Link>
+                      {r.headline && <span className="muted"> — {r.headline}</span>}
+                      {r.kind === "inbound" && r.read && r.readBy && (
+                        <span className="muted"> · ✓ read by {r.readBy}</span>
+                      )}
+                      {r.kind === "email_out" && r.openedAt && (
+                        <span className="opened-chip" title={`Customer opened this email ${new Date(r.openedAt).toLocaleString()}`}>
+                          👁 opened{" "}
+                          {new Date(r.openedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </span>
+                      )}
+                    </div>
+                    <div className="body"><Linkify text={r.text} /></div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
 
-      {threadId && (() => {
-        const lead = leads.find((l) => l.id === threadId);
-        return lead ? <ThreadModal lead={lead} onClose={() => setThreadId(null)} /> : null;
-      })()}
+        {threadLead && (
+          <>
+            <div
+              className="split-divider"
+              role="separator"
+              aria-label="Drag to resize"
+              title="Drag to resize"
+              onMouseDown={(e) => {
+                dragState.current.dragging = true;
+                document.body.style.userSelect = "none";
+                e.preventDefault();
+              }}
+              onTouchStart={() => {
+                dragState.current.dragging = true;
+              }}
+            />
+            <div className="split-right">
+              <div className="card thread-panel">
+                <div className="thread-panel-head">
+                  <div>
+                    <strong style={{ fontFamily: "var(--serif)", fontSize: 17 }}>{threadLead.name}</strong>
+                    {threadLead.headline && <div className="muted">{threadLead.headline}</div>}
+                  </div>
+                  <span style={{ flex: 1 }} />
+                  <Link className="btn small ghost" href={`/leads/${encodeURIComponent(threadLead.id)}`}>
+                    Open lead →
+                  </Link>
+                  <button className="btn small ghost" onClick={() => setThreadId(null)} aria-label="Close conversation">
+                    ✕
+                  </button>
+                </div>
+                <Thread lead={threadLead} />
+                <ThreadComposer lead={threadLead} onSent={reload} />
+              </div>
+            </div>
+          </>
+        )}
+      </div>
     </>
   );
 }
