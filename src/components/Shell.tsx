@@ -24,7 +24,6 @@ const BLP_APPS = [
   { href: "https://blpmap.netlify.app", label: "US Marketing Map" },
   { href: "https://pianologapp.netlify.app", label: "Piano Log App" },
   { href: "https://pianotechnologylibrary.com", label: "PTL" },
-  { href: "https://brighamlarsonpianos.org", label: "Operations" },
 ];
 
 function BlpAppsMenu() {
