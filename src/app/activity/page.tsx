@@ -17,6 +17,7 @@ type Row = {
   headline: string;
   read: boolean; // inbound only: acknowledged as read?
   readBy?: string;
+  openedAt?: string; // email_out only: customer opened the email
 };
 
 const KIND_META: Record<string, { label: string; icon: string }> = {
@@ -327,6 +328,12 @@ export default function ActivityPage() {
                   {r.headline && <span className="muted"> — {r.headline}</span>}
                   {r.kind === "inbound" && r.read && r.readBy && (
                     <span className="muted"> · ✓ read by {r.readBy}</span>
+                  )}
+                  {r.kind === "email_out" && r.openedAt && (
+                    <span className="opened-chip" title={`Customer opened this email ${new Date(r.openedAt).toLocaleString()}`}>
+                      👁 opened{" "}
+                      {new Date(r.openedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </span>
                   )}
                 </div>
                 <div className="body"><Linkify text={r.text} /></div>

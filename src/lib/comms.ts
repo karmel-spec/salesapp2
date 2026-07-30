@@ -92,7 +92,8 @@ export async function sendEmail(
   to: string,
   subject: string,
   body: string,
-  attachments: EmailAttachment[] = []
+  attachments: EmailAttachment[] = [],
+  trackPixelUrl = "" // 1×1 open-tracking pixel appended to the HTML part
 ): Promise<{ messageId: string }> {
   if (config.dryRunSends) {
     console.log(`[DRY-RUN] email to ${to} ("${subject}"): ${body.slice(0, 120)}${attachments.length ? ` +${attachments.length} attachment(s)` : ""}`);
@@ -112,7 +113,11 @@ export async function sendEmail(
     to,
     subject,
     text: emailText(body),
-    html: emailHtml(body),
+    html:
+      emailHtml(body) +
+      (trackPixelUrl
+        ? `<img src="${trackPixelUrl}" width="1" height="1" alt="" style="display:none;max-height:1px;max-width:1px;" />`
+        : ""),
     ...(attachments.length
       ? { attachments: attachments.map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType })) }
       : {}),

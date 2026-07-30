@@ -72,6 +72,11 @@ export function Thread({ lead, maxHeight }: { lead: Lead; maxHeight?: number }) 
             <div className="bubble">
               <div className="bubble-meta">
                 {fromClient ? `${channel} ${lead.name.split(" ")[0]}` : `${channel} ${e.who} (BLP)`} · {stamp}
+                {e.kind === "email_out" && e.openedAt && (
+                  <span className="opened-chip" title={`Customer opened this email ${new Date(e.openedAt).toLocaleString()}`}>
+                    👁 opened
+                  </span>
+                )}
               </div>
               <Linkify text={textSansPhotos} />
               {photos.map((url) => (

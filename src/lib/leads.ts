@@ -66,6 +66,10 @@ export interface TimelineEvent {
    *  Unset on an "inbound" event = NEW (unread) client response. */
   readBy?: string;
   readAt?: string;
+  /** Email open tracking: the pixel token embedded in an outbound email,
+   *  and the first time the customer opened it. */
+  trackId?: string;
+  openedAt?: string;
 }
 
 export interface Lead {
@@ -244,6 +248,8 @@ function normalizeTimeline(raw: unknown[]): TimelineEvent[] {
           ...(typeof e.editedAt === "string" ? { editedAt: e.editedAt } : {}),
           ...(typeof e.readBy === "string" ? { readBy: e.readBy } : {}),
           ...(typeof e.readAt === "string" ? { readAt: e.readAt } : {}),
+          ...(typeof e.trackId === "string" ? { trackId: e.trackId } : {}),
+          ...(typeof e.openedAt === "string" ? { openedAt: e.openedAt } : {}),
         };
       }
       const at = typeof e.at === "string" ? e.at : typeof e.date === "string" ? e.date : "";
@@ -758,6 +764,31 @@ export async function markInboundRead(
   await writeCells([{ row: target.row, col: requireCol(s, "timelineJson"), value: JSON.stringify(timeline) }]);
   invalidateCache();
   return changed;
+}
+
+/**
+ * Email opens: the tracking pixel fired — stamp openedAt on the outbound
+ * email event carrying this token. First open only; later loads (re-reads,
+ * forwards) are ignored. Patches timelineJson only.
+ */
+export async function recordEmailOpen(trackId: string): Promise<{ leadName: string } | null> {
+  if (!trackId) return null;
+  const { leads, shape } = await getLeads(true);
+  for (const l of leads) {
+    const idx = l.timeline.findIndex((e) => e.trackId === trackId);
+    if (idx < 0) continue;
+    if (l.timeline[idx].openedAt) return null; // already stamped
+    const s = await ensureAppColumns(shape);
+    const target = await ensureRowCurrent(l, s);
+    const timeline = [...target.timeline];
+    const i = timeline.findIndex((e) => e.trackId === trackId);
+    if (i < 0 || timeline[i].openedAt) return null;
+    timeline[i] = { ...timeline[i], openedAt: new Date().toISOString() };
+    await writeCells([{ row: target.row, col: requireCol(s, "timelineJson"), value: JSON.stringify(timeline) }]);
+    invalidateCache();
+    return { leadName: l.name };
+  }
+  return null;
 }
 
 /** Inbox: acknowledge EVERY unread client reply (one batched write). */

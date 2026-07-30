@@ -1,8 +1,10 @@
+import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getLead, saveDrafts, appendTimeline, type DraftMessage } from "@/lib/leads";
 import { sendSms, sendEmail } from "@/lib/comms";
 import { notifyArnoldWebhook, notifyTelegram } from "@/lib/arnold";
 import { requireSession, jsonError } from "@/lib/api";
+import { config } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -91,6 +93,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!finalBody) return NextResponse.json({ error: "Message body is empty" }, { status: 400 });
 
     let deliveryNote: string;
+    let trackId = "";
     if (draft.channel === "sms") {
       if (!lead.phoneDialable) {
         return NextResponse.json({ error: `No dialable phone number on this lead ("${lead.phone}")` }, { status: 400 });
@@ -102,7 +105,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         return NextResponse.json({ error: `No valid email on this lead ("${lead.email}")` }, { status: 400 });
       }
       if (!finalSubject) return NextResponse.json({ error: "Email subject is required" }, { status: 400 });
-      const { messageId } = await sendEmail(lead.emailClean, finalSubject, finalBody);
+      trackId = crypto.randomBytes(12).toString("hex");
+      const { messageId } = await sendEmail(
+        lead.emailClean,
+        finalSubject,
+        finalBody,
+        [],
+        `${config.publicBaseUrl}/api/track/${trackId}.gif`
+      );
       deliveryNote = `Email "${finalSubject}" sent to ${lead.emailClean} (${messageId})`;
     }
 
@@ -119,6 +129,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         at: now,
         who,
         kind: draft.channel === "sms" ? "sms_out" : "email_out",
+        ...(trackId ? { trackId } : {}),
         text:
           draft.channel === "email"
             ? `${deliveryNote} — approved Arnold draft. Full message:\nSubject: ${finalSubject}\n\n${finalBody}`

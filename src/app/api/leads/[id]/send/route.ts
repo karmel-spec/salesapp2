@@ -1,5 +1,7 @@
+import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getLead, appendTimeline } from "@/lib/leads";
+import { config } from "@/lib/config";
 import { sendSms, sendEmail } from "@/lib/comms";
 import { saveLeadPhoto } from "@/lib/media";
 import { requireSession, jsonError } from "@/lib/api";
@@ -56,6 +58,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
 
     let deliveryNote: string;
+    let trackId = "";
     if (input.channel === "sms") {
       if (!lead.phoneDialable) {
         return NextResponse.json({ error: `No dialable phone number on this lead ("${lead.phone}")` }, { status: 400 });
@@ -67,11 +70,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         return NextResponse.json({ error: `No valid email on this lead ("${lead.email}")` }, { status: 400 });
       }
       if (!subject) return NextResponse.json({ error: "Email subject is required" }, { status: 400 });
+      trackId = crypto.randomBytes(12).toString("hex");
       const { messageId } = await sendEmail(
         lead.emailClean,
         subject,
         body,
-        photoBuffer ? [{ filename: photoName, contentType: photoType, content: photoBuffer }] : []
+        photoBuffer ? [{ filename: photoName, contentType: photoType, content: photoBuffer }] : [],
+        `${config.publicBaseUrl}/api/track/${trackId}.gif`
       );
       deliveryNote = `Email "${subject}"${photoBuffer ? " (with photo)" : ""} sent to ${lead.emailClean} (${messageId})`;
     } else {
@@ -86,6 +91,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         at: now,
         who,
         kind: input.channel === "sms" ? "sms_out" : "email_out",
+        ...(trackId ? { trackId } : {}),
         text:
           (input.channel === "email"
             ? `${deliveryNote} — written by ${who}. Full message:\nSubject: ${subject}\n\n${body}`
