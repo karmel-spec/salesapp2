@@ -300,6 +300,20 @@ export default function ActivityPage() {
                   </div>
                 )}
                 <div className="meta">
+                  {r.kind === "inbound" && (
+                    <input
+                      type="checkbox"
+                      className="read-check"
+                      checked={r.read}
+                      title={r.read ? "Read — uncheck to mark as NEW again" : "Check to mark as read"}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        if (r.read) unackOne(r);
+                        else ackOne(r);
+                      }}
+                    />
+                  )}
                   {isUnread && <span className="new-chip">NEW</span>}
                   {stamp} · {meta.icon}{" "}
                   <strong>{meta.label}</strong> · {r.who} ·{" "}
@@ -311,20 +325,8 @@ export default function ActivityPage() {
                     {r.leadName}
                   </Link>
                   {r.headline && <span className="muted"> — {r.headline}</span>}
-                  {r.kind === "inbound" && r.read && (
-                    <span className="muted">
-                      {r.readBy && <> · ✓ read by {r.readBy}</>}{" "}
-                      <button
-                        className="linklike"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          unackOne(r);
-                        }}
-                        title="Put this back in the NEW pile"
-                      >
-                        ↩ mark unread
-                      </button>
-                    </span>
+                  {r.kind === "inbound" && r.read && r.readBy && (
+                    <span className="muted"> · ✓ read by {r.readBy}</span>
                   )}
                 </div>
                 <div className="body"><Linkify text={r.text} /></div>

@@ -691,3 +691,13 @@ tbody tr:hover { background: #faf7f2; }
   font-size: 13.5px;
 }
 .apps-link:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+
+/* Read checkbox on customer replies (Activity inbox) */
+.read-check {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--crimson);
+  margin-right: 7px;
+  vertical-align: -3px;
+  cursor: pointer;
+}
