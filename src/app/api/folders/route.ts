@@ -19,7 +19,8 @@ export async function POST(req: NextRequest) {
   if (guard) return guard;
   try {
     const body = await req.json();
-    const folders = await addFolder(String(body.name || ""), body.who || "team");
+    const tab = body.tab === "sales" ? "sales" : "general";
+    const folders = await addFolder(String(body.name || ""), tab, body.who || "team");
     return NextResponse.json({ ok: true, folders });
   } catch (err) {
     return jsonError(err, 400);

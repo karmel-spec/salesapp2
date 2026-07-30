@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getLeads, getLead, markInboundRead, markAllInboundRead, setInboundFolder } from "@/lib/leads";
+import { getLeads, getLead, markInboundRead, markAllInboundRead, setInboundFolder, archiveInbound } from "@/lib/leads";
+import { listFolders } from "@/lib/folders";
 import { requireSession, jsonError } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -34,13 +35,17 @@ export async function GET(req: NextRequest) {
     // Closed-out clients (won/closed/lost/inactive/unqualified) drop out of
     // the inbox and its unread counts — the quick status toggle files them.
     const CLOSED = new Set(["won", "closed", "lost", "inactive", "unqualified"]);
+    const salesFolders = new Set(
+      (await listFolders().catch(() => [])).filter((f) => f.tab === "sales").map((f) => f.name.toLowerCase())
+    );
+    if (!salesFolders.size) salesFolders.add("leads");
     for (const l of leads) {
       if (CLOSED.has(l.statusBucket)) continue;
       for (const e of l.timeline) {
-        if (e.kind !== "inbound") continue;
+        if (e.kind !== "inbound" || e.archivedAt) continue;
         if (!e.readAt) {
           unread++;
-          if ((e.folder || "") === "Leads") salesUnread++;
+          if (salesFolders.has((e.folder || "").toLowerCase())) salesUnread++;
           else generalUnread++;
         }
         items.push({
@@ -90,6 +95,11 @@ export async function POST(req: NextRequest) {
     if (!found) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
     const ats = Array.isArray(body.ats) ? body.ats.map(String) : [];
     if (!ats.length) return NextResponse.json({ error: "ats[] required" }, { status: 400 });
+    // Close out / reopen ("Done" ⇄ back to the inbox).
+    if (typeof body.archive === "boolean") {
+      const changed = await archiveInbound(found.lead, found.shape, ats, who, body.archive);
+      return NextResponse.json({ changed });
+    }
     // File into a folder ("" = back to the general inbox).
     if (typeof body.folder === "string") {
       const changed = await setInboundFolder(found.lead, found.shape, ats, body.folder.trim());

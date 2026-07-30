@@ -20,6 +20,7 @@ type Row = {
   readBy?: string;
   openedAt?: string; // email_out only: customer opened the email
   folder?: string; // inbound only: inbox folder ("" = general inbox)
+  archived: boolean; // inbound only: closed out ("Done")
   leadBucket: string; // lead's status bucket (closed-out leads leave the inbox)
   leadScore: number;
   leadValue: number;
@@ -93,8 +94,16 @@ export default function ActivityPage() {
     if (typeof window === "undefined") return "sales";
     return new URLSearchParams(window.location.search).get("tab") === "general" ? "general" : "sales";
   });
-  const [folders, setFolders] = useState<string[]>(["Leads", "Tuning", "Moving"]);
-  const [folderFilter, setFolderFilter] = useState<string>("inbox"); // "inbox" | "all" | folder name
+  const [folders, setFolders] = useState<{ name: string; tab: "sales" | "general" }[]>([
+    { name: "Leads", tab: "sales" },
+    { name: "Tuning", tab: "general" },
+    { name: "Moving", tab: "general" },
+  ]);
+  const [doneFilter, setDoneFilter] = useState<"open" | "closed">("open");
+  const [folderFilter, setFolderFilter] = useState<string>(() => {
+    if (typeof window === "undefined") return "all";
+    return new URLSearchParams(window.location.search).get("tab") === "general" ? "inbox" : "all";
+  }); // "inbox" | "all" | folder name
   const [addingFolder, setAddingFolder] = useState(false);
   const [newFolder, setNewFolder] = useState("");
   const [marking, setMarking] = useState(false);
@@ -110,7 +119,9 @@ export default function ActivityPage() {
 
   useEffect(() => {
     reload();
-    api<{ folders: string[] }>("/api/folders").then((r) => setFolders(r.folders)).catch(() => {});
+    api<{ folders: { name: string; tab: "sales" | "general" }[] }>("/api/folders")
+      .then((r) => setFolders(r.folders))
+      .catch(() => {});
     const v = Number(localStorage.getItem("blp_activity_split"));
     if (v >= 28 && v <= 72) {
       setLeftPct(v);
@@ -172,6 +183,7 @@ export default function ActivityPage() {
           readBy: e.readBy,
           openedAt: e.openedAt,
           folder: e.folder || "",
+          archived: Boolean(e.archivedAt),
           leadBucket: l.statusBucket,
           leadScore: Number(l.score) || 0,
           leadValue: leadValue(l),
@@ -186,25 +198,30 @@ export default function ActivityPage() {
   }, [leads]);
 
   const unreadCount = useMemo(
-    () => rows.filter((r) => r.kind === "inbound" && !r.read && !CLOSED_BUCKETS.has(r.leadBucket)).length,
+    () => rows.filter((r) => r.kind === "inbound" && !r.read && !r.archived && !CLOSED_BUCKETS.has(r.leadBucket)).length,
     [rows]
+  );
+
+  const salesFolderSet = useMemo(
+    () => new Set(folders.filter((f) => f.tab === "sales").map((f) => f.name.toLowerCase())),
+    [folders]
   );
 
   const tabCounts = useMemo(() => {
     let sales = 0;
     let general = 0;
     for (const r of rows) {
-      if (r.kind !== "inbound" || r.read || CLOSED_BUCKETS.has(r.leadBucket)) continue;
-      if ((r.folder || "") === "Leads") sales++;
+      if (r.kind !== "inbound" || r.read || r.archived || CLOSED_BUCKETS.has(r.leadBucket)) continue;
+      if (salesFolderSet.has((r.folder || "").toLowerCase())) sales++;
       else general++;
     }
     return { sales, general };
-  }, [rows]);
+  }, [rows, salesFolderSet]);
 
   const folderCounts = useMemo(() => {
     const counts: Record<string, number> = { inbox: 0 };
     for (const r of rows) {
-      if (r.kind !== "inbound" || r.read || CLOSED_BUCKETS.has(r.leadBucket)) continue;
+      if (r.kind !== "inbound" || r.read || r.archived || CLOSED_BUCKETS.has(r.leadBucket)) continue;
       const key = (r.folder || "").toLowerCase() || "inbox";
       counts[key] = (counts[key] || 0) + 1;
     }
@@ -224,24 +241,24 @@ export default function ActivityPage() {
     // Sorts apply to the inbox view (rows start newest-first; sorts are
     // stable, so ties keep that order).
     if (filter === "inbound") {
-      // Two inboxes: Sales = the "Leads" folder; General = everything else.
+      // Two inboxes: Sales = sales-tab folders; General = the rest.
+      const inSales = (r: Row) => salesFolderSet.has((r.folder || "").toLowerCase());
       const kept = out.filter(
         (r) =>
           !CLOSED_BUCKETS.has(r.leadBucket) &&
-          (inboxTab === "sales" ? (r.folder || "") === "Leads" : (r.folder || "") !== "Leads")
+          (doneFilter === "closed" ? r.archived : !r.archived) &&
+          (inboxTab === "sales" ? inSales(r) : !inSales(r))
       );
       out.length = 0;
       out.push(...kept);
-      if (inboxTab === "general") {
-        if (folderFilter === "inbox") {
-          const keep = out.filter((r) => !r.folder);
-          out.length = 0;
-          out.push(...keep);
-        } else if (folderFilter !== "all") {
-          const keep = out.filter((r) => (r.folder || "").toLowerCase() === folderFilter.toLowerCase());
-          out.length = 0;
-          out.push(...keep);
-        }
+      if (folderFilter === "inbox" && inboxTab === "general") {
+        const keep = out.filter((r) => !r.folder);
+        out.length = 0;
+        out.push(...keep);
+      } else if (folderFilter !== "all" && folderFilter !== "inbox") {
+        const keep = out.filter((r) => (r.folder || "").toLowerCase() === folderFilter.toLowerCase());
+        out.length = 0;
+        out.push(...keep);
       }
       const t = (r: Row) => {
         const d = new Date(r.at);
@@ -270,7 +287,7 @@ export default function ActivityPage() {
       }
     }
     return out.slice(0, 250);
-  }, [rows, filter, who, sortMode, folderFilter, inboxTab]);
+  }, [rows, filter, who, sortMode, folderFilter, inboxTab, doneFilter, salesFolderSet]);
 
   /** Flip events read in local state so the UI reacts instantly. */
   function applyRead(leadId: string | null, ats: string[] | null) {
@@ -390,13 +407,86 @@ export default function ActivityPage() {
     }
   }
 
+  /** Ack every unread message in a client's group. */
+  async function ackGroup(group: Row[]) {
+    const unreadAts = group.filter((r) => !r.read).map((r) => r.at);
+    if (!unreadAts.length) return;
+    applyRead(group[0].leadId, unreadAts);
+    try {
+      await api("/api/inbox", {
+        method: "POST",
+        body: JSON.stringify({ leadId: group[0].leadId, ats: unreadAts, who: getWho() }),
+      });
+    } catch {
+      reload();
+    }
+  }
+
+  /** File every message in a client's group into a folder. */
+  async function fileGroup(group: Row[], folder: string) {
+    const ats = group.map((r) => r.at);
+    setLeads((cur) =>
+      cur
+        ? cur.map((l) =>
+            l.id !== group[0].leadId
+              ? l
+              : {
+                  ...l,
+                  timeline: l.timeline.map((e) =>
+                    e.kind === "inbound" && ats.includes(e.at) ? { ...e, folder: folder || undefined } : e
+                  ),
+                }
+          )
+        : cur
+    );
+    try {
+      await api("/api/inbox", {
+        method: "POST",
+        body: JSON.stringify({ leadId: group[0].leadId, ats, folder, who: getWho() }),
+      });
+    } catch {
+      reload();
+    }
+  }
+
+  /** "Done" — close a client's line out of the inbox (or reopen it). */
+  async function archiveGroup(group: Row[], archive: boolean) {
+    const ats = group.map((r) => r.at);
+    const now = new Date().toISOString();
+    setLeads((cur) =>
+      cur
+        ? cur.map((l) =>
+            l.id !== group[0].leadId
+              ? l
+              : {
+                  ...l,
+                  timeline: l.timeline.map((e) => {
+                    if (e.kind !== "inbound" || !ats.includes(e.at)) return e;
+                    if (archive) return { ...e, archivedAt: now, archivedBy: getWho(), readAt: e.readAt || now };
+                    const { archivedAt: _a, archivedBy: _b, ...rest } = e;
+                    return rest;
+                  }),
+                }
+          )
+        : cur
+    );
+    try {
+      await api("/api/inbox", {
+        method: "POST",
+        body: JSON.stringify({ leadId: group[0].leadId, ats, archive, who: getWho() }),
+      });
+    } catch {
+      reload();
+    }
+  }
+
   async function createFolder() {
     const name = newFolder.trim();
     if (!name) return;
     try {
-      const r = await api<{ folders: string[] }>("/api/folders", {
+      const r = await api<{ folders: { name: string; tab: "sales" | "general" }[] }>("/api/folders", {
         method: "POST",
-        body: JSON.stringify({ name, who: getWho() }),
+        body: JSON.stringify({ name, tab: inboxTab, who: getWho() }),
       });
       setFolders(r.folders);
       setFolderFilter(name);
@@ -468,14 +558,20 @@ export default function ActivityPage() {
           <div className="inbox-tabs">
             <button
               className={`inbox-tab sales${inboxTab === "sales" ? " active" : ""}`}
-              onClick={() => setInboxTab("sales")}
+              onClick={() => {
+                setInboxTab("sales");
+                setFolderFilter("all");
+              }}
             >
               🎹 Sales Inbox
               {tabCounts.sales > 0 && <span className="unread-count">{tabCounts.sales}</span>}
             </button>
             <button
               className={`inbox-tab general${inboxTab === "general" ? " active" : ""}`}
-              onClick={() => setInboxTab("general")}
+              onClick={() => {
+                setInboxTab("general");
+                setFolderFilter("inbox");
+              }}
             >
               🏪 General Inbox
               {tabCounts.general > 0 && <span className="unread-count">{tabCounts.general}</span>}
@@ -486,12 +582,11 @@ export default function ActivityPage() {
                 : "every other inquiry — tuning, moving, questions"}
             </span>
           </div>
-          {inboxTab === "general" && (
           <div className="folder-row">
             {[
-              { key: "inbox", label: "📥 Inbox" },
+              ...(inboxTab === "general" ? [{ key: "inbox", label: "📥 Inbox" }] : []),
               { key: "all", label: "All" },
-              ...folders.filter((f) => f !== "Leads").map((f) => ({ key: f, label: `📁 ${f}` })),
+              ...folders.filter((f) => f.tab === inboxTab).map((f) => ({ key: f.name, label: `📁 ${f.name}` })),
             ].map((f) => (
               <button
                 key={f.key}
@@ -520,8 +615,22 @@ export default function ActivityPage() {
             ) : (
               <button className="folder-chip" onClick={() => setAddingFolder(true)}>＋ New folder</button>
             )}
+            <span style={{ flex: 1 }} />
+            <button
+              className={`folder-chip${doneFilter === "open" ? " active" : ""}`}
+              onClick={() => setDoneFilter("open")}
+              title="Lines still being worked"
+            >
+              Open
+            </button>
+            <button
+              className={`folder-chip${doneFilter === "closed" ? " active" : ""}`}
+              onClick={() => setDoneFilter("closed")}
+              title="Lines marked Done"
+            >
+              ✓ Closed
+            </button>
           </div>
-          )}
           <p className="muted" style={{ fontSize: 13, margin: "0 0 10px" }}>
             <strong>Bold</strong> = new. The checkbox marks read/unread, the 📁 menu files a response into a
             folder, and clicking it opens the conversation beside the list.
@@ -535,81 +644,131 @@ export default function ActivityPage() {
             {visible.length === 0 && <div className="muted">No activity matches this filter yet.</div>}
             {filter === "inbound" ? (
               <div className="inbox-list">
-                {visible.map((r, i) => {
-                  const d = new Date(r.at);
-                  const valid = !isNaN(d.getTime());
-                  const stamp = valid
-                    ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
-                      " · " +
-                      d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-                    : "—";
-                  const isUnread = !r.read;
-                  const { subject, snippet } = replySummary(r);
-                  return (
-                    <div
-                      key={`${r.leadId}-${r.at}-${i}`}
-                      className={`inbox-row${isUnread ? " unread" : ""}${threadLead && r.leadId === threadLead.id ? " thread-open" : ""}`}
-                      onClick={() => openResponse(r)}
-                      title={r.read && r.readBy ? `Read by ${r.readBy} — click to open the conversation` : "Click to open the conversation"}
-                    >
-                      <input
-                        type="checkbox"
-                        className="read-check"
-                        checked={r.read}
-                        title={r.read ? "Read — uncheck to mark as NEW again" : "Check to mark as read"}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          if (r.read) unackOne(r);
-                          else ackOne(r);
+                {(() => {
+                  // One line per client: their messages grouped, newest first.
+                  const order: string[] = [];
+                  const byLead = new Map<string, Row[]>();
+                  for (const r of visible) {
+                    if (!byLead.has(r.leadId)) {
+                      byLead.set(r.leadId, []);
+                      order.push(r.leadId);
+                    }
+                    byLead.get(r.leadId)!.push(r);
+                  }
+                  return order.map((leadId) => {
+                    const group = byLead.get(leadId)!;
+                    const latest = group[0];
+                    const unread = group.filter((x) => !x.read).length;
+                    const d = new Date(latest.at);
+                    const stamp = !isNaN(d.getTime())
+                      ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
+                        " · " +
+                        d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+                      : "—";
+                    const { subject, snippet } = replySummary(latest);
+                    return (
+                      <div
+                        key={leadId}
+                        className={`inbox-row${unread ? " unread" : ""}${threadLead && leadId === threadLead.id ? " thread-open" : ""}`}
+                        onClick={() => {
+                          ackGroup(group);
+                          setThreadId(leadId);
                         }}
-                      />
-                      <span className="ib-icon" title={isEmailReply(r) ? "Email reply" : "Text reply"}>
-                        {isEmailReply(r) ? "✉️" : "💬"}
-                      </span>
-                      <span className="ib-name">{r.leadName}</span>
-                      <span className="ib-snippet">
-                        {subject && <strong>{subject}</strong>}
-                        {subject && snippet ? " — " : ""}
-                        {snippet}
-                      </span>
-                      <select
-                        className="file-select"
-                        value={r.folder || ""}
-                        title="File this response into a folder"
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          fileTo(r, e.target.value);
-                        }}
+                        title={unread ? "Click to open the conversation (marks all read)" : "Click to open the conversation"}
                       >
-                        <option value="">📥 Inbox</option>
-                        {folders.map((f) => (
-                          <option key={f} value={f}>📁 {f}</option>
-                        ))}
-                      </select>
-                      <select
-                        className="file-select status-select"
-                        value=""
-                        title="Quick status — Won/Closed/etc. removes this client from the inbox"
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          if (e.target.value) setLeadStatus(r, e.target.value);
-                        }}
-                      >
-                        <option value="">{r.leadBucket || "status"}</option>
-                        <option value="Active">Active</option>
-                        <option value="WON">Won ✓</option>
-                        <option value="Closed">Closed</option>
-                        <option value="Inactive">Inactive</option>
-                        <option value="Unqualified">Unqualified</option>
-                        <option value="LOST">Lost…</option>
-                      </select>
-                      <span className="ib-time">{stamp}</span>
-                    </div>
-                  );
-                })}
+                        <input
+                          type="checkbox"
+                          className="read-check"
+                          checked={unread === 0}
+                          title={unread ? `Mark all ${unread} as read` : "All read — uncheck to mark the newest as NEW"}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            if (unread) ackGroup(group);
+                            else unackOne(latest);
+                          }}
+                        />
+                        <span className="ib-icon" title={isEmailReply(latest) ? "Email reply" : "Text reply"}>
+                          {isEmailReply(latest) ? "✉️" : "💬"}
+                        </span>
+                        <span className="ib-name">
+                          {latest.leadName}
+                          {unread > 0 && <span className="msg-count" title={`${unread} waiting message${unread === 1 ? "" : "s"}`}>{unread}</span>}
+                          {unread === 0 && group.length > 1 && <span className="msg-count read" title={`${group.length} messages`}>{group.length}</span>}
+                        </span>
+                        <span className="ib-snippet">
+                          {subject && <strong>{subject}</strong>}
+                          {subject && snippet ? " — " : ""}
+                          {snippet}
+                        </span>
+                        <select
+                          className="file-select"
+                          value={latest.folder || ""}
+                          title="File this client's messages into a folder"
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            fileGroup(group, e.target.value);
+                          }}
+                        >
+                          <option value="">📥 Inbox</option>
+                          <optgroup label="Sales">
+                            {folders.filter((f) => f.tab === "sales").map((f) => (
+                              <option key={f.name} value={f.name}>📁 {f.name}</option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="General">
+                            {folders.filter((f) => f.tab === "general").map((f) => (
+                              <option key={f.name} value={f.name}>📁 {f.name}</option>
+                            ))}
+                          </optgroup>
+                        </select>
+                        <select
+                          className="file-select status-select"
+                          value=""
+                          title="Quick status — Won/Closed/etc. removes this client from the inbox"
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            if (e.target.value) setLeadStatus(latest, e.target.value);
+                          }}
+                        >
+                          <option value="">{latest.leadBucket || "status"}</option>
+                          <option value="Active">Active</option>
+                          <option value="WON">Won ✓</option>
+                          <option value="Closed">Closed</option>
+                          <option value="Inactive">Inactive</option>
+                          <option value="Unqualified">Unqualified</option>
+                          <option value="LOST">Lost…</option>
+                        </select>
+                        {doneFilter === "open" ? (
+                          <button
+                            className="done-btn"
+                            title="Done — taken care of; closes this line out of the inbox"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              archiveGroup(group, true);
+                            }}
+                          >
+                            ✓ Done
+                          </button>
+                        ) : (
+                          <button
+                            className="done-btn reopen"
+                            title="Reopen — put this line back in the inbox"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              archiveGroup(group, false);
+                            }}
+                          >
+                            ↩ Reopen
+                          </button>
+                        )}
+                        <span className="ib-time">{stamp}</span>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             ) : (
             <ul className="timeline">
@@ -673,7 +832,7 @@ export default function ActivityPage() {
                         >
                           <option value="">📥 Inbox</option>
                           {folders.map((f) => (
-                            <option key={f} value={f}>📁 {f}</option>
+                            <option key={f.name} value={f.name}>📁 {f.name}</option>
                           ))}
                         </select>
                       )}

@@ -73,6 +73,10 @@ export interface TimelineEvent {
   openedAt?: string;
   /** Inbox folder this inbound response is filed under ("" = general inbox). */
   folder?: string;
+  /** Inbox: set when the team closes this response out ("Done") — it leaves
+   *  the inbox but stays on the lead's timeline/conversation. */
+  archivedAt?: string;
+  archivedBy?: string;
 }
 
 /** Cached AI briefing for the Summary Bar (regenerated when the timeline moves). */
@@ -262,6 +266,8 @@ function normalizeTimeline(raw: unknown[]): TimelineEvent[] {
           ...(typeof e.trackId === "string" ? { trackId: e.trackId } : {}),
           ...(typeof e.openedAt === "string" ? { openedAt: e.openedAt } : {}),
           ...(typeof e.folder === "string" ? { folder: e.folder } : {}),
+          ...(typeof e.archivedAt === "string" ? { archivedAt: e.archivedAt } : {}),
+          ...(typeof e.archivedBy === "string" ? { archivedBy: e.archivedBy } : {}),
         };
       }
       const at = typeof e.at === "string" ? e.at : typeof e.date === "string" ? e.date : "";
@@ -808,6 +814,37 @@ export async function recordEmailOpen(trackId: string): Promise<{ leadName: stri
     return { leadName: l.name };
   }
   return null;
+}
+
+/** Inbox: close out ("Done") inbound responses — they leave the inbox but
+ *  stay on the timeline. Also marks them read. */
+export async function archiveInbound(
+  lead: Lead,
+  shape: SheetShape,
+  ats: string[],
+  who: string,
+  archive = true
+): Promise<number> {
+  const s = await ensureAppColumns(shape);
+  const target = await ensureRowCurrent(lead, s);
+  const now = new Date().toISOString();
+  let changed = 0;
+  const timeline = target.timeline.map((e) => {
+    if (e.kind !== "inbound" || !ats.includes(e.at)) return e;
+    if (archive) {
+      if (e.archivedAt) return e;
+      changed++;
+      return { ...e, archivedAt: now, archivedBy: who, readAt: e.readAt || now, readBy: e.readBy || who };
+    }
+    if (!e.archivedAt) return e;
+    changed++;
+    const { archivedAt: _a, archivedBy: _b, ...rest } = e;
+    return rest;
+  });
+  if (!changed) return 0;
+  await writeCells([{ row: target.row, col: requireCol(s, "timelineJson"), value: JSON.stringify(timeline) }]);
+  invalidateCache();
+  return changed;
 }
 
 /** Inbox: file inbound responses into a folder ("" moves back to the
