@@ -20,6 +20,7 @@ type Row = {
   readBy?: string;
   openedAt?: string; // email_out only: customer opened the email
   folder?: string; // inbound only: inbox folder ("" = general inbox)
+  leadBucket: string; // lead's status bucket (closed-out leads leave the inbox)
   leadScore: number;
   leadValue: number;
 };
@@ -63,6 +64,9 @@ function initialFilter(): string {
   const f = new URLSearchParams(window.location.search).get("filter") || "all";
   return FILTERS.some((x) => x.key === f) ? f : "all";
 }
+
+/** Won/closed/lost/inactive/unqualified leads drop out of the inbox. */
+const CLOSED_BUCKETS = new Set(["won", "closed", "lost", "inactive", "unqualified"]);
 
 /** Inbound replies arrive as "Customer texted…" or "Customer emailed…". */
 function isEmailReply(r: Row): boolean {
@@ -164,6 +168,7 @@ export default function ActivityPage() {
           readBy: e.readBy,
           openedAt: e.openedAt,
           folder: e.folder || "",
+          leadBucket: l.statusBucket,
           leadScore: Number(l.score) || 0,
           leadValue: leadValue(l),
         });
@@ -176,12 +181,15 @@ export default function ActivityPage() {
     return all.sort((a, b) => t(b) - t(a));
   }, [leads]);
 
-  const unreadCount = useMemo(() => rows.filter((r) => r.kind === "inbound" && !r.read).length, [rows]);
+  const unreadCount = useMemo(
+    () => rows.filter((r) => r.kind === "inbound" && !r.read && !CLOSED_BUCKETS.has(r.leadBucket)).length,
+    [rows]
+  );
 
   const folderCounts = useMemo(() => {
     const counts: Record<string, number> = { inbox: 0 };
     for (const r of rows) {
-      if (r.kind !== "inbound" || r.read) continue;
+      if (r.kind !== "inbound" || r.read || CLOSED_BUCKETS.has(r.leadBucket)) continue;
       const key = (r.folder || "").toLowerCase() || "inbox";
       counts[key] = (counts[key] || 0) + 1;
     }
@@ -201,6 +209,9 @@ export default function ActivityPage() {
     // Sorts apply to the inbox view (rows start newest-first; sorts are
     // stable, so ties keep that order).
     if (filter === "inbound") {
+      const open = out.filter((r) => !CLOSED_BUCKETS.has(r.leadBucket));
+      out.length = 0;
+      out.push(...open);
       if (folderFilter === "inbox") {
         const keep = out.filter((r) => !r.folder);
         out.length = 0;
@@ -324,6 +335,33 @@ export default function ActivityPage() {
       await api("/api/inbox", {
         method: "POST",
         body: JSON.stringify({ leadId: r.leadId, ats: [r.at], folder, who: getWho() }),
+      });
+    } catch {
+      reload();
+    }
+  }
+
+  /** Quick status toggle from an inbox row — closed-out statuses remove the
+   *  client's replies from this inbox entirely. */
+  async function setLeadStatus(r: Row, choice: string) {
+    let status = choice;
+    if (choice === "LOST") {
+      const reason = window.prompt("Why was this lead lost? (recorded in the sheet)");
+      if (reason === null) return;
+      status = `LOST - ${reason.trim() || "no reason given"}`;
+    }
+    const bucketGuess = choice === "WON" ? "won" : choice.toLowerCase().startsWith("lost") ? "lost" : choice.toLowerCase();
+    setLeads((cur) =>
+      cur
+        ? cur.map((l) =>
+            l.id === r.leadId ? { ...l, status, statusBucket: (bucketGuess as Lead["statusBucket"]) || l.statusBucket } : l
+          )
+        : cur
+    );
+    try {
+      await api(`/api/leads/${encodeURIComponent(r.leadId)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ fields: { status }, who: getWho() }),
       });
     } catch {
       reload();
@@ -504,6 +542,24 @@ export default function ActivityPage() {
                         {folders.map((f) => (
                           <option key={f} value={f}>📁 {f}</option>
                         ))}
+                      </select>
+                      <select
+                        className="file-select status-select"
+                        value=""
+                        title="Quick status — Won/Closed/etc. removes this client from the inbox"
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          if (e.target.value) setLeadStatus(r, e.target.value);
+                        }}
+                      >
+                        <option value="">{r.leadBucket || "status"}</option>
+                        <option value="Active">Active</option>
+                        <option value="WON">Won ✓</option>
+                        <option value="Closed">Closed</option>
+                        <option value="Inactive">Inactive</option>
+                        <option value="Unqualified">Unqualified</option>
+                        <option value="LOST">Lost…</option>
                       </select>
                       <span className="ib-time">{stamp}</span>
                     </div>

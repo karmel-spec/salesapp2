@@ -29,7 +29,11 @@ export async function GET(req: NextRequest) {
     const { leads } = await getLeads(req.nextUrl.searchParams.get("refresh") === "1");
     let unread = 0;
     const items: InboxItem[] = [];
+    // Closed-out clients (won/closed/lost/inactive/unqualified) drop out of
+    // the inbox and its unread counts — the quick status toggle files them.
+    const CLOSED = new Set(["won", "closed", "lost", "inactive", "unqualified"]);
     for (const l of leads) {
+      if (CLOSED.has(l.statusBucket)) continue;
       for (const e of l.timeline) {
         if (e.kind !== "inbound") continue;
         if (!e.readAt) unread++;

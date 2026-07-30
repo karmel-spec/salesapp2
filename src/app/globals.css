@@ -865,3 +865,6 @@ tbody tr:hover { background: #faf7f2; }
   .ledger { grid-template-columns: 1fr; }
   .ledger-facts { border-right: none; border-bottom: 1px solid var(--line); }
 }
+
+/* Quick status toggle on inbox rows */
+.status-select { max-width: 86px; text-transform: capitalize; }
