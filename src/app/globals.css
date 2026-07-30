@@ -868,3 +868,25 @@ tbody tr:hover { background: #faf7f2; }
 
 /* Quick status toggle on inbox rows */
 .status-select { max-width: 86px; text-transform: capitalize; }
+
+/* ── Two-inbox tabs (Sales vs General) ── */
+.inbox-tabs { display: flex; gap: 8px; margin: 0 0 10px; flex-wrap: wrap; }
+.inbox-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 700;
+  padding: 8px 18px;
+  border-radius: 10px 10px 0 0;
+  border: 1px solid var(--line);
+  border-bottom: 3px solid transparent;
+  background: #fff;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.inbox-tab.sales.active { color: var(--crimson); border-bottom-color: var(--crimson); background: var(--crimson-soft); }
+.inbox-tab.general.active { color: var(--warn); border-bottom-color: var(--gold); background: var(--gold-soft); }
+.inbox-tab .unread-count { background: var(--crimson); }
+.inbox-tab.general .unread-count { background: var(--gold); }

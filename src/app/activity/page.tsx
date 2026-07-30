@@ -89,6 +89,10 @@ export default function ActivityPage() {
   const [filter, setFilter] = useState(() => initialFilter());
   const [who, setWho] = useState("all");
   const [sortMode, setSortMode] = useState("unread");
+  const [inboxTab, setInboxTab] = useState<"sales" | "general">(() => {
+    if (typeof window === "undefined") return "sales";
+    return new URLSearchParams(window.location.search).get("tab") === "general" ? "general" : "sales";
+  });
   const [folders, setFolders] = useState<string[]>(["Leads", "Tuning", "Moving"]);
   const [folderFilter, setFolderFilter] = useState<string>("inbox"); // "inbox" | "all" | folder name
   const [addingFolder, setAddingFolder] = useState(false);
@@ -186,6 +190,17 @@ export default function ActivityPage() {
     [rows]
   );
 
+  const tabCounts = useMemo(() => {
+    let sales = 0;
+    let general = 0;
+    for (const r of rows) {
+      if (r.kind !== "inbound" || r.read || CLOSED_BUCKETS.has(r.leadBucket)) continue;
+      if ((r.folder || "") === "Leads") sales++;
+      else general++;
+    }
+    return { sales, general };
+  }, [rows]);
+
   const folderCounts = useMemo(() => {
     const counts: Record<string, number> = { inbox: 0 };
     for (const r of rows) {
@@ -209,17 +224,24 @@ export default function ActivityPage() {
     // Sorts apply to the inbox view (rows start newest-first; sorts are
     // stable, so ties keep that order).
     if (filter === "inbound") {
-      const open = out.filter((r) => !CLOSED_BUCKETS.has(r.leadBucket));
+      // Two inboxes: Sales = the "Leads" folder; General = everything else.
+      const kept = out.filter(
+        (r) =>
+          !CLOSED_BUCKETS.has(r.leadBucket) &&
+          (inboxTab === "sales" ? (r.folder || "") === "Leads" : (r.folder || "") !== "Leads")
+      );
       out.length = 0;
-      out.push(...open);
-      if (folderFilter === "inbox") {
-        const keep = out.filter((r) => !r.folder);
-        out.length = 0;
-        out.push(...keep);
-      } else if (folderFilter !== "all") {
-        const keep = out.filter((r) => (r.folder || "").toLowerCase() === folderFilter.toLowerCase());
-        out.length = 0;
-        out.push(...keep);
+      out.push(...kept);
+      if (inboxTab === "general") {
+        if (folderFilter === "inbox") {
+          const keep = out.filter((r) => !r.folder);
+          out.length = 0;
+          out.push(...keep);
+        } else if (folderFilter !== "all") {
+          const keep = out.filter((r) => (r.folder || "").toLowerCase() === folderFilter.toLowerCase());
+          out.length = 0;
+          out.push(...keep);
+        }
       }
       const t = (r: Row) => {
         const d = new Date(r.at);
@@ -248,7 +270,7 @@ export default function ActivityPage() {
       }
     }
     return out.slice(0, 250);
-  }, [rows, filter, who, sortMode, folderFilter]);
+  }, [rows, filter, who, sortMode, folderFilter, inboxTab]);
 
   /** Flip events read in local state so the UI reacts instantly. */
   function applyRead(leadId: string | null, ats: string[] | null) {
@@ -443,11 +465,33 @@ export default function ActivityPage() {
 
       {filter === "inbound" && (
         <>
+          <div className="inbox-tabs">
+            <button
+              className={`inbox-tab sales${inboxTab === "sales" ? " active" : ""}`}
+              onClick={() => setInboxTab("sales")}
+            >
+              🎹 Sales Inbox
+              {tabCounts.sales > 0 && <span className="unread-count">{tabCounts.sales}</span>}
+            </button>
+            <button
+              className={`inbox-tab general${inboxTab === "general" ? " active" : ""}`}
+              onClick={() => setInboxTab("general")}
+            >
+              🏪 General Inbox
+              {tabCounts.general > 0 && <span className="unread-count">{tabCounts.general}</span>}
+            </button>
+            <span className="muted" style={{ fontSize: 12, alignSelf: "center" }}>
+              {inboxTab === "sales"
+                ? "replies to sales-lead efforts (the Leads folder)"
+                : "every other inquiry — tuning, moving, questions"}
+            </span>
+          </div>
+          {inboxTab === "general" && (
           <div className="folder-row">
             {[
               { key: "inbox", label: "📥 Inbox" },
               { key: "all", label: "All" },
-              ...folders.map((f) => ({ key: f, label: `📁 ${f}` })),
+              ...folders.filter((f) => f !== "Leads").map((f) => ({ key: f, label: `📁 ${f}` })),
             ].map((f) => (
               <button
                 key={f.key}
@@ -477,6 +521,7 @@ export default function ActivityPage() {
               <button className="folder-chip" onClick={() => setAddingFolder(true)}>＋ New folder</button>
             )}
           </div>
+          )}
           <p className="muted" style={{ fontSize: 13, margin: "0 0 10px" }}>
             <strong>Bold</strong> = new. The checkbox marks read/unread, the 📁 menu files a response into a
             folder, and clicking it opens the conversation beside the list.

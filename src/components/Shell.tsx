@@ -84,14 +84,14 @@ function WhoAmI() {
  */
 function InboxAlert() {
   const pathname = usePathname();
-  const [unread, setUnread] = useState(0);
+  const [counts, setCounts] = useState({ salesUnread: 0, generalUnread: 0 });
 
   useEffect(() => {
     let dead = false;
     const tick = () =>
-      api<{ unread: number }>("/api/inbox?count=1")
+      api<{ unread: number; salesUnread?: number; generalUnread?: number }>("/api/inbox?count=1")
         .then((r) => {
-          if (!dead) setUnread(r.unread);
+          if (!dead) setCounts({ salesUnread: r.salesUnread ?? r.unread, generalUnread: r.generalUnread ?? 0 });
         })
         .catch(() => {}); // quiet — the pill just stays as-is until next poll
     tick();
@@ -103,10 +103,16 @@ function InboxAlert() {
     // Re-check on navigation so acknowledging in Activity updates the pill fast.
   }, [pathname]);
 
-  if (!unread) return null;
+  const { salesUnread, generalUnread } = counts;
+  if (!salesUnread && !generalUnread) return null;
+  const tab = salesUnread ? "sales" : "general";
   return (
-    <Link href="/activity?filter=inbound" className="inbox-alert" aria-live="polite">
-      📥 {unread} New Client Response{unread === 1 ? "" : "s"}
+    <Link href={`/activity?filter=inbound&tab=${tab}`} className="inbox-alert" aria-live="polite">
+      📥{" "}
+      {salesUnread > 0 && <span>{salesUnread} sales</span>}
+      {salesUnread > 0 && generalUnread > 0 && <span> · </span>}
+      {generalUnread > 0 && <span>{generalUnread} general</span>}
+      <span> — new client responses</span>
     </Link>
   );
 }

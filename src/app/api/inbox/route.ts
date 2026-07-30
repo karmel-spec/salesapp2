@@ -28,6 +28,8 @@ export async function GET(req: NextRequest) {
   try {
     const { leads } = await getLeads(req.nextUrl.searchParams.get("refresh") === "1");
     let unread = 0;
+    let salesUnread = 0;
+    let generalUnread = 0;
     const items: InboxItem[] = [];
     // Closed-out clients (won/closed/lost/inactive/unqualified) drop out of
     // the inbox and its unread counts — the quick status toggle files them.
@@ -36,7 +38,11 @@ export async function GET(req: NextRequest) {
       if (CLOSED.has(l.statusBucket)) continue;
       for (const e of l.timeline) {
         if (e.kind !== "inbound") continue;
-        if (!e.readAt) unread++;
+        if (!e.readAt) {
+          unread++;
+          if ((e.folder || "") === "Leads") salesUnread++;
+          else generalUnread++;
+        }
         items.push({
           leadId: l.id,
           leadName: l.name,
@@ -52,14 +58,14 @@ export async function GET(req: NextRequest) {
       }
     }
     if (req.nextUrl.searchParams.get("count") === "1") {
-      return NextResponse.json({ unread });
+      return NextResponse.json({ unread, salesUnread, generalUnread });
     }
     const t = (s: string) => {
       const d = new Date(s);
       return isNaN(d.getTime()) ? 0 : d.getTime();
     };
     items.sort((a, b) => t(b.at) - t(a.at));
-    return NextResponse.json({ unread, items: items.slice(0, 200) });
+    return NextResponse.json({ unread, salesUnread, generalUnread, items: items.slice(0, 200) });
   } catch (err) {
     return jsonError(err);
   }
