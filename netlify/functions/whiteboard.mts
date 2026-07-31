@@ -1,14 +1,18 @@
 /**
- * Shop whiteboard — the wall board's digital twin. Three columns
- * (Parts / Supplies / Tools) of ordering requests on the report sheet's
- * "Whiteboard" tab: Column | Item | Note | Added by | Added | Done | Done at/by.
+ * Shop whiteboard — the wall board's digital twin, shared by the tech app
+ * and the Shop Manager. Three columns (Parts / Supplies / Tools) of
+ * ordering requests on the report sheet's "Whiteboard" tab:
+ * Column | Item | Note | Added by | Added | Arrived | Arrived at/by | Ordered | Ordered at/by.
+ * Lifecycle: requested → Ordered (waiting area) → Arrived.
  *
- *   GET  ?key=…                                → {rows:[…], fetchedAt}
- *   POST {key, action:"add", column, item, note?, by}
- *   POST {key, action:"done", row, on, by}     ✓ handled / un-handle
- *   POST {key, action:"note", row, note, by}   edit an item's note
+ *   GET  →                                     {rows:[…], fetchedAt}
+ *   POST {action:"add", column, item, note?, by}
+ *   POST {action:"ordered", row, on, by}       mark ordered / un-mark
+ *   POST {action:"arrived", row, on, by}       mark arrived ("done" = alias)
+ *   POST {action:"note", row, note, by}        edit an item's note
  *
- * Auth: shop password / BLP_APP_ACCESS_KEY / admin Google token.
+ * Auth: verified Google ID token (shop/map client; company, admin, or
+ * technician *.blp@gmail accounts) or BLP_APP_ACCESS_KEY.
  */
 import * as crypto from "node:crypto";
 
@@ -107,12 +111,13 @@ export default async (req: Request) => {
     if (req.method === "GET") {
       const key = new URL(req.url).searchParams.get("key") || "";
       if (!authed(key)) return fail(401, "shop password required");
-      const out = await sheets(`/values/${encodeURIComponent(`'${TAB}'!A2:G2000`)}?majorDimension=ROWS`);
+      const out = await sheets(`/values/${encodeURIComponent(`'${TAB}'!A2:I2000`)}?majorDimension=ROWS`);
       const rows = ((out.values as string[][]) || []).map((r, i) => ({
         row: i + 2,
         column: (r[0] || "").trim(), item: (r[1] || "").trim(), note: (r[2] || "").trim(),
         by: (r[3] || "").trim(), added: (r[4] || "").trim(),
-        done: (r[5] || "").trim() === "TRUE", doneAt: (r[6] || "").trim(),
+        arrived: (r[5] || "").trim() === "TRUE", arrivedAt: (r[6] || "").trim(),
+        ordered: (r[7] || "").trim() === "TRUE", orderedAt: (r[8] || "").trim(),
       })).filter((x) => x.item);
       return new Response(JSON.stringify({ rows, fetchedAt: new Date().toISOString() }), { headers });
     }
@@ -133,17 +138,21 @@ export default async (req: Request) => {
         const today = new Date().toLocaleDateString("en-US", { timeZone: "America/Denver" });
         await sheets(
           `/values/${encodeURIComponent(`'${TAB}'!A1`)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
-          { method: "POST", body: JSON.stringify({ values: [[column, item, String(body.note || "").slice(0, 200), who, today, "FALSE", ""]] }) }
+          { method: "POST", body: JSON.stringify({ values: [[column, item, String(body.note || "").slice(0, 200), who, today, "FALSE", "", "FALSE", ""]] }) }
         );
         return new Response(JSON.stringify({ ok: true }), { headers });
       }
-      if (body.action === "done" || body.action === "note") {
+      if (["done", "arrived", "ordered", "note"].includes(body.action || "")) {
         const row = Math.floor(Number(body.row || 0));
         if (row < 2 || row > 5000) return fail(400, "bad row");
-        const data = body.action === "done"
-          ? [{ range: `'${TAB}'!F${row}`, values: [[body.on === false ? "FALSE" : "TRUE"]] },
-             { range: `'${TAB}'!G${row}`, values: [[body.on === false ? "" : stamp]] }]
-          : [{ range: `'${TAB}'!C${row}`, values: [[String(body.note || "").slice(0, 200)]] }];
+        const off = body.on === false;
+        const data = body.action === "note"
+          ? [{ range: `'${TAB}'!C${row}`, values: [[String(body.note || "").slice(0, 200)]] }]
+          : body.action === "ordered"
+            ? [{ range: `'${TAB}'!H${row}`, values: [[off ? "FALSE" : "TRUE"]] },
+               { range: `'${TAB}'!I${row}`, values: [[off ? "" : stamp]] }]
+            : [{ range: `'${TAB}'!F${row}`, values: [[off ? "FALSE" : "TRUE"]] },  // arrived ("done" alias)
+               { range: `'${TAB}'!G${row}`, values: [[off ? "" : stamp]] }];
         await sheets(`/values:batchUpdate`, {
           method: "POST",
           body: JSON.stringify({ valueInputOption: "RAW", data }),
