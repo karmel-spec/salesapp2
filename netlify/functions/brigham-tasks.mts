@@ -106,7 +106,8 @@ export default async (req: Request) => {
     const appKey = process.env.BLP_APP_ACCESS_KEY || "";
     const bearer = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
     const googleUser = bearer ? await verifyGoogle(bearer) : null;
-    const authed = (key: string) => !!googleUser || (!!appKey && key === appKey);
+    const teamPw = (k: string) => String(k || "").trim().toLowerCase() === "pianoman";  // shop password (Google login removed 7/31)
+    const authed = (key: string) => !!googleUser || (!!appKey && key === appKey) || teamPw(key);
     const authErr = bearer && !googleUser
       ? "Google sign-in expired or not authorized — reload the page to sign in again"
       : "sign in (or team passcode) required";
