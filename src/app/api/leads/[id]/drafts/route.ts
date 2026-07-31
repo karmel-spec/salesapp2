@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getLead, saveDrafts, appendTimeline, type DraftMessage } from "@/lib/leads";
+import { addScheduled } from "@/lib/scheduled";
 import { sendSms, sendEmail, senderFor } from "@/lib/comms";
 import { notifyArnoldWebhook, notifyTelegram } from "@/lib/arnold";
 import { requireSession, jsonError } from "@/lib/api";
@@ -33,7 +34,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const input = (await req.json()) as {
       createdAt: string;
       channel: "sms" | "email";
-      action: "approve_send" | "dismiss" | "train";
+      action: "approve_send" | "approve_schedule" | "dismiss" | "train";
+      sendAt?: string; // for approve_schedule
       body?: string;
       subject?: string;
       feedback?: string;
@@ -86,6 +88,47 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       drafts[idx] = draft;
       await saveDrafts(lead, shape, drafts);
       return NextResponse.json({ ok: true, status: "dismissed" });
+    }
+
+    if (input.action === "approve_schedule") {
+      const finalBody = (input.body ?? draft.body).trim();
+      const finalSubject = (input.subject ?? draft.subject ?? "").trim();
+      if (!finalBody) return NextResponse.json({ error: "Message body is empty" }, { status: 400 });
+      const sendAt = new Date(input.sendAt || "");
+      if (isNaN(sendAt.getTime()) || sendAt.getTime() < Date.now() - 60_000) {
+        return NextResponse.json({ error: "Pick a valid future date & time" }, { status: 400 });
+      }
+      if (draft.channel === "email" && !finalSubject) {
+        return NextResponse.json({ error: "Email subject is required" }, { status: 400 });
+      }
+      const item = await addScheduled({
+        leadId: lead.id,
+        leadName: lead.name,
+        channel: draft.channel,
+        subject: finalSubject,
+        body: finalBody,
+        sendAt: sendAt.toISOString(),
+        sendAs: input.sendAs !== undefined ? input.sendAs : who,
+        who,
+      });
+      draft.status = "approved"; // approved, delivery pending (scheduled)
+      draft.body = finalBody;
+      if (draft.channel === "email") draft.subject = finalSubject;
+      drafts[idx] = draft;
+      await saveDrafts(lead, shape, drafts);
+      await appendTimeline(lead, shape, {
+        at: now,
+        who,
+        kind: "note",
+        text: `🕐 Approved Arnold's ${draft.channel} draft and scheduled it for ${sendAt.toLocaleString("en-US", {
+          month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+        })} (id ${item.id})`,
+      });
+      return NextResponse.json({
+        ok: true,
+        status: "scheduled",
+        detail: `Approved — sends ${sendAt.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`,
+      });
     }
 
     // approve_send — apply human edits, then send for real.

@@ -865,6 +865,8 @@ function DraftCard({ leadId, draft, lead, onDone }: { leadId: string; draft: Dra
   const [subject, setSubject] = useState(draft.subject || "");
   const senders = useSenders();
   const [sendAs, setSendAs] = useState<string | null>(null); // null = not chosen yet
+  const [scheduling, setScheduling] = useState(false);
+  const [sendAt, setSendAt] = useState("");
   // Default to the signed-in rep's own mailbox when they have one.
   const effectiveSendAs =
     sendAs !== null ? sendAs : senders.some((x) => x.key === getWho()) ? getWho() : "";
@@ -874,7 +876,7 @@ function DraftCard({ leadId, draft, lead, onDone }: { leadId: string; draft: Dra
   const [feedback, setFeedback] = useState("");
   const [flash, setFlash] = useState("");
 
-  async function act(action: "approve_send" | "dismiss" | "train") {
+  async function act(action: "approve_send" | "approve_schedule" | "dismiss" | "train") {
     setBusy(true);
     setErr("");
     try {
@@ -883,6 +885,7 @@ function DraftCard({ leadId, draft, lead, onDone }: { leadId: string; draft: Dra
         body: JSON.stringify({
           createdAt: draft.createdAt, channel: draft.channel, action, body, subject,
           sendAs: draft.channel === "email" ? effectiveSendAs : undefined,
+          sendAt: action === "approve_schedule" ? new Date(sendAt).toISOString() : undefined,
           feedback: action === "train" ? feedback.trim() : undefined, who: getWho(),
         }),
       });
@@ -918,8 +921,22 @@ function DraftCard({ leadId, draft, lead, onDone }: { leadId: string; draft: Dra
       <textarea rows={draft.channel === "sms" ? 3 : 8} value={body} onChange={(e) => setBody(e.target.value)} />
       <div className="actions">
         <button className="btn small" onClick={() => act("approve_send")} disabled={busy}>
-          {busy ? "Working…" : draft.channel === "sms" ? "Approve & send text" : "Approve & send"}
+          {busy ? "Working…" : draft.channel === "sms" ? "Approve & send text now" : "Approve & send now"}
         </button>
+        {!scheduling && (
+          <button className="btn ghost small" disabled={busy} onClick={() => setScheduling(true)} title="Approve this draft and pick when it sends">
+            🕐 Approve & schedule
+          </button>
+        )}
+        {scheduling && (
+          <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+            <input type="datetime-local" value={sendAt} onChange={(e) => setSendAt(e.target.value)} style={{ padding: "4px 8px", fontSize: 13 }} />
+            <button className="btn small" disabled={busy || !sendAt} onClick={() => act("approve_schedule")}>
+              🕐 Schedule it
+            </button>
+            <button className="btn ghost small" onClick={() => setScheduling(false)}>✕</button>
+          </span>
+        )}
         {draft.channel === "email" && senders.length > 1 && (
           <select
             value={effectiveSendAs}
