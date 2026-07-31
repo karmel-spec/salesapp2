@@ -223,3 +223,68 @@ export async function runReminder(kind: "friday" | "saturday"): Promise<string> 
   const sent = results.filter((r) => r[5] && !r[5].startsWith("ERROR") && !r[5].startsWith("NO PHONE")).length;
   return `${kind} ${fridayISO}: ${missing.length} missing, ${sent} texted, ${results.length - sent - (missing.length ? 0 : 1)} problems`;
 }
+
+/* ---------- Friday 3:30 PM cleaning-assignment texts ----------
+   Reads the week's saved assignments from the "Cleaning Log" tab (an
+   assignment row has an empty Item) and texts each assignee a link to
+   their card. Same phones tab, same log (kind "cleaning"), same
+   dual-cron + Denver wall-clock gate as the report reminders. */
+const CLEANING_LOG_TAB = "Cleaning Log";
+
+export async function runCleaningReminder(): Promise<string> {
+  const now = denverParts();
+  const testDate = process.env.REMINDER_TEST_DATE;
+  if (!testDate && !(now.weekday === "Fri" && now.hour === 15)) {
+    return `skip: Denver time is ${now.weekday} ${now.hour}:${String(now.minute).padStart(2, "0")}, not Fri 15:xx`;
+  }
+  const fridayISO = testDate || now.iso;
+
+  const log = await sheetGet(`'${LOG_TAB}'!A1:F5000`);
+  if (log.some((r) => (r[1] || "") === fridayISO && (r[2] || "") === "cleaning")) {
+    return `skip: cleaning reminder for ${fridayISO} already logged`;
+  }
+
+  // this week's saved assignments: Week | Card | Item(empty) | Assignee
+  const cl = await sheetGet(`'${CLEANING_LOG_TAB}'!A2:F5000`);
+  const byTech = new Map<string, string[]>();
+  for (const r of cl) {
+    if ((r[0] || "").trim() !== fridayISO) continue;
+    if ((r[2] || "").trim()) continue;              // item rows = check-offs
+    const tech = (r[3] || "").trim();
+    if (!tech) continue;
+    const card = (r[1] || "").trim();
+    if (!byTech.has(tech)) byTech.set(tech, []);
+    if (card && !byTech.get(tech)!.includes(card)) byTech.get(tech)!.push(card);
+  }
+
+  const phones = new Map<string, string>();
+  for (const r of (await sheetGet(`'${PHONES_TAB}'!A2:C100`))) {
+    const name = (r[0] || "").trim();
+    const cell = (r[1] || "").replace(/[^\d+]/g, "");
+    const on = (r[2] || "YES").trim().toUpperCase() !== "NO";
+    if (name && cell && on) phones.set(name.toLowerCase(), cell.startsWith("+") ? cell : "+1" + cell.replace(/^1/, ""));
+  }
+
+  const results: string[][] = [];
+  const stamp = new Date().toISOString();
+  for (const [tech, cards] of [...byTech.entries()].sort()) {
+    const phone = phones.get(tech.toLowerCase());
+    const msg = `Hi ${tech} — Friday cleaning at Brigham Larson Pianos: your assignment is “${cards.join("” + “")}”. ` +
+      `Check off each task in the app as you finish: ${APP_URL}/#cleaning / Limpieza del viernes: tu asignación es “${cards.join("” + “")}”.`;
+    if (!phone) {
+      results.push([stamp, fridayISO, "cleaning", tech, "", "NO PHONE on Tech Phones tab"]);
+      continue;
+    }
+    try {
+      const sid = await sendSms(phone, msg);
+      results.push([stamp, fridayISO, "cleaning", tech, phone, sid]);
+    } catch (e) {
+      results.push([stamp, fridayISO, "cleaning", tech, phone, "ERROR: " + String((e as Error).message).slice(0, 80)]);
+    }
+  }
+  if (!byTech.size) results.push([stamp, fridayISO, "cleaning", "(no assignments saved for this week)", "", "no texts sent"]);
+  await sheetAppend(`'${LOG_TAB}'!A1`, results);
+
+  const sent = results.filter((r) => r[5] && !r[5].startsWith("ERROR") && !r[5].startsWith("NO PHONE") && r[5] !== "no texts sent").length;
+  return `cleaning ${fridayISO}: ${byTech.size} technicians assigned, ${sent} texted`;
+}
