@@ -128,14 +128,14 @@ export default async (req: Request) => {
     const appKey = process.env.BLP_APP_ACCESS_KEY || "";
     const bearer = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
     const googleUser = bearer ? await verifyGoogle(bearer) : null;
-    if (!googleUser && !(appKey && body.key === appKey) && String(body.key || "").trim().toLowerCase() !== "pianoman")
+    if (!googleUser && !(appKey && body.key === appKey))
       return fail(401, "sign in (or passcode) required");
 
     const serial = String(body.serial || "").trim();
     const piano = String(body.piano || "").trim();
     if (!serial || !piano) return fail(400, "piano and serial required");
     const f = body.f || {};
-    const who = googleUser || String(body.by || "Team").slice(0, 40);
+    const who = String(body.by || "").trim().slice(0, 40) || googleUser || "Team";
     const today = new Date().toLocaleDateString("en-US", { timeZone: "America/Denver" });
 
     // 1. save the survey row to Category 3b

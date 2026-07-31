@@ -1,33 +1,41 @@
 /**
- * Brigham's priority task list — bridge for the Shop Manager's "Brigham"
- * tab and the Store Map's "Request Brigham Task" button.
+ * Shop whiteboard — the wall board's digital twin. Three columns
+ * (Parts / Supplies / Tools) of ordering requests on the report sheet's
+ * "Whiteboard" tab: Column | Item | Note | Added by | Added | Done | Done at/by.
  *
- * Backed by the "Brigham Tasks" tab on the Friday-report spreadsheet:
- *   When | Piano | Note | From | Priority | Status | Done date
+ *   GET  ?key=…                                → {rows:[…], fetchedAt}
+ *   POST {key, action:"add", column, item, note?, by}
+ *   POST {key, action:"done", row, on, by}     ✓ handled / un-handle
+ *   POST {key, action:"note", row, note, by}   edit an item's note
  *
- *   GET                         → {rows, fetchedAt}   (row 1 = headers)
- *   POST {add:{piano,note,from}}          append an open task
- *   POST {update:{row, priority?, status?, note?}}   edit a task (1-based row)
- *
- * Auth (same as curtis-orders): Google ID token of an admin/company account
- * (Authorization: Bearer …), or `key` = BLP_APP_ACCESS_KEY. Technicians
- * requesting from the Store Map use the team passcode.
+ * Auth: shop password / BLP_APP_ACCESS_KEY / admin Google token.
  */
 import * as crypto from "node:crypto";
 
-const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
-const TAB = "Brigham Tasks";
+const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";  // report sheet
+const TAB = "Whiteboard";
+const COLUMNS = ["Parts", "Supplies", "Tools"];
 const ALLOW = [
   "https://blpshop.netlify.app",
-  "https://blpstoremap.netlify.app",
   "http://localhost:4180",
-  "http://localhost:8641",
   "http://127.0.0.1:4180",
 ];
 const SHOP_GOOGLE_CLIENT_ID = "118454775893-17u7t3glh8eu4kffhe7b42jl71apre4f.apps.googleusercontent.com";
 const MAP_GOOGLE_CLIENT_ID = "110628682621-v65mkaoanv87sp75ggdfcrglfr7bkr8p.apps.googleusercontent.com";
 const ADMIN_DOMAIN = "brighamlarsonpianos.com";
 const ADMIN_EMAILS = ["brighamlarson@gmail.com", "brighamlarsonpianos@gmail.com", "pianoshop.blp@gmail.com"];
+
+async function verifyGoogle(idToken: string): Promise<string | null> {
+  if (!idToken) return null;
+  const r = await fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(idToken));
+  if (!r.ok) return null;
+  const info = (await r.json()) as Record<string, string>;
+  if (info.aud !== SHOP_GOOGLE_CLIENT_ID && info.aud !== MAP_GOOGLE_CLIENT_ID) return null;
+  if (String(info.email_verified) !== "true") return null;
+  const email = String(info.email || "").toLowerCase();
+  if (email.endsWith("@" + ADMIN_DOMAIN) || /\.blp@gmail\.com$/.test(email) || ADMIN_EMAILS.includes(email)) return email;
+  return null;
+}
 
 let tokenCache: { token: string; exp: number } | null = null;
 async function googleToken(): Promise<string> {
@@ -73,18 +81,6 @@ async function sheets(path: string, init?: RequestInit): Promise<any> {
   return json;
 }
 
-async function verifyGoogle(idToken: string): Promise<string | null> {
-  if (!idToken) return null;
-  const r = await fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(idToken));
-  if (!r.ok) return null;
-  const info = (await r.json()) as Record<string, string>;
-  if (info.aud !== SHOP_GOOGLE_CLIENT_ID && info.aud !== MAP_GOOGLE_CLIENT_ID) return null;
-  if (String(info.email_verified) !== "true") return null;
-  const email = String(info.email || "").toLowerCase();
-  if (email.endsWith("@" + ADMIN_DOMAIN) || /\.blp@gmail\.com$/.test(email) || ADMIN_EMAILS.includes(email)) return email;
-  return null;
-}
-
 function corsHeaders(origin: string): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": ALLOW.includes(origin) ? origin : ALLOW[0],
@@ -107,54 +103,54 @@ export default async (req: Request) => {
     const bearer = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
     const googleUser = bearer ? await verifyGoogle(bearer) : null;
     const authed = (key: string) => !!googleUser || (!!appKey && key === appKey);
-    const authErr = bearer && !googleUser
-      ? "Google sign-in expired or not authorized — reload the page to sign in again"
-      : "sign in (or team passcode) required";
 
     if (req.method === "GET") {
       const key = new URL(req.url).searchParams.get("key") || "";
-      if (!authed(key)) return fail(401, authErr);
-      const out = await sheets(`/values/${encodeURIComponent(`'${TAB}'!A1:G2000`)}`);
-      return new Response(JSON.stringify({ rows: out.values || [], fetchedAt: new Date().toISOString() }), { headers });
+      if (!authed(key)) return fail(401, "shop password required");
+      const out = await sheets(`/values/${encodeURIComponent(`'${TAB}'!A2:G2000`)}?majorDimension=ROWS`);
+      const rows = ((out.values as string[][]) || []).map((r, i) => ({
+        row: i + 2,
+        column: (r[0] || "").trim(), item: (r[1] || "").trim(), note: (r[2] || "").trim(),
+        by: (r[3] || "").trim(), added: (r[4] || "").trim(),
+        done: (r[5] || "").trim() === "TRUE", doneAt: (r[6] || "").trim(),
+      })).filter((x) => x.item);
+      return new Response(JSON.stringify({ rows, fetchedAt: new Date().toISOString() }), { headers });
     }
 
     if (req.method === "POST") {
       const body = (await req.json()) as {
-        key?: string;
-        add?: { piano?: string; note?: string; from?: string };
-        update?: { row: number; priority?: string; status?: string; note?: string };
+        key?: string; action?: string; column?: string; item?: string;
+        note?: string; row?: number; on?: boolean; by?: string;
       };
-      if (!authed(body.key || "")) return fail(401, authErr);
+      if (!authed(body.key || "")) return fail(401, "shop password required");
+      const who = String(body.by || "").trim().slice(0, 40) || googleUser || "Team";
+      const stamp = new Date().toLocaleDateString("en-US", { timeZone: "America/Denver" }) + " · " + who;
 
-      if (body.add) {
-        const note = String(body.add.note || "").trim();
-        if (!note) return fail(400, "note required");
-        const from = googleUser || String(body.add.from || "Team").slice(0, 60);
-        const when = new Date().toLocaleString("en-US", { timeZone: "America/Denver" });
+      if (body.action === "add") {
+        const column = COLUMNS.find((c) => c.toLowerCase() === String(body.column || "").trim().toLowerCase());
+        const item = String(body.item || "").trim().slice(0, 200);
+        if (!column || !item) return fail(400, "column and item required");
+        const today = new Date().toLocaleDateString("en-US", { timeZone: "America/Denver" });
         await sheets(
-          `/values/${encodeURIComponent(`'${TAB}'!A1`)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
-          { method: "POST", body: JSON.stringify({ values: [[when, String(body.add.piano || "").slice(0, 80), note.slice(0, 500), from, "", "open", ""]] }) }
+          `/values/${encodeURIComponent(`'${TAB}'!A1`)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+          { method: "POST", body: JSON.stringify({ values: [[column, item, String(body.note || "").slice(0, 200), who, today, "FALSE", ""]] }) }
         );
         return new Response(JSON.stringify({ ok: true }), { headers });
       }
-
-      if (body.update && body.update.row >= 2) {
-        const u = body.update;
-        const data: { range: string; values: string[][] }[] = [];
-        if (u.priority !== undefined) data.push({ range: `'${TAB}'!E${u.row}`, values: [[String(u.priority)]] });
-        if (u.note !== undefined) data.push({ range: `'${TAB}'!C${u.row}`, values: [[String(u.note).slice(0, 500)]] });
-        if (u.status !== undefined) {
-          data.push({ range: `'${TAB}'!F${u.row}`, values: [[u.status === "done" ? "done" : "open"]] });
-          data.push({ range: `'${TAB}'!G${u.row}`, values: [[u.status === "done" ? new Date().toLocaleDateString("en-US", { timeZone: "America/Denver" }) : ""]] });
-        }
-        if (!data.length) return fail(400, "nothing to update");
+      if (body.action === "done" || body.action === "note") {
+        const row = Math.floor(Number(body.row || 0));
+        if (row < 2 || row > 5000) return fail(400, "bad row");
+        const data = body.action === "done"
+          ? [{ range: `'${TAB}'!F${row}`, values: [[body.on === false ? "FALSE" : "TRUE"]] },
+             { range: `'${TAB}'!G${row}`, values: [[body.on === false ? "" : stamp]] }]
+          : [{ range: `'${TAB}'!C${row}`, values: [[String(body.note || "").slice(0, 200)]] }];
         await sheets(`/values:batchUpdate`, {
           method: "POST",
-          body: JSON.stringify({ valueInputOption: "USER_ENTERED", data }),
+          body: JSON.stringify({ valueInputOption: "RAW", data }),
         });
         return new Response(JSON.stringify({ ok: true }), { headers });
       }
-      return fail(400, "nothing to do");
+      return fail(400, "unknown action");
     }
     return fail(405, "method not allowed");
   } catch (e) {

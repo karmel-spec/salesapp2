@@ -37,6 +37,7 @@ const ALLOW = [
   "http://127.0.0.1:4180",
 ];
 const SHOP_GOOGLE_CLIENT_ID = "118454775893-17u7t3glh8eu4kffhe7b42jl71apre4f.apps.googleusercontent.com";
+const MAP_GOOGLE_CLIENT_ID = "110628682621-v65mkaoanv87sp75ggdfcrglfr7bkr8p.apps.googleusercontent.com";
 const ADMIN_DOMAIN = "brighamlarsonpianos.com";
 const ADMIN_EMAILS = ["brighamlarson@gmail.com", "brighamlarsonpianos@gmail.com", "pianoshop.blp@gmail.com"];
 
@@ -45,10 +46,10 @@ async function verifyGoogle(idToken: string): Promise<string | null> {
   const r = await fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(idToken));
   if (!r.ok) return null;
   const info = (await r.json()) as Record<string, string>;
-  if (info.aud !== SHOP_GOOGLE_CLIENT_ID) return null;
+  if (info.aud !== SHOP_GOOGLE_CLIENT_ID && info.aud !== MAP_GOOGLE_CLIENT_ID) return null;
   if (String(info.email_verified) !== "true") return null;
   const email = String(info.email || "").toLowerCase();
-  if (email.endsWith("@" + ADMIN_DOMAIN) || ADMIN_EMAILS.includes(email)) return email;
+  if (email.endsWith("@" + ADMIN_DOMAIN) || /\.blp@gmail\.com$/.test(email) || ADMIN_EMAILS.includes(email)) return email;
   return null;
 }
 
@@ -129,8 +130,7 @@ export default async (req: Request) => {
     const appKey = process.env.BLP_APP_ACCESS_KEY || "";
     const bearer = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
     const googleUser = bearer ? await verifyGoogle(bearer) : null;
-    const teamPw = (k: string) => String(k || "").trim().toLowerCase() === "pianoman";
-    const authed = (key: string) => !!googleUser || (!!appKey && key === appKey) || teamPw(key);
+    const authed = (key: string) => !!googleUser || (!!appKey && key === appKey);
     const authErr = "shop password required";
 
     if (req.method === "GET") {

@@ -288,3 +288,83 @@ export async function runCleaningReminder(): Promise<string> {
   const sent = results.filter((r) => r[5] && !r[5].startsWith("ERROR") && !r[5].startsWith("NO PHONE") && r[5] !== "no texts sent").length;
   return `cleaning ${fridayISO}: ${byTech.size} technicians assigned, ${sent} texted`;
 }
+
+/* ---------- Friday 4:00 PM team cleaning report (email) ----------
+   Builds the who-did-what report from Cleaning Cards + Cleaning Log and
+   emails it (nodemailer over the info@ SMTP app password) to management. */
+const CLEANING_CARDS_TAB = "Cleaning Cards";
+const REPORT_TO = ["brigham@brighamlarsonpianos.com", "karmel@brighamlarsonpianos.com", "shop@brighamlarsonpianos.com"];
+const esc = (s: string) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+export async function runCleaningReport(): Promise<string> {
+  const now = denverParts();
+  const testDate = process.env.REMINDER_TEST_DATE;
+  if (!testDate && !(now.weekday === "Fri" && now.hour === 16)) {
+    return `skip: Denver time is ${now.weekday} ${now.hour}:${String(now.minute).padStart(2, "0")}, not Fri 16:xx`;
+  }
+  const fridayISO = testDate || now.iso;
+
+  const log = await sheetGet(`'${LOG_TAB}'!A1:F5000`);
+  if (log.some((r) => (r[1] || "") === fridayISO && (r[2] || "") === "cleaning-report")) {
+    return `skip: cleaning report for ${fridayISO} already sent`;
+  }
+
+  const cardRows = await sheetGet(`'${CLEANING_CARDS_TAB}'!A2:B400`);
+  const cards = new Map<string, string[]>();
+  for (const r of cardRows) {
+    const c = (r[0] || "").trim(), it = (r[1] || "").trim();
+    if (c && it) { if (!cards.has(c)) cards.set(c, []); cards.get(c)!.push(it); }
+  }
+  const cl = await sheetGet(`'${CLEANING_LOG_TAB}'!A2:F5000`);
+  const assigned = new Map<string, string>();
+  const done = new Map<string, { at: string; by: string }>();
+  for (const r of cl) {
+    if ((r[0] || "").trim() !== fridayISO) continue;
+    const card = (r[1] || "").trim(), item = (r[2] || "").trim();
+    if (!item && (r[3] || "").trim()) assigned.set(card, (r[3] || "").trim());
+    if (item && (r[4] || "").trim()) done.set(card + " " + item.toLowerCase(), { at: (r[4] || "").trim(), by: (r[5] || "").trim() });
+  }
+
+  let total = 0, totalDone = 0;
+  const sections = [...cards.keys()].sort().map((c) => {
+    const items = cards.get(c)!;
+    const d = items.filter((it) => done.has(c + " " + it.toLowerCase())).length;
+    total += items.length; totalDone += d;
+    return `<h3 style="margin:20px 0 6px;font:15px Georgia,serif">${esc(c)} <span style="font-weight:400;color:#666;font-size:12.5px">— ${esc(assigned.get(c) || "unassigned")} · ${d}/${items.length} done</span></h3>
+      <table style="border-collapse:collapse;width:100%">${items.map((it) => {
+        const x = done.get(c + " " + it.toLowerCase());
+        return `<tr><td style="border:1px solid #bbb;padding:4px 8px;width:26px;text-align:center">${x ? "✓" : "—"}</td>
+          <td style="border:1px solid #bbb;padding:4px 8px;font-size:12.5px">${esc(it)}</td>
+          <td style="border:1px solid #bbb;padding:4px 8px;font-size:12px;color:#555;width:180px">${x ? esc(x.at + " · " + x.by) : ""}</td></tr>`;
+      }).join("")}</table>`;
+  }).join("");
+
+  const html = `<div style="font-family:Georgia,serif;max-width:720px">
+    <h1 style="font-size:19px;margin:0">Brigham Larson Pianos — Friday Shop Organization</h1>
+    <div style="color:#666;margin:4px 0 14px">Team cleaning report · week ending ${mdShort(fridayISO)}/${fridayISO.slice(2, 4)} · <b>${totalDone} of ${total}</b> tasks completed</div>
+    ${sections}
+    <p style="color:#666;font-size:12px;margin-top:18px">Live board: ${APP_URL}/#cleaning</p></div>`;
+
+  if (process.env.REMINDER_DRY_RUN) {
+    console.log("[DRY-RUN] cleaning report email:", html.slice(0, 300));
+  } else {
+    const { createTransport } = await import("nodemailer");
+    const pass = process.env.SMTP_PASS || "";
+    if (!pass) throw new Error("SMTP_PASS not set");
+    const user = process.env.SMTP_USER || "info@brighamlarsonpianos.com";
+    const transport = createTransport({
+      host: process.env.SMTP_HOST || "smtp.gmail.com",
+      port: Number(process.env.SMTP_PORT || 465),
+      secure: Number(process.env.SMTP_PORT || 465) === 465,
+      auth: { user, pass },
+    });
+    await transport.sendMail({
+      from: `"BLP Shop" <${user}>`,
+      to: REPORT_TO.join(", "),
+      subject: `Team cleaning report — ${mdShort(fridayISO)} · ${totalDone}/${total} tasks done`,
+      html,
+    });
+  }
+  await sheetAppend(`'${LOG_TAB}'!A1`, [[new Date().toISOString(), fridayISO, "cleaning-report", REPORT_TO.join(" "), "", `${totalDone}/${total} tasks`]]);
+  return `cleaning-report ${fridayISO}: ${totalDone}/${total} tasks, emailed ${REPORT_TO.length} recipients`;
+}

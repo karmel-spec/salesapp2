@@ -116,8 +116,7 @@ export default async (req: Request) => {
     const appKey = process.env.BLP_APP_ACCESS_KEY || "";
     const bearer = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
     const googleUser = bearer ? await verifyGoogle(bearer) : null;
-    const teamPw = (k: string) => String(k || "").trim().toLowerCase() === "pianoman";  // shop password (Google login removed 7/31)
-    const authed = (key: string) => !!googleUser || (!!appKey && key === appKey) || teamPw(key);
+    const authed = (key: string) => !!googleUser || (!!appKey && key === appKey);
     const authErr = bearer && !googleUser
       ? "Google sign-in expired or not authorized — sign in again"
       : "sign in (or team passcode) required";
@@ -152,7 +151,7 @@ export default async (req: Request) => {
       const label = String(body.label || (step === 1 ? "Ordered" : "Done")).slice(0, 20);
       if (!serial || !task) return fail(400, "serial and task required");
 
-      const who = googleUser || String(body.by || "Team").slice(0, 40);
+      const who = String(body.by || "").trim().slice(0, 40) || googleUser || "Team";
       const stampVal = body.on === false ? "" :
         `${new Date().toLocaleDateString("en-US", { timeZone: "America/Denver" })} · ${who}`;
 

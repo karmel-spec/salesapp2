@@ -21,6 +21,7 @@ const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";  // report shee
 const TABS = ["Team Schedule"];
 // same identity rules as the Shop Manager's gate
 const SHOP_GOOGLE_CLIENT_ID = "118454775893-17u7t3glh8eu4kffhe7b42jl71apre4f.apps.googleusercontent.com";
+const MAP_GOOGLE_CLIENT_ID = "110628682621-v65mkaoanv87sp75ggdfcrglfr7bkr8p.apps.googleusercontent.com";
 const ADMIN_DOMAIN = "brighamlarsonpianos.com";
 const ADMIN_EMAILS = ["brighamlarson@gmail.com", "brighamlarsonpianos@gmail.com", "pianoshop.blp@gmail.com"];
 
@@ -29,10 +30,10 @@ async function verifyGoogle(idToken: string): Promise<string | null> {
   const r = await fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(idToken));
   if (!r.ok) return null;
   const info = (await r.json()) as Record<string, string>;
-  if (info.aud !== SHOP_GOOGLE_CLIENT_ID) return null;
+  if (info.aud !== SHOP_GOOGLE_CLIENT_ID && info.aud !== MAP_GOOGLE_CLIENT_ID) return null;
   if (String(info.email_verified) !== "true") return null;
   const email = String(info.email || "").toLowerCase();
-  if (email.endsWith("@" + ADMIN_DOMAIN) || ADMIN_EMAILS.includes(email)) return email;
+  if (email.endsWith("@" + ADMIN_DOMAIN) || /\.blp@gmail\.com$/.test(email) || ADMIN_EMAILS.includes(email)) return email;
   return null;
 }
 const ALLOW = [
@@ -118,8 +119,7 @@ export default async (req: Request) => {
     const appKey = process.env.BLP_APP_ACCESS_KEY || "";
     const bearer = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
     const googleUser = bearer ? await verifyGoogle(bearer) : null;
-    const teamPw = (k: string) => String(k || "").trim().toLowerCase() === "pianoman";  // shop password (Google login removed 7/31)
-    const authed = (key: string) => !!googleUser || (!!appKey && key === appKey) || teamPw(key);
+    const authed = (key: string) => !!googleUser || (!!appKey && key === appKey);
     const authErr = bearer && !googleUser
       ? "Google sign-in expired or not authorized — reload the page to sign in again"
       : "sign in (or passcode) required";
