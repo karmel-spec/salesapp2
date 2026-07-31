@@ -925,3 +925,6 @@ tbody tr:hover { background: #faf7f2; }
   .inbox-row { grid-template-columns: 22px 22px 1fr auto auto; }
   .status-select { display: none; }
 }
+
+/* Inbox search */
+.inbox-search { width: 100%; margin-bottom: 10px; }

@@ -100,6 +100,7 @@ export default function ActivityPage() {
     { name: "Moving", tab: "general" },
   ]);
   const [doneFilter, setDoneFilter] = useState<"open" | "closed">("open");
+  const [search, setSearch] = useState("");
   const [folderFilter, setFolderFilter] = useState<string>(() => {
     if (typeof window === "undefined") return "all";
     return new URLSearchParams(window.location.search).get("tab") === "general" ? "inbox" : "all";
@@ -251,6 +252,14 @@ export default function ActivityPage() {
       );
       out.length = 0;
       out.push(...kept);
+      const needle = search.trim().toLowerCase();
+      if (needle) {
+        const hits = out.filter((r) =>
+          `${r.leadName} ${r.headline} ${r.text}`.toLowerCase().includes(needle)
+        );
+        out.length = 0;
+        out.push(...hits);
+      }
       if (folderFilter === "inbox" && inboxTab === "general") {
         const keep = out.filter((r) => !r.folder);
         out.length = 0;
@@ -287,7 +296,7 @@ export default function ActivityPage() {
       }
     }
     return out.slice(0, 250);
-  }, [rows, filter, who, sortMode, folderFilter, inboxTab, doneFilter, salesFolderSet]);
+  }, [rows, filter, who, sortMode, folderFilter, inboxTab, doneFilter, salesFolderSet, search]);
 
   /** Flip events read in local state so the UI reacts instantly. */
   function applyRead(leadId: string | null, ats: string[] | null) {
@@ -641,7 +650,22 @@ export default function ActivityPage() {
       <div className="split" ref={splitRef}>
         <div className="split-left" style={{ width: threadLead ? `${leftPct}%` : "100%" }}>
           <div className="card">
-            {visible.length === 0 && <div className="muted">No activity matches this filter yet.</div>}
+            {filter === "inbound" && (
+              <input
+                type="search"
+                className="inbox-search"
+                placeholder="🔍 Search the inbox — name, message, or piano…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            )}
+            {visible.length === 0 && (
+              <div className="muted">
+                {filter === "inbound" && search.trim()
+                  ? `Nothing matches “${search.trim()}” here.`
+                  : "No activity matches this filter yet."}
+              </div>
+            )}
             {filter === "inbound" ? (
               <div className="inbox-list">
                 {(() => {
