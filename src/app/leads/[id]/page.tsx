@@ -679,8 +679,39 @@ function ComposePanel({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [photo, setPhoto] = useState<{ name: string; type: string; dataBase64: string; preview: string } | null>(null);
+  const [scheduling, setScheduling] = useState(false);
+  const [sendAt, setSendAt] = useState("");
   const isEmail = channel === "email";
   const to = isEmail ? lead.emailClean : lead.phoneDialable;
+
+  async function schedule() {
+    setBusy(true);
+    setErr("");
+    try {
+      await api("/api/scheduled", {
+        method: "POST",
+        body: JSON.stringify({
+          leadId: lead.id,
+          channel,
+          subject,
+          body,
+          sendAt: new Date(sendAt).toISOString(),
+          who: getWho(),
+          sendAs: isEmail ? (getWho() === "app" ? "" : getWho()) : "",
+        }),
+      });
+      onFlash(
+        `🕐 ${isEmail ? "Email" : "Text"} scheduled for ${new Date(sendAt).toLocaleString([], {
+          month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+        })}`
+      );
+      onDone();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function pickPhoto(file: File | undefined) {
     setErr("");
@@ -768,8 +799,31 @@ function ComposePanel({
           onClick={send}
           disabled={busy || !body.trim() || (isEmail && !subject.trim())}
         >
-          {busy ? "Sending…" : `Send ${isEmail ? "email" : "text"}${photo ? " + photo" : ""}`}
+          {busy ? "Sending…" : `Send ${isEmail ? "email" : "text"} now${photo ? " + photo" : ""}`}
         </button>
+        {!scheduling && (
+          <button
+            className="btn ghost"
+            disabled={busy || Boolean(photo)}
+            title={photo ? "Photos can't be scheduled yet — send now, or remove the photo" : "Pick a date & time to send this later"}
+            onClick={() => setScheduling(true)}
+          >
+            🕐 Schedule {isEmail ? "email" : "text"}
+          </button>
+        )}
+        {scheduling && (
+          <span style={{ display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <input type="datetime-local" value={sendAt} onChange={(e) => setSendAt(e.target.value)} />
+            <button
+              className="btn"
+              disabled={busy || !sendAt || !body.trim() || (isEmail && !subject.trim())}
+              onClick={schedule}
+            >
+              🕐 Schedule it
+            </button>
+            <button className="btn ghost small" onClick={() => setScheduling(false)}>✕</button>
+          </span>
+        )}
         <label className="btn ghost small" style={{ cursor: "pointer" }}>
           📷 {photo ? "Change photo" : "Attach photo"}
           <input
