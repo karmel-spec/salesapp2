@@ -28,7 +28,7 @@ export default function LeadsPage() {
   const [rep, setRep] = useState("all");
   const [staleOnly, setStaleOnly] = useState(() => initialParams().stale);
   const [showNew, setShowNew] = useState(false);
-  const [sortMode, setSortMode] = useState<"priority" | "newest">("priority");
+  const [sortMode, setSortMode] = useState<"priority" | "newest" | "contact-newest" | "contact-oldest">("priority");
 
   useEffect(() => {
     fetchLeads().then((r) => setLeads(r.leads)).catch((e) => setError(e.message));
@@ -71,7 +71,19 @@ export default function LeadsPage() {
         .toLowerCase()
         .includes(needle);
     });
-    return sortMode === "priority" ? prioritySort(visible) : visible;
+    if (sortMode === "priority") return prioritySort(visible);
+    if (sortMode === "contact-newest" || sortMode === "contact-oldest") {
+      const t = (l: Lead) => (l.lastTouchISO ? new Date(l.lastTouchISO).getTime() : null);
+      return [...visible].sort((a, b) => {
+        const ta = t(a);
+        const tb = t(b);
+        if (ta === null && tb === null) return 0;
+        if (ta === null) return 1; // undated always sinks
+        if (tb === null) return -1;
+        return sortMode === "contact-newest" ? tb - ta : ta - tb;
+      });
+    }
+    return visible;
   }, [leads, q, bucket, rep, staleOnly, sortMode]);
 
   if (error) return <div className="banner bad">⚠ {error}</div>;
@@ -101,9 +113,11 @@ export default function LeadsPage() {
           <option value="all">All reps</option>
           {reps.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
-        <select value={sortMode} onChange={(e) => setSortMode(e.target.value as "priority" | "newest")} aria-label="Sort order">
+        <select value={sortMode} onChange={(e) => setSortMode(e.target.value as typeof sortMode)} aria-label="Sort order">
           <option value="priority">Priority order</option>
           <option value="newest">Newest first</option>
+          <option value="contact-oldest">Quiet longest (last contact ↑)</option>
+          <option value="contact-newest">Contacted recently (last contact ↓)</option>
         </select>
         {staleOnly && (
           <span className="badge stale" style={{ cursor: "pointer" }} title="Showing stale leads only — click to clear" onClick={() => setStaleOnly(false)}>
@@ -121,7 +135,15 @@ export default function LeadsPage() {
               <th>Rep</th>
               <th>Type</th>
               <th>Heat</th>
-              <th>Last contact</th>
+              <th
+                onClick={() =>
+                  setSortMode((cur) => (cur === "contact-oldest" ? "contact-newest" : "contact-oldest"))
+                }
+                style={{ cursor: "pointer", userSelect: "none" }}
+                title="Click to sort by last contact — quiet longest ⇄ most recent"
+              >
+                Last contact{sortMode === "contact-oldest" ? " ↑" : sortMode === "contact-newest" ? " ↓" : ""}
+              </th>
               <th>Drafts</th>
             </tr>
           </thead>
