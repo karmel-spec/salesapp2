@@ -31,6 +31,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       body?: string;
       subject?: string;
       who?: string;
+      sendAs?: string; // email identity: "" = info@, rep name = their mailbox
       photo?: { name?: string; type?: string; dataBase64?: string };
     };
     const body = (input.body || "").trim();
@@ -71,13 +72,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       }
       if (!subject) return NextResponse.json({ error: "Email subject is required" }, { status: 400 });
       trackId = crypto.randomBytes(12).toString("hex");
+      const identity = input.sendAs !== undefined ? input.sendAs : who;
       const { messageId } = await sendEmail(
         lead.emailClean,
         subject,
         body,
         photoBuffer ? [{ filename: photoName, contentType: photoType, content: photoBuffer }] : [],
         `${config.publicBaseUrl}/api/track/${trackId}.gif`,
-        who
+        identity
       );
       deliveryNote = `Email "${subject}"${photoBuffer ? " (with photo)" : ""} sent to ${lead.emailClean} (${messageId})`;
     } else {

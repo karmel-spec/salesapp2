@@ -41,6 +41,8 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [scheduling, setScheduling] = useState(false);
+  const [senders, setSenders] = useState<{ key: string; label: string }[]>([]);
+  const [sendAs, setSendAs] = useState<string | null>(null);
   const [sendAt, setSendAt] = useState("");
   const [pendingScheduled, setPendingScheduled] = useState<
     { id: string; channel: string; sendAt: string; body: string }[]
@@ -48,7 +50,14 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
 
   useEffect(() => {
     setRepPhone(localStorage.getItem("blp_rep_phone") || "");
+    api<{ senders: { key: string; label: string }[] }>("/api/senders")
+      .then((r) => setSenders(r.senders))
+      .catch(() => {});
   }, []);
+
+  // Default to the signed-in rep's own mailbox when they have one.
+  const effectiveSendAs =
+    sendAs !== null ? sendAs : senders.some((x) => x.key === getWho()) ? getWho() : "";
 
   useEffect(() => {
     api<{ items: { id: string; channel: string; sendAt: string; body: string; status: string }[] }>(
@@ -71,7 +80,7 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
           body,
           sendAt: new Date(sendAt).toISOString(),
           who: getWho(),
-          sendAs: getWho() === "app" ? "" : getWho(),
+          sendAs: mode === "email" ? effectiveSendAs : "",
         }),
       });
       setPendingScheduled((cur) => [...cur, r.item]);
@@ -128,7 +137,7 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
       } else {
         const r = await api<{ detail: string }>(`/api/leads/${encodeURIComponent(lead.id)}/send`, {
           method: "POST",
-          body: JSON.stringify({ channel: mode, body, subject, who: getWho() }),
+          body: JSON.stringify({ channel: mode, body, subject, who: getWho(), sendAs: mode === "email" ? effectiveSendAs : undefined }),
         });
         setFlash(`✓ ${r.detail}`);
         setBody("");
@@ -328,10 +337,25 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
                 <button className="btn small ghost" onClick={() => setScheduling(false)}>✕</button>
               </span>
             )}
+            {mode === "email" && senders.length > 1 && (
+              <select
+                value={effectiveSendAs}
+                onChange={(e) => setSendAs(e.target.value)}
+                aria-label="Send from"
+                title="Which mailbox this email sends from (replies go there too)"
+                style={{ fontSize: 12, padding: "4px 7px", maxWidth: 220 }}
+              >
+                {senders.map((x) => (
+                  <option key={x.key} value={x.key}>from {x.label}</option>
+                ))}
+              </select>
+            )}
             <span className="muted" style={{ fontSize: 11.5 }}>
               {mode === "note"
                 ? "team-only — saved to the lead's activity log"
-                : `sends as ${getWho() === "app" ? "the team" : getWho()} · lands in this conversation`}
+                : mode === "email"
+                  ? "lands in this conversation"
+                  : `sends as ${getWho() === "app" ? "the team" : getWho()} · lands in this conversation`}
             </span>
           </div>
         </>

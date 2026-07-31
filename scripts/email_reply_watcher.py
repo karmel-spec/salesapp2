@@ -14,6 +14,7 @@ State (per-account last-seen IMAP UID, All Mail namespace) lives in
 """
 import email
 import email.utils
+import html as htmllib
 import imaplib
 import json
 import pathlib
@@ -52,9 +53,11 @@ def plain_body(msg: email.message.Message) -> str:
         except Exception:
             continue
         if ctype == "text/plain":
-            return text.strip()
+            return htmllib.unescape(text).strip()
         html = html or text
-    return re.sub(r"<[^>]+>", " ", html).strip()
+    text = re.sub(r"<(style|script)[^>]*>.*?</\1>", " ", html, flags=re.S | re.I)
+    text = re.sub(r"<[^>]+>", " ", text)
+    return re.sub(r"[ \t]{2,}", " ", htmllib.unescape(text)).strip()
 
 
 def strip_quoted(text: str) -> str:
