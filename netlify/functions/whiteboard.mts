@@ -106,7 +106,8 @@ export default async (req: Request) => {
     const appKey = process.env.BLP_APP_ACCESS_KEY || "";
     const bearer = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
     const googleUser = bearer ? await verifyGoogle(bearer) : null;
-    const authed = (key: string) => !!googleUser || (!!appKey && key === appKey);
+    const teamPw = (k: string) => String(k || "").trim().toLowerCase() === "pianoman";  // TEMPORARY bypass while Google sign-in is stabilized
+    const authed = (key: string) => !!googleUser || (!!appKey && key === appKey) || teamPw(key);
 
     if (req.method === "GET") {
       const key = new URL(req.url).searchParams.get("key") || "";
