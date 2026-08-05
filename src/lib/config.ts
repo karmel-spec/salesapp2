@@ -14,7 +14,9 @@ export const config = {
   googlePrivateKey: (process.env.GOOGLE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
 
   // Shared team passcode gating the whole app (same model as BLP Mega App).
-  accessKey: process.env.BLP_APP_ACCESS_KEY || "",
+  // Override in Netlify's dashboard (Site settings -> Environment variables)
+  // by setting BLP_APP_ACCESS_KEY if you want a different value in production.
+  accessKey: process.env.BLP_APP_ACCESS_KEY || "pianoman",
 
   // Arnold — Chief Sales Agent (Hermes profile `arnold`, Telegram @arnoldlarsonbot)
   arnoldWebhookUrl: process.env.ARNOLD_WEBHOOK_URL || "", // Hermes gateway endpoint
