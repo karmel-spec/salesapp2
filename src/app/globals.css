@@ -829,6 +829,33 @@ tbody tr:hover { background: #faf7f2; }
 .inbox-row.unread .ib-name, .inbox-row.unread .ib-snippet { font-weight: 700; }
 .inbox-row.thread-open { background: var(--crimson-soft); }
 .inbox-row .read-check { margin: 0; }
+/* Address autocomplete dropdown */
+.addr-menu {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 0;
+  right: 0;
+  z-index: 60;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 26px rgba(30, 22, 16, 0.16);
+  overflow: hidden;
+  display: block;
+}
+.addr-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 8px 11px;
+  font-size: 13.5px;
+  font-family: var(--sans);
+  cursor: pointer;
+}
+.addr-item:hover { background: #f5efe6; }
+
 .ib-icon {
   text-align: center;
   font-size: 17px;

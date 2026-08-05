@@ -7,6 +7,7 @@ import type { Lead, DraftMessage } from "@/lib/leads";
 import { api, getWho, REPS, LEAD_SOURCES, INQUIRY_METHODS } from "@/lib/client";
 import { Linkify, StaleBadge, StatusBadge, fmtDays } from "@/components/ui";
 import { Thread } from "@/components/Thread";
+import { AddressInput } from "@/components/AddressInput";
 import { SummaryBar } from "@/components/SummaryBar";
 import type { LeadGeo } from "@/lib/geo-shared";
 import { ThreadComposer } from "@/components/ThreadComposer";
@@ -1040,11 +1041,12 @@ function InlineText({
   const [val, setVal] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function save() {
-    if (val.trim() === value.trim()) { setEditing(false); return; }
+  async function save(override?: string) {
+    const v = override !== undefined ? override : val;
+    if (v.trim() === value.trim()) { setEditing(false); return; }
     setBusy(true);
     try {
-      await patchField(lead.id, field, val);
+      await patchField(lead.id, field, v);
       onFlash(`✓ Saved ${field} to the Leads Log`);
       setEditing(false);
       onDone();
@@ -1074,10 +1076,27 @@ function InlineText({
           disabled={busy}
           onChange={(e) => setVal(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Escape") setEditing(false); }}
-          onBlur={save}
+          onBlur={() => save()}
         />
         <span className="muted" style={{ fontSize: 11.5 }}>saves when you click away · Esc to cancel</span>
       </span>
+    );
+  }
+  if (field === "address") {
+    return (
+      <AddressInput
+        value={val}
+        autoFocus
+        disabled={busy}
+        onChange={setVal}
+        onPick={(addr) => save(addr)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") save();
+          if (e.key === "Escape") setEditing(false);
+        }}
+        onBlur={() => save()}
+        placeholder="start typing — Google suggests the address"
+      />
     );
   }
   return (
@@ -1091,7 +1110,7 @@ function InlineText({
         if (e.key === "Enter") save();
         if (e.key === "Escape") setEditing(false);
       }}
-      onBlur={save}
+      onBlur={() => save()}
     />
   );
 }

@@ -40,7 +40,11 @@ export async function POST(req: NextRequest) {
 
     if (!lead) return NextResponse.json({ matched: false });
 
-    const excerpt = body.slice(0, 600);
+    // Full email on the timeline (the watcher already strips quoted history);
+    // 15k cap keeps a runaway message from blowing up the sheet cell.
+    const MAX_BODY = 15000;
+    const full = body.slice(0, MAX_BODY);
+    const excerpt = body.slice(0, 600); // notifications only
     await appendTimeline(
       lead,
       shape,
@@ -50,7 +54,7 @@ export async function POST(req: NextRequest) {
         kind: "inbound",
         source: "email",
         folder: autoFolder(lead.leadType, lead.headline, `${input.subject || ""} ${body}`),
-        text: `📥 Customer emailed${input.subject ? ` ("${input.subject}")` : ""}: "${excerpt}${body.length > 600 ? "…" : ""}"`,
+        text: `📥 Customer emailed${input.subject ? ` ("${input.subject}")` : ""}: "${full}${body.length > MAX_BODY ? "… [truncated]" : ""}"`,
       },
       { touchLastContact: true }
     );

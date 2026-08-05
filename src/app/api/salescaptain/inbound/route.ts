@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     // not sales. Don't wake Arnold for these even on a matched lead.
     const looksService = /\b(tun(e|ing)|reschedul|re-?schedule|appointment|move(r|d|ing)?|moving|pick ?up|deliver|invoice|receipt|warrant|repair visit)\b/i.test(body);
     const detail = body
-      ? `📥 SalesCaptain message from ${name || phone}: "${body.slice(0, 500)}"`
+      ? `📥 SalesCaptain message from ${name || phone}: "${body.slice(0, 4000)}"`
       : `📥 SalesCaptain message from ${name || phone} — they're waiting for a reply (full text in SalesCaptain).`;
 
     if (!lead) {

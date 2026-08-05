@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Lead } from "@/lib/leads";
 import { api, fetchLeads, getWho, LEAD_SOURCES, INQUIRY_METHODS, PIANO_TYPES, LEAD_TYPES, MELISSA_TYPES, ENTERED_BY, REPS, prioritySort } from "@/lib/client";
 import { RepBadge, StaleBadge, StatusBadge, fmtDays, pendingDrafts } from "@/components/ui";
+import { AddressInput } from "@/components/AddressInput";
 import { looseIncludes } from "@/lib/search";
 
 const BUCKETS = ["all", "open", "new", "active", "snoozed", "won", "lost", "closed", "unqualified", "inactive", "support"] as const;
@@ -247,18 +248,20 @@ function NewLeadForm({ onDone }: { onDone: () => void }) {
         ).map(([key, label]) => (
           <div key={key}>
             <label className="field">{label}</label>
-            <input
-              style={{ width: "100%" }}
-              placeholder={
-                key === "social"
-                  ? "e.g. @jane.doe on Instagram / FB Marketplace link"
-                  : key === "address"
-                    ? "street, City, ST zip — pins the lead on the US Sales Map"
-                    : undefined
-              }
-              value={f[key]}
-              onChange={(e) => setF({ ...f, [key]: e.target.value })}
-            />
+            {key === "address" ? (
+              <AddressInput
+                value={f.address}
+                onChange={(v) => setF({ ...f, address: v })}
+                placeholder="start typing — Google suggests the address"
+              />
+            ) : (
+              <input
+                style={{ width: "100%" }}
+                placeholder={key === "social" ? "e.g. @jane.doe on Instagram / FB Marketplace link" : undefined}
+                value={f[key]}
+                onChange={(e) => setF({ ...f, [key]: e.target.value })}
+              />
+            )}
           </div>
         ))}
         {(

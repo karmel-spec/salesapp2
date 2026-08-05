@@ -139,7 +139,7 @@ def poll_account(USER: str, password: str, key: str, per_account: dict, internal
             last_uid = uid
             continue
         subject = str(make_header(decode_header(msg.get("Subject", "")))) if msg.get("Subject") else ""
-        body = strip_quoted(plain_body(msg))[:2000]
+        body = strip_quoted(plain_body(msg))[:15000]  # full email (quoted history stripped)
         received = email.utils.parsedate_to_datetime(msg.get("Date")) if msg.get("Date") else None
 
         # SalesCaptain text/webchat notification (no-reply@salescaptain.com):
