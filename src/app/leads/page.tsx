@@ -26,6 +26,7 @@ export default function LeadsPage() {
   const [q, setQ] = useState("");
   const [bucket, setBucket] = useState<(typeof BUCKETS)[number]>(() => initialParams().bucket);
   const [rep, setRep] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [staleOnly, setStaleOnly] = useState(() => initialParams().stale);
   const [showNew, setShowNew] = useState(false);
   const [sortMode, setSortMode] = useState<"priority" | "newest" | "contact-newest" | "contact-oldest">("priority");
@@ -33,20 +34,6 @@ export default function LeadsPage() {
   useEffect(() => {
     fetchLeads().then((r) => setLeads(r.leads)).catch((e) => setError(e.message));
   }, []);
-
-  // Default view for a signed-in rep (e.g. Brigham): their own Active leads.
-  // Deep links (?bucket=…&stale=1) and manual filter changes always win.
-  useEffect(() => {
-    if (!leads) return;
-    const q = new URLSearchParams(window.location.search);
-    if (q.get("bucket") || q.get("stale") || q.get("rep")) return;
-    const me = getWho();
-    if (me !== "app" && leads.some((l) => l.effectiveRep === me || l.effectiveSubRep === me)) {
-      setRep(me);
-      setBucket("active");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leads === null]);
 
   const reps = useMemo(() => {
     if (!leads) return [];
@@ -56,20 +43,45 @@ export default function LeadsPage() {
       .sort();
   }, [leads]);
 
+  const leadTypes = useMemo(() => {
+    if (!leads) return [];
+    // The sheet's "Type of lead" column has free-text strays (long sentences,
+    // "?") — the dropdown only lists clean types: the canonical list plus any
+    // short value used by 2+ leads.
+    const counts = new Map<string, number>();
+    for (const l of leads) {
+      const t = l.leadType.trim();
+      if (t) counts.set(t, (counts.get(t) || 0) + 1);
+    }
+    // Dedupe case-insensitively ("Trade-in Sales Lead" vs "Trade-in sales
+    // lead") — the filter itself also matches case-insensitively.
+    const clean = new Map<string, string>();
+    for (const t of LEAD_TYPES) if (counts.has(t)) clean.set(t.toLowerCase(), t);
+    for (const [t, n] of counts) {
+      if (n >= 2 && t.length <= 28 && t !== "?" && !clean.has(t.toLowerCase())) clean.set(t.toLowerCase(), t);
+    }
+    return Array.from(clean.values()).sort();
+  }, [leads]);
+
   const filtered = useMemo(() => {
     if (!leads) return [];
     const needle = q.trim().toLowerCase();
+    // Phone searches: "(801) 555-1234", "801-555-1234", and "8015551234" all
+    // match the same lead — compare digits to digits.
+    const needleDigits = needle.replace(/\D/g, "");
     const visible = leads.filter((l) => {
       if (bucket === "open") {
         if (l.statusBucket !== "new" && l.statusBucket !== "active") return false;
       } else if (bucket !== "all" && l.statusBucket !== bucket) return false;
       if (rep !== "all" && l.effectiveRep !== rep && l.effectiveSubRep !== rep) return false;
+      if (typeFilter !== "all" && l.leadType.trim().toLowerCase() !== typeFilter.toLowerCase()) return false;
       if (staleOnly && !l.isStale) return false;
       if (!needle) return true;
-      return [l.name, l.headline, l.leadType, l.pianoType, l.phone, l.email, l.notes]
+      const hay = [l.name, l.headline, l.leadType, l.pianoType, l.phone, l.email, l.notes]
         .join(" ")
-        .toLowerCase()
-        .includes(needle);
+        .toLowerCase();
+      if (hay.includes(needle)) return true;
+      return needleDigits.length >= 4 && l.phone.replace(/\D/g, "").includes(needleDigits);
     });
     if (sortMode === "priority") return prioritySort(visible);
     if (sortMode === "contact-newest" || sortMode === "contact-oldest") {
@@ -84,7 +96,7 @@ export default function LeadsPage() {
       });
     }
     return visible;
-  }, [leads, q, bucket, rep, staleOnly, sortMode]);
+  }, [leads, q, bucket, rep, typeFilter, staleOnly, sortMode]);
 
   if (error) return <div className="banner bad">⚠ {error}</div>;
   if (!leads) return <div className="spin">Loading leads…</div>;
@@ -112,6 +124,10 @@ export default function LeadsPage() {
         <select value={rep} onChange={(e) => setRep(e.target.value)}>
           <option value="all">All reps</option>
           {reps.map((r) => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} aria-label="Type of lead">
+          <option value="all">All types of leads</option>
+          {leadTypes.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
         <select value={sortMode} onChange={(e) => setSortMode(e.target.value as typeof sortMode)} aria-label="Sort order">
           <option value="priority">Priority order</option>
