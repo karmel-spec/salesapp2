@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
           at: new Date().toISOString(),
           who: lead.name,
           kind: "inbound",
+          source: "text",
           folder: autoFolder(lead.leadType, lead.headline, body),
           text: `📥 Customer texted: "${body}"`,
         },

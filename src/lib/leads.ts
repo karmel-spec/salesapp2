@@ -73,6 +73,9 @@ export interface TimelineEvent {
   openedAt?: string;
   /** Inbox folder this inbound response is filed under ("" = general inbox). */
   folder?: string;
+  /** Channel the message arrived on: text | phone | email | webchat |
+   *  facebook | instagram | salescaptain. Old events sniff it from the text. */
+  source?: string;
   /** Inbox: set when the team closes this response out ("Done") — it leaves
    *  the inbox but stays on the lead's timeline/conversation. */
   archivedAt?: string;

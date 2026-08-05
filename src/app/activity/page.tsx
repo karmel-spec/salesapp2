@@ -7,6 +7,7 @@ import { api, fetchLeads, getWho, leadValue } from "@/lib/client";
 import { Linkify } from "@/components/ui";
 import { Thread } from "@/components/Thread";
 import { ThreadComposer } from "@/components/ThreadComposer";
+import { messageSource, SOURCE_META } from "@/lib/source";
 
 type Row = {
   at: string;
@@ -18,6 +19,7 @@ type Row = {
   headline: string;
   read: boolean; // inbound only: acknowledged as read?
   readBy?: string;
+  source?: string; // channel the message arrived on (text/webchat/instagram/…)
   openedAt?: string; // email_out only: customer opened the email
   folder?: string; // inbound only: inbox folder ("" = general inbox)
   archived: boolean; // inbound only: closed out ("Done")
@@ -712,9 +714,16 @@ export default function ActivityPage() {
                             else unackOne(latest);
                           }}
                         />
-                        <span className="ib-icon" title={isEmailReply(latest) ? "Email reply" : "Text reply"}>
-                          {isEmailReply(latest) ? "✉️" : "💬"}
-                        </span>
+                        {(() => {
+                          const meta =
+                            SOURCE_META[messageSource(latest)] ||
+                            (isEmailReply(latest) ? SOURCE_META.email : SOURCE_META.text);
+                          return (
+                            <span className="ib-icon" title={meta.label}>
+                              {meta.icon}
+                            </span>
+                          );
+                        })()}
                         <span className="ib-name">
                           {latest.leadName}
                           {unread > 0 && <span className="msg-count" title={`${unread} waiting message${unread === 1 ? "" : "s"}`}>{unread}</span>}

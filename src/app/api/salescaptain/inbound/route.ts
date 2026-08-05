@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
       senderPhone?: string;
       messageText?: string;
       at?: string;
+      channel?: string; // "text" | "webchat" | "facebook" | "instagram" when the alert says
     };
     const name = (input.senderName || "").trim();
     const phone = (input.senderPhone || "").replace(/\D/g, "").slice(-10);
@@ -80,6 +81,7 @@ export async function POST(req: NextRequest) {
         at: input.at || new Date().toISOString(),
         who: lead.name,
         kind: "inbound",
+        source: input.channel || "salescaptain",
         folder: autoFolder(lead.leadType, lead.headline, `${detail}`),
         text: looksService ? `${detail} [service — tuning/move, not a sales reply]` : detail,
       },

@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
         at: input.receivedAt || new Date().toISOString(),
         who: lead.name,
         kind: "inbound",
+        source: "email",
         folder: autoFolder(lead.leadType, lead.headline, `${input.subject || ""} ${body}`),
         text: `📥 Customer emailed${input.subject ? ` ("${input.subject}")` : ""}: "${excerpt}${body.length > 600 ? "…" : ""}"`,
       },
