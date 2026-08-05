@@ -592,7 +592,8 @@ export async function createLead(input: {
   };
   const id = `blp-${crypto.randomBytes(5).toString("hex")}`;
   const today = new Date().toLocaleDateString("en-US");
-  const opener = input.openedBy?.trim() || config.defaultRep;
+  const melissaType = /^(event rental|piano moving)$/i.test((input.leadType || "").trim());
+  const opener = input.openedBy?.trim() || (melissaType ? "Melissa" : config.defaultRep);
   set("blpId", id);
   set("dateAdded", today);
   set("rep", opener);

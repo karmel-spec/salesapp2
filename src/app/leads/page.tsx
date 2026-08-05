@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Lead } from "@/lib/leads";
-import { api, fetchLeads, getWho, LEAD_SOURCES, INQUIRY_METHODS, PIANO_TYPES, LEAD_TYPES, ENTERED_BY, REPS, prioritySort } from "@/lib/client";
+import { api, fetchLeads, getWho, LEAD_SOURCES, INQUIRY_METHODS, PIANO_TYPES, LEAD_TYPES, MELISSA_TYPES, ENTERED_BY, REPS, prioritySort } from "@/lib/client";
 import { RepBadge, StaleBadge, StatusBadge, fmtDays, pendingDrafts } from "@/components/ui";
 import { looseIncludes } from "@/lib/search";
 
@@ -193,12 +193,21 @@ function NewLeadForm({ onDone }: { onDone: () => void }) {
     openedBy: "Brigham", score: "",
   });
   const [other, setOther] = useState({ source: "", inquiryMethod: "", leadType: "", pianoType: "", capturedBy: "" });
+  const openedByTouched = useRef(false);
 
   // Default "Entered by" to whoever is signed in on this device.
   useEffect(() => {
     const me = getWho();
     if (me !== "app" && ENTERED_BY.includes(me)) setF((cur) => ({ ...cur, capturedBy: me }));
   }, []);
+
+  // Event Rental / Piano Moving leads route to Melissa unless a rep was picked.
+  useEffect(() => {
+    if (MELISSA_TYPES.includes(f.leadType) && !openedByTouched.current) {
+      setF((cur) => ({ ...cur, openedBy: "Melissa" }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [f.leadType]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -292,7 +301,14 @@ function NewLeadForm({ onDone }: { onDone: () => void }) {
         </div>
         <div>
           <label className="field">Lead opened by</label>
-          <select style={{ width: "100%" }} value={f.openedBy} onChange={(e) => setF({ ...f, openedBy: e.target.value })}>
+          <select
+            style={{ width: "100%" }}
+            value={f.openedBy}
+            onChange={(e) => {
+              openedByTouched.current = true;
+              setF({ ...f, openedBy: e.target.value });
+            }}
+          >
             {REPS.map((r) => <option key={r} value={r}>{r}{r === "Brigham" ? " (default)" : ""}</option>)}
           </select>
         </div>

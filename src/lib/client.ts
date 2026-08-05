@@ -26,7 +26,10 @@ export const REPS = ["Brigham", "Karmel", "Arnold", "Melissa", "Alisa", "Susie",
 export const LEAD_SOURCES = ["Repeat customer", "Google", "YouTube", "TikTok", "Facebook", "Instagram", "Sign", "Referral", "Recital", "KSL", "Not sure"];
 export const INQUIRY_METHODS = ["Text", "Phone Call", "Voicemail", "Email", "Web Form", "Walk-in", "Social Media", "SC - Text"];
 export const PIANO_TYPES = ["Upright", "Tall Upright", "Grand", "Baby Grand", "Spinet", "Console", "Player Piano", "Digital", "Heirloom / family piano"];
-export const LEAD_TYPES = ["Sales", "Restoration", "Player Restoration", "Refinishing", "Refurbishing", "QRS", "Trade-in Sales Lead"];
+export const LEAD_TYPES = ["Sales", "Restoration", "Player Restoration", "Refinishing", "Refurbishing", "QRS", "Trade-in Sales Lead", "Event Rental", "Piano Moving"];
+
+/** Lead types that route to Melissa by default (unless a rep is chosen). */
+export const MELISSA_TYPES = ["Event Rental", "Piano Moving"];
 export const ENTERED_BY = ["Brigham", "Karmel", "Melissa", "Susie", "Alisa"];
 
 /** The signed-in rep's name (chosen in the sidebar, kept per device). */

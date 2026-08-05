@@ -73,6 +73,25 @@ function initialFilter(): string {
 /** Won/closed/lost/inactive/unqualified leads drop out of the inbox. */
 const CLOSED_BUCKETS = new Set(["won", "closed", "lost", "inactive", "unqualified"]);
 
+/** "8/19", "8/19/26", "8/19/2026", or "2026-08-19" → "8/19/2026" (or null). */
+function parseSnoozeDate(input: string): string | null {
+  const s = input.trim();
+  let y = 0, m = 0, d = 0;
+  let match = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (match) [y, m, d] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  else if ((match = s.match(/^(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?$/))) {
+    m = Number(match[1]);
+    d = Number(match[2]);
+    y = match[3] ? Number(match[3]) : new Date().getFullYear();
+    if (y < 100) y += 2000;
+    // "8/19" with no year, already past → they mean next year.
+    if (!match[3] && new Date(y, m - 1, d, 23, 59) < new Date()) y += 1;
+  } else return null;
+  const dt = new Date(y, m - 1, d);
+  if (isNaN(dt.getTime()) || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+  return `${m}/${d}/${y}`;
+}
+
 /** Inbound replies arrive as "Customer texted…" or "Customer emailed…". */
 function isEmailReply(r: Row): boolean {
   return /email/i.test(r.text.slice(0, 30));
@@ -397,12 +416,31 @@ export default function ActivityPage() {
    *  client's replies from this inbox entirely. */
   async function setLeadStatus(r: Row, choice: string) {
     let status = choice;
+    let snoozeNote = "";
     if (choice === "LOST") {
       const reason = window.prompt("Why was this lead lost? (recorded in the sheet)");
       if (reason === null) return;
       status = `LOST - ${reason.trim() || "no reason given"}`;
     }
-    const bucketGuess = choice === "WON" ? "won" : choice.toLowerCase().startsWith("lost") ? "lost" : choice.toLowerCase();
+    if (choice === "SNOOZE") {
+      const when = window.prompt("Snooze until when? (e.g. 8/19 or 8/19/2026)");
+      if (when === null) return;
+      const pretty = parseSnoozeDate(when);
+      if (!pretty) {
+        window.alert("Couldn't understand that date — try something like 8/19/2026.");
+        return;
+      }
+      snoozeNote = (window.prompt("Any notes to add to the snooze? (optional)") || "").trim();
+      status = `Snoozed until ${pretty}`;
+    }
+    const bucketGuess =
+      choice === "WON"
+        ? "won"
+        : choice === "SNOOZE"
+          ? "snoozed"
+          : choice.toLowerCase().startsWith("lost")
+            ? "lost"
+            : choice.toLowerCase();
     setLeads((cur) =>
       cur
         ? cur.map((l) =>
@@ -415,6 +453,16 @@ export default function ActivityPage() {
         method: "PATCH",
         body: JSON.stringify({ fields: { status }, who: getWho() }),
       });
+      if (choice === "SNOOZE") {
+        await api(`/api/leads/${encodeURIComponent(r.leadId)}/timeline`, {
+          method: "POST",
+          body: JSON.stringify({
+            kind: "note",
+            text: `💤 ${status} (from the inbox)${snoozeNote ? ` — ${snoozeNote}` : ""} — will wake to Active automatically.`,
+            who: getWho(),
+          }),
+        });
+      }
     } catch {
       reload();
     }
@@ -769,6 +817,7 @@ export default function ActivityPage() {
                         >
                           <option value="">{latest.leadBucket || "status"}</option>
                           <option value="Active">Active</option>
+                          <option value="SNOOZE">Snooze 💤…</option>
                           <option value="WON">Won ✓</option>
                           <option value="Closed">Closed</option>
                           <option value="Inactive">Inactive</option>
