@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Lead } from "@/lib/leads";
 import { api, fetchLeads, getWho, LEAD_SOURCES, INQUIRY_METHODS, PIANO_TYPES, LEAD_TYPES, ENTERED_BY, REPS, prioritySort } from "@/lib/client";
 import { RepBadge, StaleBadge, StatusBadge, fmtDays, pendingDrafts } from "@/components/ui";
+import { looseIncludes } from "@/lib/search";
 
 const BUCKETS = ["all", "open", "new", "active", "snoozed", "won", "lost", "closed", "unqualified", "inactive", "support"] as const;
 
@@ -65,10 +66,7 @@ export default function LeadsPage() {
 
   const filtered = useMemo(() => {
     if (!leads) return [];
-    const needle = q.trim().toLowerCase();
-    // Phone searches: "(801) 555-1234", "801-555-1234", and "8015551234" all
-    // match the same lead — compare digits to digits.
-    const needleDigits = needle.replace(/\D/g, "");
+    const needle = q.trim();
     const visible = leads.filter((l) => {
       if (bucket === "open") {
         if (l.statusBucket !== "new" && l.statusBucket !== "active") return false;
@@ -77,11 +75,12 @@ export default function LeadsPage() {
       if (typeFilter !== "all" && l.leadType.trim().toLowerCase() !== typeFilter.toLowerCase()) return false;
       if (staleOnly && !l.isStale) return false;
       if (!needle) return true;
-      const hay = [l.name, l.headline, l.leadType, l.pianoType, l.phone, l.email, l.notes]
-        .join(" ")
-        .toLowerCase();
-      if (hay.includes(needle)) return true;
-      return needleDigits.length >= 4 && l.phone.replace(/\D/g, "").includes(needleDigits);
+      // Forgiving match: any word order, punctuation/case ignored, phones
+      // compared digits-to-digits (see lib/search.ts).
+      return looseIncludes(
+        [l.name, l.headline, l.leadType, l.pianoType, l.phone, l.email, l.address, l.notes].join(" "),
+        needle
+      );
     });
     if (sortMode === "priority") return prioritySort(visible);
     if (sortMode === "contact-newest" || sortMode === "contact-oldest") {

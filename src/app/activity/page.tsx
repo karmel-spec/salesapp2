@@ -9,6 +9,7 @@ import { Thread } from "@/components/Thread";
 import { ThreadComposer } from "@/components/ThreadComposer";
 import { messageSource, SOURCE_META } from "@/lib/source";
 import { SourceIcon } from "@/components/SourceIcon";
+import { looseIncludes } from "@/lib/search";
 
 type Row = {
   at: string;
@@ -255,10 +256,10 @@ export default function ActivityPage() {
       );
       out.length = 0;
       out.push(...kept);
-      const needle = search.trim().toLowerCase();
+      const needle = search.trim();
       if (needle) {
         const hits = out.filter((r) =>
-          `${r.leadName} ${r.headline} ${r.text}`.toLowerCase().includes(needle)
+          looseIncludes(`${r.leadName} ${r.headline} ${r.text}`, needle)
         );
         out.length = 0;
         out.push(...hits);
