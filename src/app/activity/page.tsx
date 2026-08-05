@@ -8,6 +8,7 @@ import { Linkify } from "@/components/ui";
 import { Thread } from "@/components/Thread";
 import { ThreadComposer } from "@/components/ThreadComposer";
 import { messageSource, SOURCE_META } from "@/lib/source";
+import { SourceIcon } from "@/components/SourceIcon";
 
 type Row = {
   at: string;
@@ -715,12 +716,11 @@ export default function ActivityPage() {
                           }}
                         />
                         {(() => {
-                          const meta =
-                            SOURCE_META[messageSource(latest)] ||
-                            (isEmailReply(latest) ? SOURCE_META.email : SOURCE_META.text);
+                          const src =
+                            messageSource(latest) || (isEmailReply(latest) ? "email" : "text");
                           return (
-                            <span className="ib-icon" title={meta.label}>
-                              {meta.icon}
+                            <span className="ib-icon" title={SOURCE_META[src]?.label || "Message"}>
+                              <SourceIcon source={src} />
                             </span>
                           );
                         })()}

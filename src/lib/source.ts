@@ -4,12 +4,13 @@
  * fall back to sniffing the message text so history still gets an icon.
  */
 export const SOURCE_META: Record<string, { icon: string; label: string }> = {
-  text: { icon: "📱", label: "Text message" },
+  text: { icon: "💬", label: "Text message" },
   phone: { icon: "📞", label: "Phone call" },
   email: { icon: "✉️", label: "Email" },
-  webchat: { icon: "💬", label: "Website chat" },
+  webchat: { icon: "🌐", label: "Website chat" },
   facebook: { icon: "📘", label: "Facebook Messenger" },
   instagram: { icon: "📸", label: "Instagram DM" },
+  tiktok: { icon: "🎵", label: "TikTok DM" },
   salescaptain: { icon: "🗨️", label: "SalesCaptain (text/webchat)" },
 };
 
@@ -17,6 +18,7 @@ export function messageSource(ev: { source?: string; kind?: string; text?: strin
   if (ev.source && SOURCE_META[ev.source]) return ev.source;
   const t = ev.text || "";
   if (/instagram|\binsta\b|\big dm\b/i.test(t)) return "instagram";
+  if (/tik ?tok/i.test(t)) return "tiktok";
   if (/facebook|messenger/i.test(t)) return "facebook";
   if (/web ?chat/i.test(t)) return "webchat";
   if (/salescaptain/i.test(t)) return "salescaptain";
