@@ -269,6 +269,7 @@ function normalizeTimeline(raw: unknown[]): TimelineEvent[] {
           ...(typeof e.trackId === "string" ? { trackId: e.trackId } : {}),
           ...(typeof e.openedAt === "string" ? { openedAt: e.openedAt } : {}),
           ...(typeof e.folder === "string" ? { folder: e.folder } : {}),
+          ...(typeof e.source === "string" ? { source: e.source } : {}),
           ...(typeof e.archivedAt === "string" ? { archivedAt: e.archivedAt } : {}),
           ...(typeof e.archivedBy === "string" ? { archivedBy: e.archivedBy } : {}),
         };
@@ -571,6 +572,7 @@ export async function createLead(input: {
   score?: string;
   capturedBy?: string;
   openedBy?: string;
+  status?: string; // e.g. "Support" for auto-created service contacts
 }): Promise<string> {
   const { leads, shape } = await getLeads(true);
 
@@ -595,7 +597,7 @@ export async function createLead(input: {
   set("dateAdded", today);
   set("rep", opener);
   set("openedBy", opener);
-  set("status", "Active");
+  set("status", input.status || "Active");
   set("firstName", input.firstName);
   set("lastName", input.lastName || "");
   set("headline", input.headline || "");

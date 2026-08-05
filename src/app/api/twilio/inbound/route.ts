@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { getLeads, appendTimeline } from "@/lib/leads";
+import { getLeads, getLead, createLead, appendTimeline } from "@/lib/leads";
 import { notifyTelegram, notifyArnoldWebhook } from "@/lib/arnold";
 import { autoFolder } from "@/lib/folders";
 import { config } from "@/lib/config";
@@ -80,9 +80,40 @@ export async function POST(req: NextRequest) {
         note: `Customer replied by SMS: "${body.slice(0, 400)}". Replace any pending drafts for this lead with new ones that respond to this message.`,
       }).catch(() => {});
     } else {
-      notifyTelegram(
-        `📥 <b>Text from a number not in the Leads Log</b> (${from}):\n"${body.slice(0, 400)}"`
-      ).catch(() => {});
+      // Unknown texter — auto-create a Support contact so the message lands
+      // in the General Inbox instead of only pinging Telegram.
+      try {
+        const digits = from.replace(/\D/g, "").slice(-10);
+        const prettyPhone =
+          digits.length === 10 ? `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}` : from;
+        const id = await createLead({
+          firstName: prettyPhone,
+          phone: from,
+          headline: body.slice(0, 90),
+          source: "Texted the BLP Twilio line",
+          inquiryMethod: "Text",
+          status: "Support",
+          capturedBy: "app",
+        });
+        const created = await getLead(id);
+        if (created) {
+          await appendTimeline(created.lead, created.shape, {
+            at: new Date().toISOString(),
+            who: prettyPhone,
+            kind: "inbound",
+            source: "text",
+            folder: autoFolder("", "", body),
+            text: `📥 Customer texted: "${body}"`,
+          });
+        }
+        notifyTelegram(
+          `💬 <b>New contact texted the BLP line</b> — ${prettyPhone} filed to the General Inbox.\n"${body.slice(0, 300)}"`
+        ).catch(() => {});
+      } catch {
+        notifyTelegram(
+          `📥 <b>Text from a number not in the Leads Log</b> (${from}):\n"${body.slice(0, 400)}"`
+        ).catch(() => {});
+      }
     }
   } catch {
     // Never bounce Twilio — the message would retry as an error loop.

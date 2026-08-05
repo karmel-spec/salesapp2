@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getLeads, appendTimeline, type Lead } from "@/lib/leads";
+import { getLeads, getLead, createLead, appendTimeline, type Lead } from "@/lib/leads";
 import { notifyTelegram, notifyArnoldWebhook } from "@/lib/arnold";
 import { isValidArnoldKey } from "@/lib/auth";
 import { jsonError } from "@/lib/api";
@@ -62,13 +62,47 @@ export async function POST(req: NextRequest) {
       : `📥 SalesCaptain message from ${name || phone} — they're waiting for a reply (full text in SalesCaptain).`;
 
     if (!lead) {
-      // Not in the sales pipeline — likely a tuning/service contact. Quiet FYI
-      // for whoever runs customer service; nothing enters the sales app.
-      notifyTelegram(
-        `💬 <b>SalesCaptain message</b> (not a sales lead) — ${name || phone}` +
-          `${body ? `:\n"${body.slice(0, 300)}"` : " — reply waiting in SalesCaptain."}`
-      ).catch(() => {});
-      return NextResponse.json({ matched: false, service: true });
+      // Not in the Leads Log yet — auto-create a Support contact so the
+      // message still lands in the General Inbox (the main-line "forward":
+      // nothing is lost during the SalesCaptain transition).
+      try {
+        const parts = name.split(/\s+/).filter(Boolean);
+        const prettyPhone =
+          phone.length === 10 ? `(${phone.slice(0, 3)}) ${phone.slice(3, 6)}-${phone.slice(6)}` : phone;
+        const id = await createLead({
+          firstName: parts[0] || prettyPhone || "Unknown caller",
+          lastName: parts.slice(1).join(" "),
+          phone: input.senderPhone || "",
+          headline: body.slice(0, 90) || "Messaged the main BLP line",
+          source: "Main line (SalesCaptain)",
+          inquiryMethod: "Text",
+          status: "Support",
+          capturedBy: "app",
+        });
+        const created = await getLead(id);
+        if (created) {
+          await appendTimeline(created.lead, created.shape, {
+            at: input.at || new Date().toISOString(),
+            who: name || prettyPhone || "customer",
+            kind: "inbound",
+            source: input.channel || "salescaptain",
+            folder: autoFolder("", "", body),
+            text: detail,
+          });
+        }
+        notifyTelegram(
+          `💬 <b>New contact on the main line</b> — ${name || prettyPhone} filed to the General Inbox.` +
+            `${body ? `\n"${body.slice(0, 300)}"` : ""}`
+        ).catch(() => {});
+        return NextResponse.json({ matched: false, created: true, leadId: id });
+      } catch {
+        // Duplicate guard or a sheet hiccup — fall back to the old quiet FYI.
+        notifyTelegram(
+          `💬 <b>SalesCaptain message</b> (couldn't auto-file) — ${name || phone}` +
+            `${body ? `:\n"${body.slice(0, 300)}"` : " — reply waiting in SalesCaptain."}`
+        ).catch(() => {});
+        return NextResponse.json({ matched: false, service: true });
+      }
     }
 
     // A matched lead writing about tuning/moves is a service touch, not a
