@@ -829,6 +829,21 @@ tbody tr:hover { background: #faf7f2; }
 .inbox-row.unread .ib-name, .inbox-row.unread .ib-snippet { font-weight: 700; }
 .inbox-row.thread-open { background: var(--crimson-soft); }
 .inbox-row .read-check { margin: 0; }
+/* Attached-file link chip (thread bubbles + Files card) */
+.bubble-file {
+  display: inline-block;
+  margin-top: 6px;
+  margin-right: 6px;
+  padding: 6px 11px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font-size: 13px;
+  text-decoration: none;
+  color: var(--ink);
+}
+.bubble-file:hover { border-color: var(--crimson); }
+
 /* Address autocomplete dropdown */
 .addr-menu {
   position: absolute;

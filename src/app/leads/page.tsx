@@ -6,6 +6,7 @@ import type { Lead } from "@/lib/leads";
 import { api, fetchLeads, getWho, LEAD_SOURCES, INQUIRY_METHODS, PIANO_TYPES, LEAD_TYPES, MELISSA_TYPES, ENTERED_BY, REPS, prioritySort } from "@/lib/client";
 import { RepBadge, StaleBadge, StatusBadge, fmtDays, pendingDrafts } from "@/components/ui";
 import { AddressInput } from "@/components/AddressInput";
+import { AttachButton, type PickedFile } from "@/components/AttachButton";
 import { looseIncludes } from "@/lib/search";
 
 const BUCKETS = ["all", "open", "new", "active", "snoozed", "won", "lost", "closed", "unqualified", "inactive", "support"] as const;
@@ -194,6 +195,7 @@ function NewLeadForm({ onDone }: { onDone: () => void }) {
     openedBy: "Brigham", score: "",
   });
   const [other, setOther] = useState({ source: "", inquiryMethod: "", leadType: "", pianoType: "", capturedBy: "" });
+  const [files, setFiles] = useState<PickedFile[]>([]);
   const openedByTouched = useRef(false);
 
   // Default "Entered by" to whoever is signed in on this device.
@@ -225,7 +227,14 @@ function NewLeadForm({ onDone }: { onDone: () => void }) {
         pianoType: resolve("pianoType"),
         capturedBy: resolve("capturedBy") || getWho(),
       };
-      await api("/api/leads", { method: "POST", body: JSON.stringify(payload) });
+      const created = await api<{ id: string }>("/api/leads", { method: "POST", body: JSON.stringify(payload) });
+      // Upload any attachments onto the freshly created lead.
+      for (const file of files) {
+        await api(`/api/leads/${encodeURIComponent(created.id)}/files`, {
+          method: "POST",
+          body: JSON.stringify({ name: file.name, type: file.type, dataBase64: file.dataBase64, who: getWho() }),
+        }).catch(() => {}); // a failed upload shouldn't lose the lead
+      }
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -319,6 +328,21 @@ function NewLeadForm({ onDone }: { onDone: () => void }) {
       <div style={{ marginTop: 10 }}>
         <label className="field">Notes</label>
         <textarea rows={3} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} />
+      </div>
+      <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <AttachButton multiple onPick={(file) => setFiles((cur) => [...cur, file])} onError={setError} label="📎 Attach photos / files" />
+        {files.map((file, i) => (
+          <span key={`${file.name}-${i}`} style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+            {file.preview ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={file.preview} alt={file.name} style={{ height: 40, borderRadius: 6, border: "1px solid var(--line)" }} />
+            ) : (
+              <span>📎</span>
+            )}
+            <span className="muted" style={{ fontSize: 12 }}>{file.name}</span>
+            <button type="button" className="linklike" onClick={() => setFiles((cur) => cur.filter((_, j) => j !== i))}>✕</button>
+          </span>
+        ))}
       </div>
       <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
         <button className="btn" disabled={saving || !f.firstName.trim()}>{saving ? "Saving…" : "Add to Leads Log"}</button>

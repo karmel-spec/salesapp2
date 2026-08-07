@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, use } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Lead, DraftMessage } from "@/lib/leads";
@@ -11,6 +11,7 @@ import { AddressInput } from "@/components/AddressInput";
 import { SummaryBar } from "@/components/SummaryBar";
 import type { LeadGeo } from "@/lib/geo-shared";
 import { ThreadComposer } from "@/components/ThreadComposer";
+import { AttachButton, allowedAttachment, type PickedFile } from "@/components/AttachButton";
 
 type Adjacent = { id: string; name: string } | null;
 
@@ -242,6 +243,8 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
               <dt>Notes</dt><dd><InlineText lead={lead} field="notes" value={lead.notes} textarea onFlash={setFlash} onDone={loadSoon} /></dd>
             </dl>
           </div>
+
+          <LeadFilesCard lead={lead} onFlash={setFlash} onDone={loadSoon} />
 
           <InstructArnoldCard lead={lead} onFlash={setFlash} onDone={loadSoon} />
 
@@ -717,12 +720,12 @@ function ComposePanel({
   function pickPhoto(file: File | undefined) {
     setErr("");
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setErr("Only photos (images) can be attached.");
+    if (!allowedAttachment(file.type)) {
+      setErr("That file type isn't supported — photos, PDFs, docs, audio, or video.");
       return;
     }
     if (file.size > 3_500_000) {
-      setErr("That photo is over 3.5 MB — please pick a smaller one (or screenshot it).");
+      setErr("That file is over 3.5 MB — please pick a smaller one (or screenshot it).");
       return;
     }
     const reader = new FileReader();
@@ -788,9 +791,16 @@ function ComposePanel({
       />
       {photo && (
         <div style={{ marginTop: 8, display: "flex", gap: 10, alignItems: "center" }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={photo.preview} alt={photo.name} style={{ height: 64, borderRadius: 8, border: "1px solid var(--line)" }} />
-          <span className="muted" style={{ fontSize: 12 }}>📷 {photo.name}</span>
+          {photo.type.startsWith("image/") ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={photo.preview} alt={photo.name} style={{ height: 64, borderRadius: 8, border: "1px solid var(--line)" }} />
+          ) : (
+            <span style={{ fontSize: 24 }}>📎</span>
+          )}
+          <span className="muted" style={{ fontSize: 12 }}>
+            {photo.type.startsWith("image/") ? "📷" : "📎"} {photo.name}
+            {!isEmail && !photo.type.startsWith("image/") ? " — sends as a link in the text" : ""}
+          </span>
           <button className="btn ghost small" onClick={() => setPhoto(null)}>✕ remove</button>
         </div>
       )}
@@ -826,10 +836,10 @@ function ComposePanel({
           </span>
         )}
         <label className="btn ghost small" style={{ cursor: "pointer" }}>
-          📷 {photo ? "Change photo" : "Attach photo"}
+          📎 {photo ? "Change attachment" : "Attach photo / file"}
           <input
             type="file"
-            accept="image/*"
+            accept="image/*,.pdf,.txt,.csv,.doc,.docx,.xls,.xlsx,audio/*,video/mp4"
             style={{ display: "none" }}
             onChange={(e) => {
               pickPhoto(e.target.files?.[0]);
@@ -841,6 +851,71 @@ function ComposePanel({
           sends immediately as {getWho() || "you"} — {isEmail ? "from info@brighamlarsonpianos.com" : "from the store number"} — and lands in the lead's activity
         </span>
       </div>
+    </div>
+  );
+}
+
+/** Every photo/file ever attached to this lead (mined from the timeline's
+ *  📷/📎 markers, so MMS photos and message attachments show up too). */
+function LeadFilesCard({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: string) => void; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const items = useMemo(() => {
+    const out: { url: string; name: string; image: boolean; at: string }[] = [];
+    for (const e of lead.timeline) {
+      for (const m of e.text.matchAll(/📷 Photo: (https?:\/\/\S+)/g)) {
+        out.push({ url: m[1], name: "photo", image: true, at: e.at });
+      }
+      for (const m of e.text.matchAll(/📎 File: (https?:\/\/\S+)(?: \(([^)]+)\))?/g)) {
+        out.push({ url: m[1], name: m[2] || "attachment", image: false, at: e.at });
+      }
+    }
+    return out.reverse(); // newest first
+  }, [lead]);
+
+  async function upload(f: PickedFile) {
+    setBusy(true);
+    setErr("");
+    try {
+      await api(`/api/leads/${encodeURIComponent(lead.id)}/files`, {
+        method: "POST",
+        body: JSON.stringify({ name: f.name, type: f.type, dataBase64: f.dataBase64, who: getWho() }),
+      });
+      onFlash(`✓ Attached "${f.name}" to ${lead.name}`);
+      onDone();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 18 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+        <h2 style={{ marginBottom: items.length ? 10 : 0 }}>📎 Files &amp; photos</h2>
+        <span style={{ flex: 1 }} />
+        <AttachButton disabled={busy} multiple onPick={upload} onError={setErr} label={busy ? "Uploading…" : "＋ Add photo / file"} />
+      </div>
+      {err && <div className="banner bad" style={{ margin: "8px 0" }}>⚠ {err}</div>}
+      {items.length === 0 ? (
+        <div className="muted" style={{ marginTop: 6 }}>Nothing attached yet — photos and files added here (or sent in messages) collect in this card.</div>
+      ) : (
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 4 }}>
+          {items.map((f, i) =>
+            f.image ? (
+              <a key={`${f.url}-${i}`} href={f.url} target="_blank" rel="noreferrer">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={f.url} alt={f.name} style={{ height: 84, borderRadius: 8, border: "1px solid var(--line)" }} />
+              </a>
+            ) : (
+              <a key={`${f.url}-${i}`} href={f.url} target="_blank" rel="noreferrer" className="bubble-file">
+                📎 {f.name}
+              </a>
+            )
+          )}
+        </div>
+      )}
     </div>
   );
 }

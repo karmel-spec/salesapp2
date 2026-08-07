@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Lead } from "@/lib/leads";
 import { api, getWho } from "@/lib/client";
+import { AttachButton, type PickedFile } from "@/components/AttachButton";
 
 /**
  * Inline composer under a conversation thread: text, email, or call the
@@ -41,6 +42,7 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [scheduling, setScheduling] = useState(false);
+  const [attach, setAttach] = useState<PickedFile | null>(null);
   const [senders, setSenders] = useState<{ key: string; label: string }[]>([]);
   const [sendAs, setSendAs] = useState<string | null>(null);
   const [sendAt, setSendAt] = useState("");
@@ -137,11 +139,19 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
       } else {
         const r = await api<{ detail: string }>(`/api/leads/${encodeURIComponent(lead.id)}/send`, {
           method: "POST",
-          body: JSON.stringify({ channel: mode, body, subject, who: getWho(), sendAs: mode === "email" ? effectiveSendAs : undefined }),
+          body: JSON.stringify({
+            channel: mode,
+            body,
+            subject,
+            who: getWho(),
+            sendAs: mode === "email" ? effectiveSendAs : undefined,
+            ...(attach ? { photo: { name: attach.name, type: attach.type, dataBase64: attach.dataBase64 } } : {}),
+          }),
         });
         setFlash(`✓ ${r.detail}`);
         setBody("");
         setSubject("");
+        setAttach(null);
         onSent();
       }
       setTimeout(() => setFlash(""), 6000);
@@ -314,8 +324,21 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
             >
               {busy ? "Saving…" : mode === "note" ? "Save note" : mode === "email" ? "Send email" : "Send text"}
             </button>
+            {mode !== "note" && (
+              <AttachButton
+                disabled={busy}
+                onPick={setAttach}
+                onError={(m) => setErr(m)}
+                label="📎"
+              />
+            )}
             {mode !== "note" && !scheduling && (
-              <button className="btn small ghost" disabled={busy} onClick={() => setScheduling(true)} title="Pick a date & time to send this later">
+              <button
+                className="btn small ghost"
+                disabled={busy || Boolean(attach)}
+                onClick={() => setScheduling(true)}
+                title={attach ? "Scheduled sends don't support attachments yet — send it now instead" : "Pick a date & time to send this later"}
+              >
                 🕐 Schedule
               </button>
             )}
@@ -359,6 +382,22 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
             </span>
           </div>
         </>
+      )}
+
+      {attach && mode !== "note" && mode !== "call" && (
+        <div style={{ marginTop: 8, display: "flex", gap: 10, alignItems: "center" }}>
+          {attach.preview ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={attach.preview} alt={attach.name} style={{ height: 56, borderRadius: 8, border: "1px solid var(--line)" }} />
+          ) : (
+            <span style={{ fontSize: 22 }}>📎</span>
+          )}
+          <span className="muted" style={{ fontSize: 12 }}>
+            {attach.name} · {(attach.size / 1024).toFixed(0)} KB
+            {mode === "sms" && !attach.type.startsWith("image/") ? " — sends as a link in the text" : ""}
+          </span>
+          <button className="linklike" onClick={() => setAttach(null)}>remove</button>
+        </div>
       )}
 
       {pendingScheduled.length > 0 && (

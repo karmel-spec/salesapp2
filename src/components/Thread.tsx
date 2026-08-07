@@ -11,7 +11,7 @@ import { Linkify } from "@/components/ui";
  * card and the Activity inbox popup.
  */
 
-const THREAD_KINDS = new Set(["inbound", "sms_out", "email_out", "call", "call_attempt", "meeting", "visit"]);
+const THREAD_KINDS = new Set(["inbound", "sms_out", "email_out", "call", "call_attempt", "meeting", "visit", "file"]);
 
 export function Thread({ lead, maxHeight }: { lead: Lead; maxHeight?: number }) {
   const threadRef = useRef<HTMLDivElement>(null);
@@ -63,10 +63,18 @@ export function Thread({ lead, maxHeight }: { lead: Lead; maxHeight?: number }) 
           );
         }
         const fromClient = e.kind === "inbound";
-        const channel = e.kind === "email_out" || /email/i.test(e.text.slice(0, 30)) ? "✉️" : "📱";
-        // "📷 Photo: <url>" lines (attachments) render as inline images.
+        const channel =
+          e.kind === "file" ? "📎" : e.kind === "email_out" || /email/i.test(e.text.slice(0, 30)) ? "✉️" : "📱";
+        // "📷 Photo: <url>" lines render inline; "📎 File: <url> (name)" as link chips.
         const photos = [...e.text.matchAll(/📷 Photo: (https?:\/\/\S+)/g)].map((m) => m[1]);
-        const textSansPhotos = e.text.replace(/\n?📷 Photo: https?:\/\/\S+/g, "").trimEnd();
+        const files = [...e.text.matchAll(/📎 File: (https?:\/\/\S+)(?: \(([^)]+)\))?/g)].map((m) => ({
+          url: m[1],
+          name: m[2] || "attachment",
+        }));
+        const textSansPhotos = e.text
+          .replace(/\n?📷 Photo: https?:\/\/\S+/g, "")
+          .replace(/\n?📎 File: https?:\/\/\S+(?: \([^)]+\))?/g, "")
+          .trimEnd();
         return (
           <div key={i} className={`bubble-row ${fromClient ? "client" : "blp"}`}>
             <div className="bubble">
@@ -83,6 +91,11 @@ export function Thread({ lead, maxHeight }: { lead: Lead; maxHeight?: number }) 
                 <a key={url} href={url} target="_blank" rel="noreferrer">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={url} alt="attached photo" className="bubble-photo" />
+                </a>
+              ))}
+              {files.map((f) => (
+                <a key={f.url} href={f.url} target="_blank" rel="noreferrer" className="bubble-file">
+                  📎 {f.name}
                 </a>
               ))}
             </div>
