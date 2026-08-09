@@ -116,9 +116,15 @@ export default async (req: Request) => {
   const params: Record<string, string> = {};
   for (const [k, v] of new URLSearchParams(raw)) params[k] = v;
 
+  // Called two ways: forwarded internally by /api/twilio/inbound (the number's
+  // real webhook - it owns lead replies), or directly by Twilio if the number
+  // is ever re-pointed here. Internal forwards carry a shared-secret header.
+  const internal = crypto.createHash("sha256")
+    .update(process.env.TWILIO_AUTH_TOKEN || "").digest("hex");
+  const isInternal = req.headers.get("x-internal-auth") === internal;
   const url = new URL(req.url);
   const publicUrl = `https://${url.host}${url.pathname}`;
-  if (!validSignature(publicUrl, params, req.headers.get("x-twilio-signature") || "")) {
+  if (!isInternal && !validSignature(publicUrl, params, req.headers.get("x-twilio-signature") || "")) {
     return new Response("bad signature", { status: 403 });
   }
 
@@ -128,8 +134,8 @@ export default async (req: Request) => {
 
   const who = await techForNumber(from);
   if (!who) {
-    return twiml("This number takes BLP shop updates by text, but your number isn't on the "
-      + "Tech Phones list yet - ask the office to add you, then try again.");
+    // not a tech: hand the message back to the lead-reply pipeline
+    return new Response("PASS", { headers: { "x-sms-pass": "1" } });
   }
 
   // conversational noise (replies to reminder texts) — stay silent

@@ -45,7 +45,25 @@ export async function POST(req: NextRequest) {
 
   const from = params.get("From") || "";
   const body = (params.get("Body") || "").trim();
-  if (!from || !body) return twiml();
+  const nMedia = parseInt(params.get("NumMedia") || "0", 10) || 0;
+  if (!from || (!body && !nMedia)) return twiml();
+
+  // Shop SMS gateway: technicians (matched on the Tech Phones tab) text
+  // Store Map changes to this same number. The gateway answers with TwiML
+  // for techs and returns PASS for everyone else, so customer replies fall
+  // through to the lead pipeline below untouched.
+  try {
+    const gw = await fetch(
+      (process.env.PUBLIC_BASE_URL || "https://blpsalesapp.netlify.app") + "/.netlify/functions/sms-inbound",
+      { method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded",
+          "x-internal-auth": crypto.createHash("sha256").update(config.twilioAuthToken || "").digest("hex") },
+        body: raw });
+    if (gw.ok && !gw.headers.get("x-sms-pass")) {
+      return new NextResponse(await gw.text(), { headers: { "Content-Type": "text/xml" } });
+    }
+  } catch { /* gateway down: fall through to the lead pipeline */ }
+  if (!body) return twiml();
 
   try {
     const { leads, shape } = await getLeads(true);
