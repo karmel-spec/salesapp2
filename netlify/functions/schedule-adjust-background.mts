@@ -6,12 +6,17 @@
  * rules to the "Scheduling Rules" tab so every future weekly draft
  * (the Saturday routine) obeys them. The training loop lives in the app.
  *
- *   POST {key, notes: {techName: "..."}, global: "...", by: "Brigham"}
- *   → {ok, changes: [...], rules_saved: [...], week}
+ *   POST {key, nonce, notes: {techName: "..."}, global: "...", by: "Brigham"}
+ *
+ * BACKGROUND function: a full plan revision takes 30-90s, past the sync
+ * function limit, so Netlify returns 202 immediately and the result is
+ * written to the "adjust-results" blob store under the caller's nonce —
+ * the Planner polls adjust-result?nonce=... to pick it up.
  *
  * Env: ANTHROPIC_API_KEY, STOREMAP_TEAM_PIN (+ Google service account, Twilio-independent)
  */
 import * as crypto from "node:crypto";
+import { getStore } from "@netlify/blobs";
 
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
 const RULES_TAB = "Scheduling Rules";
@@ -61,8 +66,14 @@ export default async (req: Request) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
   let body: any;
   try { body = await req.json(); } catch { return json({ error: "bad json" }, 400); }
-  if ((body.key || "") !== APP_KEY) return json({ error: "unauthorized" }, 403);
-  if (!process.env.ANTHROPIC_API_KEY) return json({ error: "AI key not configured yet (Netlify env ANTHROPIC_API_KEY)" }, 500);
+  // every exit writes the result blob so the polling UI always hears back
+  const nonce = String(body.nonce || "");
+  const finish = async (o: unknown, status = 200) => {
+    if (nonce) { try { await getStore("adjust-results").setJSON(nonce, o); } catch (e) { /* blob store down */ } }
+    return json(o, status);
+  };
+  if ((body.key || "") !== APP_KEY) return finish({ error: "unauthorized" }, 403);
+  if (!process.env.ANTHROPIC_API_KEY) return finish({ error: "AI key not configured yet (Netlify env ANTHROPIC_API_KEY)" }, 500);
 
   // current proposal
   let plan: any = null;
@@ -77,14 +88,14 @@ export default async (req: Request) => {
       if (r2.ok) plan = await r2.json();
     } catch { /* none */ }
   }
-  if (!plan) return json({ error: "no proposal found to adjust" }, 404);
+  if (!plan) return finish({ error: "no proposal found to adjust" }, 404);
 
   const rules = await readRules().catch(() => [] as string[]);
   const notesTxt = Object.entries(body.notes || {})
     .filter(([, v]) => String(v || "").trim())
     .map(([k, v]) => `${k}: ${String(v).trim()}`).join("\n");
   const globalTxt = String(body.global || "").trim();
-  if (!notesTxt && !globalTxt) return json({ error: "no notes to apply" }, 400);
+  if (!notesTxt && !globalTxt) return finish({ error: "no notes to apply" }, 400);
 
   const tools = [{
     name: "revised_schedule",
@@ -118,7 +129,7 @@ export default async (req: Request) => {
   });
   const aj = await ai.json();
   const tu = (aj.content || []).find((c: any) => c.type === "tool_use");
-  if (!tu) return json({ error: "AI revision failed: " + (aj.error?.message || "no output") }, 502);
+  if (!tu) return finish({ error: "AI revision failed: " + (aj.error?.message || "no output") }, 502);
   const out = tu.input;
 
   // persist: rules to the sheet, revised plan to the bridge
@@ -134,7 +145,7 @@ export default async (req: Request) => {
     saved = !!sj.ok; saveErr = sj.error || "";
   } catch (e: any) { saveErr = String(e.message || e); }
 
-  return json({ ok: true, saved, saveErr, week: out.plan.week,
+  return finish({ ok: true, saved, saveErr, week: out.plan.week,
     changes: out.changes || [], rules_saved: out.rules_extracted || [],
     questions: out.questions || [], plan: out.plan });
 };
@@ -143,4 +154,3 @@ const CORS = { "access-control-allow-origin": "*", "access-control-allow-headers
 function json(o: unknown, status = 200) {
   return new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json", ...CORS } });
 }
-export const config = { path: "/.netlify/functions/schedule-adjust" };

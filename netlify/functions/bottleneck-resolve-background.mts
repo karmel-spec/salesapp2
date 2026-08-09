@@ -8,12 +8,15 @@
  * Rules tab. Same training loop as the schedule notes — answers become
  * actions, actions get logged under Brigham's name.
  *
- *   POST {key, items: [{title, body, answer}], by}
+ *   POST {key, nonce, items: [{title, body, answer}], by}
+ *   BACKGROUND function — result lands in the "adjust-results" blob store
+ *   under the nonce; the Planner polls adjust-result?nonce=…
  *   → {ok, executed: [...], bottlenecks_updated, rules_saved, questions}
  *
  * Env: ANTHROPIC_API_KEY, STOREMAP_TEAM_PIN (+ Google service account)
  */
 import * as crypto from "node:crypto";
+import { getStore } from "@netlify/blobs";
 
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
 const RULES_TAB = "Scheduling Rules";
@@ -65,17 +68,23 @@ export default async (req: Request) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
   let body: any;
   try { body = await req.json(); } catch { return json({ error: "bad json" }, 400); }
-  if ((body.key || "") !== APP_KEY) return json({ error: "unauthorized" }, 403);
-  if (!process.env.ANTHROPIC_API_KEY) return json({ error: "AI key not configured yet (Netlify env ANTHROPIC_API_KEY)" }, 500);
+  // every exit writes the result blob so the polling UI always hears back
+  const nonce = String(body.nonce || "");
+  const finish = async (o: unknown, status = 200) => {
+    if (nonce) { try { await getStore("adjust-results").setJSON(nonce, o); } catch (e) { /* blob store down */ } }
+    return json(o, status);
+  };
+  if ((body.key || "") !== APP_KEY) return finish({ error: "unauthorized" }, 403);
+  if (!process.env.ANTHROPIC_API_KEY) return finish({ error: "AI key not configured yet (Netlify env ANTHROPIC_API_KEY)" }, 500);
   const items = (body.items || []).filter((i: any) => String(i.answer || "").trim());
-  if (!items.length) return json({ error: "no answers provided" }, 400);
+  if (!items.length) return finish({ error: "no answers provided" }, 400);
 
   // grounding: live piano list + current proposal
   let pianos: any[] = [];
   try {
     const d = await (await fetch(STORE_API)).json();
     pianos = (d.pianos || []).filter((p: any) => p.active && p.serial);
-  } catch { return json({ error: "Store Map unreachable" }, 502); }
+  } catch { return finish({ error: "Store Map unreachable" }, 502); }
   const roster = pianos.map(p => `${p.serial} | ${String(p.summary).slice(0, 36)} | map ${p.location} | ${p.phase || "-"}`).join("\n");
   let plan: any = null;
   try { const j = await (await fetch(BRIDGE + "?fn=proposal", { redirect: "follow" })).json(); if (j.ok) plan = j.plan; } catch {}
@@ -124,7 +133,7 @@ export default async (req: Request) => {
       messages: [{ role: "user", content: userMsg }] }) });
   const aj = await ai.json();
   const tu = (aj.content || []).find((c: any) => c.type === "tool_use");
-  if (!tu) return json({ error: "AI failed: " + (aj.error?.message || "no output") }, 502);
+  if (!tu) return finish({ error: "AI failed: " + (aj.error?.message || "no output") }, 502);
   const out = tu.input;
 
   // execute bridge actions
@@ -156,7 +165,7 @@ export default async (req: Request) => {
   }
   await appendRules(out.rules_extracted || [], String(body.by || "Brigham"));
 
-  return json({ ok: true, executed, planSaved,
+  return finish({ ok: true, executed, planSaved,
     bottlenecks_updated: (out.bottleneck_updates || []).length,
     rules_saved: out.rules_extracted || [], followups: out.followups || [],
     questions: out.questions || [] });
@@ -166,4 +175,3 @@ const CORS = { "access-control-allow-origin": "*", "access-control-allow-headers
 function json(o: unknown, status = 200) {
   return new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json", ...CORS } });
 }
-export const config = { path: "/.netlify/functions/bottleneck-resolve" };
