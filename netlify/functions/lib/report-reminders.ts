@@ -137,6 +137,27 @@ function addDaysISO(iso: string, days: number): string {
 }
 const mdShort = (iso: string) => `${parseInt(iso.slice(5, 7), 10)}/${parseInt(iso.slice(8, 10), 10)}`;
 
+/* ---------- monitors: admins CC'd a digest of every reminder run ----------
+   Tech Phones column D ("Monitor (CC)" = YES) marks numbers that get one
+   summary text whenever cleaning/report reminders go out, so the office
+   sees exactly what the techs were sent without duplicating every message. */
+async function monitorNumbers(): Promise<string[]> {
+  const out: string[] = [];
+  for (const r of (await sheetGet(`'${PHONES_TAB}'!A2:D100`))) {
+    const cell = (r[1] || "").replace(/[^\d+]/g, "");
+    if (!cell) continue;
+    if ((r[3] || "").trim().toUpperCase() === "YES")
+      out.push(cell.startsWith("+") ? cell : "+1" + cell.replace(/^1/, ""));
+  }
+  return out;
+}
+async function smsMonitors(text: string): Promise<void> {
+  try {
+    const mons = await monitorNumbers();
+    for (const m of mons) { try { await sendSms(m, text.slice(0, 480)); } catch { /* per-number best effort */ } }
+  } catch { /* monitors are optional */ }
+}
+
 /* ---------- core ---------- */
 export async function runReminder(kind: "friday" | "saturday"): Promise<string> {
   const now = denverParts();
@@ -221,6 +242,10 @@ export async function runReminder(kind: "friday" | "saturday"): Promise<string> 
   await sheetAppend(`'${LOG_TAB}'!A1`, results);
 
   const sent = results.filter((r) => r[5] && !r[5].startsWith("ERROR") && !r[5].startsWith("NO PHONE")).length;
+  await smsMonitors(`BLP monitor - ${kind === "friday" ? "Friday" : "Saturday 2nd"} report reminders (${mdShort(fridayISO)}): `
+    + (missing.length ? `missing: ${missing.join(", ")} - ${sent} texted`
+       + (results.some(r => (r[5] || "").startsWith("NO PHONE")) ? " (some had no phone)" : "")
+       : "everyone submitted, no texts needed"));
   return `${kind} ${fridayISO}: ${missing.length} missing, ${sent} texted, ${results.length - sent - (missing.length ? 0 : 1)} problems`;
 }
 
@@ -286,6 +311,9 @@ export async function runCleaningReminder(): Promise<string> {
   await sheetAppend(`'${LOG_TAB}'!A1`, results);
 
   const sent = results.filter((r) => r[5] && !r[5].startsWith("ERROR") && !r[5].startsWith("NO PHONE") && r[5] !== "no texts sent").length;
+  await smsMonitors(`BLP monitor - Friday cleaning texts (${fridayISO}): `
+    + [...byTech.entries()].map(([t, c]) => `${t}: ${c.join("+")}`).join(" | ")
+    + ` - ${sent} texted` + (results.some(r => (r[5] || "").startsWith("NO PHONE")) ? " (some had no phone)" : ""));
   return `cleaning ${fridayISO}: ${byTech.size} technicians assigned, ${sent} texted`;
 }
 
