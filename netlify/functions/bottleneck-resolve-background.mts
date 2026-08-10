@@ -17,6 +17,7 @@
  */
 import * as crypto from "node:crypto";
 import { getStore } from "@netlify/blobs";
+import { logAdjustment, denverStamp } from "./lib/adjust-log";
 
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
 const RULES_TAB = "Scheduling Rules";
@@ -51,7 +52,7 @@ async function appendRules(rules: string[], by: string) {
   const t = await googleToken();
   await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(`'${RULES_TAB}'!A1`)}:append?valueInputOption=RAW`,
     { method: "POST", headers: { Authorization: `Bearer ${t}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ values: rules.map(r => [new Date().toISOString().slice(0, 16).replace("T", " "), r, by]) }) });
+      body: JSON.stringify({ values: rules.map(r => [denverStamp(), r, by]) }) });
 }
 async function bridge(body: Record<string, unknown>) {
   const r = await fetch(BRIDGE, { method: "POST", redirect: "follow",
@@ -164,6 +165,15 @@ export default async (req: Request) => {
     } catch { /* pending bridge update */ }
   }
   await appendRules(out.rules_extracted || [], String(body.by || "Brigham"));
+
+  await logAdjustment({ by: String(body.by || "Brigham"), kind: "bottleneck answers",
+    input: items.map((i: any) => `${i.title} → ${i.answer}`).join("\n"),
+    outcome: [...executed,
+      ...((out.bottleneck_updates || []).length ? [`bottlenecks updated: ${(out.bottleneck_updates || []).length}`] : []),
+      ...(out.followups || []).map((f: string) => "for a human: " + f)].join("\n"),
+    rules: out.rules_extracted || [], questions: out.questions || [],
+    saved: (out.bottleneck_updates || []).length ? planSaved : true,
+    saveErr: (out.bottleneck_updates || []).length && !planSaved ? "plan save failed" : "" });
 
   return finish({ ok: true, executed, planSaved,
     bottlenecks_updated: (out.bottleneck_updates || []).length,

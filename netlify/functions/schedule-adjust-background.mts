@@ -17,6 +17,7 @@
  */
 import * as crypto from "node:crypto";
 import { getStore } from "@netlify/blobs";
+import { logAdjustment, denverStamp } from "./lib/adjust-log";
 
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
 const RULES_TAB = "Scheduling Rules";
@@ -58,7 +59,7 @@ async function readRules(): Promise<string[]> {
 async function appendRules(rules: string[], by: string) {
   if (!rules.length) return;
   await sheets(`values/${encodeURIComponent(`'${RULES_TAB}'!A1`)}:append?valueInputOption=RAW`, "POST",
-    { values: rules.map(r => [new Date().toISOString().slice(0, 16).replace("T", " "), r, by]) });
+    { values: rules.map(r => [denverStamp(), r, by]) });
 }
 
 export default async (req: Request) => {
@@ -144,6 +145,11 @@ export default async (req: Request) => {
     const sj = await sv.json();
     saved = !!sj.ok; saveErr = sj.error || "";
   } catch (e: any) { saveErr = String(e.message || e); }
+
+  await logAdjustment({ by: String(body.by || "Brigham"), kind: "schedule notes",
+    input: (globalTxt ? "GLOBAL: " + globalTxt + "\n" : "") + notesTxt,
+    outcome: (out.changes || []).join("\n"), rules: out.rules_extracted || [],
+    questions: out.questions || [], saved, saveErr });
 
   return finish({ ok: true, saved, saveErr, week: out.plan.week,
     changes: out.changes || [], rules_saved: out.rules_extracted || [],
