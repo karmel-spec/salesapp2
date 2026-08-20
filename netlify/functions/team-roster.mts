@@ -29,7 +29,18 @@ const PROJ: Record<string, [string, number][]> = {
   "Subcontractors/INS": [
     ["First name", 0], ["Last name", 1], ["Phone #", 2], ["Email", 3], ["Company / notes", 4],
   ],
+  // the sheet's existing "Former BLP" tab: ITS OWN schema (bio columns),
+  // banner on row 1, headers on row 2, data from row 3
+  "Former BLP": [
+    ["First name", 0], ["Last name", 1], ["Position", 5], ["Start date", 7],
+    ["End date", 13], ["Phone #", 8], ["BLP email", 9],
+  ],
 };
+// first DATA row per tab (grid row 2 maps here)
+const START: Record<string, number> = { "Former BLP": 3 };
+const startRow = (tab: string) => START[tab] || 2;
+// Current Team column -> Former BLP column, applied on a move
+const MOVE_MAP: [number, number][] = [[0, 0], [1, 1], [3, 5], [6, 7], [29, 8], [30, 9]];
 const TABS = Object.keys(PROJ);
 const ALLOW = [
   "https://blpshop.netlify.app",
@@ -86,6 +97,19 @@ async function googleToken(): Promise<string> {
   return json.access_token;
 }
 
+// Transitions checklists live on the ops/report sheet — the service account
+// is an Editor there, while the BLP TEAM sheet may be read-only for it
+const REPORT_SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
+async function sheetsOn(id: string, path: string, init?: RequestInit): Promise<any> {
+  const token = await googleToken();
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}${path}`, {
+    ...init,
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...init?.headers },
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json?.error?.message || `HTTP ${res.status}`);
+  return json;
+}
 async function sheets(path: string, init?: RequestInit): Promise<any> {
   const token = await googleToken();
   const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}${path}`, {
@@ -137,7 +161,7 @@ export default async (req: Request) => {
     if (req.method === "GET") {
       const key = new URL(req.url).searchParams.get("key") || "";
       if (!authed(key)) return fail(401, authErr);
-      const ranges = TABS.map((t) => `ranges=${encodeURIComponent(`'${t}'!A2:BA400`)}`).join("&");
+      const ranges = TABS.map((t) => `ranges=${encodeURIComponent(`'${t}'!A${startRow(t)}:BA400`)}`).join("&");
       const out = await sheets(`/values:batchGet?${ranges}&majorDimension=ROWS`);
       const tabs: Record<string, string[][]> = {};
       TABS.forEach((t, i) => {
@@ -151,13 +175,99 @@ export default async (req: Request) => {
       return new Response(JSON.stringify({ tabs, fetchedAt: new Date().toISOString() }), { headers });
     }
 
+    async function ensureTransitionsTab() {
+      const meta = await sheetsOn(REPORT_SHEET_ID, `?fields=sheets(properties(title))`);
+      if ((meta.sheets || []).some((x: any) => x.properties.title === "Transitions")) return;
+      await sheetsOn(REPORT_SHEET_ID, `:batchUpdate`, { method: "POST", body: JSON.stringify({
+        requests: [{ addSheet: { properties: { title: "Transitions" } } }] }) });
+      await sheetsOn(REPORT_SHEET_ID, `/values/${encodeURIComponent("'Transitions'!A1")}?valueInputOption=USER_ENTERED`,
+        { method: "PUT", body: JSON.stringify({ values: [["Name", "Type", "Created", "Updated", "Steps", "Done"]] }) });
+    }
+    async function ensureTab(title: string, header: string[]) {
+      const meta = await sheets(`?fields=sheets(properties(title))`);
+      const have = (meta.sheets || []).some((x: any) => x.properties.title === title);
+      if (have) return;
+      await sheets(`:batchUpdate`, { method: "POST", body: JSON.stringify({
+        requests: [{ addSheet: { properties: { title } } }] }) });
+      if (header.length) {
+        await sheets(`/values/${encodeURIComponent(`'${title}'!A1`)}?valueInputOption=USER_ENTERED`,
+          { method: "PUT", body: JSON.stringify({ values: [header] }) });
+      }
+    }
+
     if (req.method === "POST") {
       const body = (await req.json()) as {
         key?: string; tab?: string;
         updates?: { row: number; col: number; value: string }[];
         append?: string[];
+        move?: { row: number };
+        transition?: { row?: number; name: string; type: string; steps: string; done?: boolean };
+        listTransitions?: boolean;
       };
       if (!authed(body.key || "")) return fail(401, authErr);
+
+      // ---- transitions (exit / onboarding checklists) ----
+      // stored on a "Transitions" tab: Name | Type | Created | Updated | Steps JSON | Done
+      if (body.listTransitions) {
+        await ensureTransitionsTab();
+        const out = await sheetsOn(REPORT_SHEET_ID, `/values/${encodeURIComponent("'Transitions'!A2:F200")}`);
+        const rows = (out.values || []).map((r: string[], i: number) => ({
+          row: i + 2, name: r[0] || "", type: r[1] || "", created: r[2] || "",
+          updated: r[3] || "", steps: r[4] || "{}", done: String(r[5]) === "TRUE" || r[5] === "yes",
+        })).filter((x: any) => x.name);
+        return new Response(JSON.stringify({ ok: true, transitions: rows }), { headers });
+      }
+      if (body.transition) {
+        await ensureTransitionsTab();
+        const t = body.transition;
+        const nowIso = new Date().toISOString();
+        if (t.row) {
+          await sheetsOn(REPORT_SHEET_ID, `/values:batchUpdate`, { method: "POST", body: JSON.stringify({
+            valueInputOption: "USER_ENTERED",
+            data: [{ range: `'Transitions'!D${t.row}:F${t.row}`,
+                     values: [[nowIso, String(t.steps || "{}").slice(0, 20000), t.done ? "yes" : ""]] }],
+          }) });
+          return new Response(JSON.stringify({ ok: true, row: t.row }), { headers });
+        }
+        const out = await sheetsOn(REPORT_SHEET_ID,
+          `/values/${encodeURIComponent("'Transitions'!A1")}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+          { method: "POST", body: JSON.stringify({ values: [[t.name, t.type, nowIso, nowIso,
+              String(t.steps || "{}").slice(0, 20000), ""]] }) });
+        const m = /![A-Z]+(\d+)/.exec(out?.updates?.updatedRange || "");
+        return new Response(JSON.stringify({ ok: true, row: m ? +m[1] : null }), { headers });
+      }
+
+      // ---- move a Current Team row to the Former BLP tab ----
+      // The two tabs have different schemas, so display fields are REMAPPED;
+      // the complete raw row (payroll columns included) is archived to a
+      // "Current Team Archive" tab server-side before the source row is
+      // deleted — nothing is ever lost, and the browser never sees it.
+      if (body.move) {
+        if (body.tab !== "Current Team") return fail(400, "can only move from Current Team");
+        const r = body.move.row;                    // grid row (2 = first data row)
+        if (!r || r < 2) return fail(400, "bad row");
+        const src = await sheets(`/values/${encodeURIComponent(`'Current Team'!A${r}:BA${r}`)}`);
+        const rowVals: string[] = ((src.values && src.values[0]) || []).map((x: any) => String(x ?? ""));
+        if (!rowVals.some((x) => x.trim())) return fail(400, "row is empty");
+        // archive the raw row first
+        const curHdr = await sheets(`/values/${encodeURIComponent("'Current Team'!A1:BA1")}`);
+        await ensureTab("Current Team Archive", (curHdr.values && curHdr.values[0]) || []);
+        await sheets(
+          `/values/${encodeURIComponent("'Current Team Archive'!A1")}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+          { method: "POST", body: JSON.stringify({ values: [rowVals] }) });
+        // remapped bio row for Former BLP + End date (col 13)
+        const dest = new Array(14).fill("");
+        MOVE_MAP.forEach(([from, to]) => { dest[to] = rowVals[from] || ""; });
+        dest[13] = new Date().toISOString().slice(0, 10);
+        await sheets(
+          `/values/${encodeURIComponent("'Former BLP'!A1")}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+          { method: "POST", body: JSON.stringify({ values: [dest] }) });
+        const meta = await sheets(`?fields=sheets(properties(sheetId,title))`);
+        const sheetId = meta.sheets.find((x: any) => x.properties.title === "Current Team").properties.sheetId;
+        await sheets(`:batchUpdate`, { method: "POST", body: JSON.stringify({ requests: [{
+          deleteDimension: { range: { sheetId, dimension: "ROWS", startIndex: r - 1, endIndex: r } } }] }) });
+        return new Response(JSON.stringify({ ok: true, moved: rowVals[0] + " " + rowVals[1] }), { headers });
+      }
       const tab = body.tab || "";
       const proj = PROJ[tab];
       if (!proj) return fail(400, "unknown tab");
@@ -166,8 +276,9 @@ export default async (req: Request) => {
         for (const u of body.updates) {
           const real = proj[u.col - 1];           // grid col (1-based) → real column
           if (!real) return fail(400, `bad column ${u.col}`);
-          // grid row 2 = first data row = sheet row 2 (grid header replaces sheet row 1)
-          data.push({ range: `'${tab}'!${colA1(real[1])}${u.row}`, values: [[u.value]] });
+          // grid row 2 = first data row = sheet row startRow(tab)
+          const sheetRow = u.row - 2 + startRow(tab);
+          data.push({ range: `'${tab}'!${colA1(real[1])}${sheetRow}`, values: [[u.value]] });
         }
         await sheets(`/values:batchUpdate`, {
           method: "POST",
