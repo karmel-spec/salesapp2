@@ -173,6 +173,68 @@ async function recipientNumbers(): Promise<{ name: string; phone: string }[]> {
   return out;
 }
 
+/* ---------- preflight ----------
+   Exercises every dependency the 7:50 send needs — env vars, the bridge
+   call (which is what a missing STOREMAP_TEAM_PIN would break), the roster
+   lookup, and today's schedule verdict — WITHOUT texting anyone. Reports
+   only whether each secret is present, never its value. */
+export async function checkStandupText(): Promise<Record<string, unknown>> {
+  const env: Record<string, boolean> = {};
+  for (const k of ["GOOGLE_SERVICE_ACCOUNT_EMAIL", "GOOGLE_PRIVATE_KEY",
+                   "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM_NUMBER",
+                   "STOREMAP_TEAM_PIN"]) {
+    env[k] = Boolean((process.env[k] || "").trim());
+  }
+
+  let bridge: Record<string, unknown>;
+  try {
+    const res = await fetch(BRIDGE_URL, {
+      method: "POST",
+      redirect: "follow",
+      headers: { "content-type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        pin: process.env.STOREMAP_TEAM_PIN || "",
+        action: "briefsms",
+        user: { name: "Standup preflight" },
+      }),
+    });
+    const p = (await res.json()) as { ok?: boolean; text?: string; error?: string };
+    bridge = p.ok && p.text
+      ? { ok: true, chars: p.text.length, firstLine: p.text.split("\n")[0] }
+      : { ok: false, error: p.error || "no text returned" };
+  } catch (e) {
+    bridge = { ok: false, error: (e as Error).message };
+  }
+
+  let roster: Record<string, unknown>;
+  try {
+    const people = await recipientNumbers();
+    roster = {
+      ok: people.length === RECIPIENTS.length,
+      resolved: people.map((p) => `${p.name} ${p.phone.slice(0, 5)}…${p.phone.slice(-2)}`),
+      missing: RECIPIENTS.filter((r) => !people.some((p) => p.name === r)),
+    };
+  } catch (e) {
+    roster = { ok: false, error: (e as Error).message };
+  }
+
+  const now = denverParts();
+  const holiday = holidayName(now.iso);
+  const wouldSendToday = !["Sat", "Sun"].includes(now.weekday) && !holiday;
+
+  const allOk = Object.values(env).every(Boolean)
+    && bridge.ok === true && roster.ok === true;
+  return {
+    ready: allOk,
+    verdict: allOk
+      ? "the 7:50 AM send has everything it needs"
+      : "something is missing — see the fields below",
+    env, bridge, roster,
+    today: { denver: now.iso, weekday: now.weekday,
+             holiday: holiday || null, wouldSendToday },
+  };
+}
+
 /* ---------- core ---------- */
 export async function runStandupText(): Promise<string> {
   const now = denverParts();
