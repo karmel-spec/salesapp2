@@ -21,7 +21,7 @@ export const TRAINING_ITEMS: TrainingItem[] = [
   {
     title: "BLP Restoration Handbook",
     desc: "The complete BLP restoration handbook.",
-    href: "https://docs.google.com/document/d/1at8y6h6pphLmAL5gaE2TzfHeDv5Xn9xdbWVdozvxhxA/edit",
+    href: "https://blpshop.netlify.app/index.html#handbook",
   },
   {
     title: "Professional Standards & Team Culture",
