@@ -6,6 +6,7 @@ import type { Lead } from "@/lib/leads";
 import { api, fetchLeads } from "@/lib/client";
 import { RepBadge, StaleBadge, StatusBadge, fmtDays, pendingDrafts } from "@/components/ui";
 import { UnfiledCalls } from "@/components/UnfiledCalls";
+import { TrainingCard } from "@/components/TrainingCard";
 
 export default function Dashboard() {
   const [leads, setLeads] = useState<Lead[] | null>(null);
@@ -150,6 +151,10 @@ export default function Dashboard() {
             </div>
           ))}
         </div>
+      </div>
+
+      <div style={{ marginTop: 18 }}>
+        <TrainingCard />
       </div>
     </>
   );
