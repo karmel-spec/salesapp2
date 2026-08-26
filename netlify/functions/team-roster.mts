@@ -24,7 +24,7 @@ const SHEET_ID = "1j1FP78rRj1jrl2z-_vIg95kN3GuG8TI4dpOheSnIoPc";
 const PROJ: Record<string, [string, number][]> = {
   "Current Team": [
     ["First name", 0], ["Last name", 1], ["Position", 3], ["Start date", 6],
-    ["Uniform size", 22], ["Phone #", 29], ["BLP email", 30], ["Notes", 34],
+    ["Uniform size", 22], ["Birthday", 24], ["Phone #", 29], ["BLP email", 30], ["Notes", 34],
   ],
   "Subcontractors/INS": [
     ["First name", 0], ["Last name", 1], ["Phone #", 2], ["Email", 3], ["Company / notes", 4],
