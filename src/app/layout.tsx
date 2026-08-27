@@ -12,6 +12,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <Shell>{children}</Shell>
+        {/* Shared 💡 suggestion box (same widget every BLP app embeds). */}
+        <script src="/suggest.js" defer data-app="Sales App" data-who-key="blp_rep_name" />
       </body>
     </html>
   );
