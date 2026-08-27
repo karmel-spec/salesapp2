@@ -38,8 +38,10 @@ async function verifyGoogle(idToken: string): Promise<string | null> {
 }
 const ALLOW = [
   "https://blpshop.netlify.app",
+  "https://blpstoremap.netlify.app",   // Store Map TEAM dashboard
   "http://localhost:4180",
   "http://127.0.0.1:4180",
+  "http://localhost:8641",
 ];
 
 let tokenCache: { token: string; exp: number } | null = null;

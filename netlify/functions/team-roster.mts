@@ -44,8 +44,10 @@ const MOVE_MAP: [number, number][] = [[0, 0], [1, 1], [3, 5], [6, 7], [29, 8], [
 const TABS = Object.keys(PROJ);
 const ALLOW = [
   "https://blpshop.netlify.app",
+  "https://blpstoremap.netlify.app",   // Store Map TEAM dashboard
   "http://localhost:4180",
   "http://127.0.0.1:4180",
+  "http://localhost:8641",
 ];
 const SHOP_GOOGLE_CLIENT_ID = "118454775893-17u7t3glh8eu4kffhe7b42jl71apre4f.apps.googleusercontent.com";
 const MAP_GOOGLE_CLIENT_ID = "110628682621-v65mkaoanv87sp75ggdfcrglfr7bkr8p.apps.googleusercontent.com";
