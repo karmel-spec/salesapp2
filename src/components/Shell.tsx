@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { REPS, api } from "@/lib/client";
+import { useRoster, api } from "@/lib/client";
 
 const NAV = [
   { href: "/", label: "Dashboard" },
@@ -46,6 +46,7 @@ function BlpAppsMenu() {
 
 function WhoAmI() {
   const [who, setWho] = useState("");
+  const roster = useRoster();
   useEffect(() => {
     setWho(localStorage.getItem("blp_rep_name") || "");
   }, []);
@@ -68,7 +69,7 @@ function WhoAmI() {
       }}
     >
       <option value="">Who are you?</option>
-      {REPS.map((r) => (
+      {Array.from(new Set([...roster, ...(who ? [who] : [])])).map((r) => (
         <option key={r} value={r} style={{ color: "#121212" }}>
           {r}
         </option>

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Lead } from "@/lib/leads";
-import { api, fetchLeads, getWho, LEAD_SOURCES, INQUIRY_METHODS, PIANO_TYPES, LEAD_TYPES, MELISSA_TYPES, ENTERED_BY, REPS, prioritySort } from "@/lib/client";
+import { api, fetchLeads, getWho, LEAD_SOURCES, INQUIRY_METHODS, PIANO_TYPES, LEAD_TYPES, MELISSA_TYPES, ENTERED_BY, useRoster, prioritySort } from "@/lib/client";
 import { RepBadge, StaleBadge, StatusBadge, fmtDays, pendingDrafts } from "@/components/ui";
 import { AddressInput } from "@/components/AddressInput";
 import { AttachButton, type PickedFile } from "@/components/AttachButton";
@@ -196,6 +196,7 @@ function NewLeadForm({ onDone }: { onDone: () => void }) {
   });
   const [other, setOther] = useState({ source: "", inquiryMethod: "", leadType: "", pianoType: "", capturedBy: "" });
   const [files, setFiles] = useState<PickedFile[]>([]);
+  const roster = useRoster();
   const openedByTouched = useRef(false);
 
   // Default "Entered by" to whoever is signed in on this device.
@@ -321,7 +322,7 @@ function NewLeadForm({ onDone }: { onDone: () => void }) {
               setF({ ...f, openedBy: e.target.value });
             }}
           >
-            {REPS.map((r) => <option key={r} value={r}>{r}{r === "Brigham" ? " (default)" : ""}</option>)}
+            {roster.map((r) => <option key={r} value={r}>{r}{r === "Brigham" ? " (default)" : ""}</option>)}
           </select>
         </div>
       </div>

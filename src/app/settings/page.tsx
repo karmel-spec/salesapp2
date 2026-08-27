@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api } from "@/lib/client";
+import { api, getWho, setRosterCache } from "@/lib/client";
 
 type SyncStatus = {
   totalLeads: number;
@@ -133,6 +133,87 @@ function BackupsCard() {
   );
 }
 
+/** Manage the "Who are you?" team list — add new admins/reps, remove old
+ *  ones. Removing someone never touches their name on existing leads. */
+function TeamCard() {
+  const [people, setPeople] = useState<string[] | null>(null);
+  const [newName, setNewName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [flash, setFlash] = useState("");
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    api<{ people: string[] }>("/api/roster").then((r) => setPeople(r.people)).catch((e) => setErr(e.message));
+  }, []);
+
+  async function act(payload: { name?: string; remove?: string }) {
+    setBusy(true);
+    setErr("");
+    setFlash("");
+    try {
+      const r = await api<{ people: string[] }>("/api/roster", {
+        method: "POST",
+        body: JSON.stringify({ ...payload, who: getWho() }),
+      });
+      setPeople(r.people);
+      setRosterCache(r.people); // pickers refresh on their next page load
+      setNewName("");
+      setFlash(payload.name ? `✓ ${payload.name} added — they'll appear in every "Who are you?" and rep dropdown` : `✓ Removed ${payload.remove}`);
+      setTimeout(() => setFlash(""), 6000);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 18 }}>
+      <h2>Team — the &quot;Who are you?&quot; list</h2>
+      <div className="muted" style={{ margin: "4px 0 10px", fontSize: 13 }}>
+        These names fill the sidebar picker and every rep dropdown. Removing someone keeps their name on the leads they already worked.
+      </div>
+      {flash && <div className="banner info">{flash}</div>}
+      {err && <div className="banner bad">⚠ {err}</div>}
+      {people === null ? (
+        <div className="spin">Loading the team…</div>
+      ) : (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          {people.map((p) => (
+            <span key={p} className="badge" style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 13, padding: "5px 10px" }}>
+              {p}
+              <button
+                className="linklike"
+                title={`Remove ${p} from the list`}
+                disabled={busy}
+                onClick={() => {
+                  if (window.confirm(`Remove ${p} from the "Who are you?" list? Their name stays on existing leads.`)) {
+                    act({ remove: p });
+                  }
+                }}
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+          <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+            <input
+              placeholder="Add a person…"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && newName.trim()) act({ name: newName }); }}
+              style={{ width: 160 }}
+            />
+            <button className="btn small" disabled={busy || !newName.trim()} onClick={() => act({ name: newName })}>
+              ＋ Add
+            </button>
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [error, setError] = useState("");
@@ -150,6 +231,8 @@ export default function SettingsPage() {
         <h1>Settings</h1>
         <span className="sub">integration status, backups &amp; business rules</span>
       </div>
+
+      <TeamCard />
 
       <BackupsCard />
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { Lead } from "./leads";
 
 /** Client-side fetch helpers. Cookies carry the session automatically. */
@@ -20,7 +21,31 @@ export async function fetchLeads(refresh = false) {
   return api<{ leads: Lead[]; writeEnabled: boolean }>(`/api/leads${refresh ? "?refresh=1" : ""}`);
 }
 
-export const REPS = ["Brigham", "Karmel", "Arnold", "Melissa", "Alisa", "Susie", "Ezzy"] as const;
+/** Fallback team list — the live one comes from /api/roster (managed in
+ *  Settings → Team), which seeds from this on first use. */
+export const REPS = ["Brigham", "Karmel", "Arnold", "Melissa", "Alisa", "Susie", "Ezzy", "Lisa"] as const;
+
+let rosterCache: string[] | null = null;
+
+/** The live team list for pickers ("Who are you?", rep dropdowns). */
+export function useRoster(): string[] {
+  const [roster, setRoster] = useState<string[]>(rosterCache || [...REPS]);
+  useEffect(() => {
+    if (rosterCache) return;
+    api<{ people: string[] }>("/api/roster")
+      .then((r) => {
+        rosterCache = r.people;
+        setRoster(r.people);
+      })
+      .catch(() => {}); // fallback list already shown
+  }, []);
+  return roster;
+}
+
+/** Call after Settings edits the roster so open pages refetch next mount. */
+export function setRosterCache(people: string[] | null) {
+  rosterCache = people;
+}
 
 /** Canonical pick-lists for lead fields (free-text history stays as "keep current"). */
 export const LEAD_SOURCES = ["Repeat customer", "Google", "YouTube", "TikTok", "Facebook", "Instagram", "Sign", "Referral", "Recital", "KSL", "Not sure"];

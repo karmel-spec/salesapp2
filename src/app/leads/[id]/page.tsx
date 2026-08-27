@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Lead, DraftMessage } from "@/lib/leads";
-import { api, getWho, REPS, LEAD_SOURCES, INQUIRY_METHODS } from "@/lib/client";
+import { api, getWho, useRoster, LEAD_SOURCES, INQUIRY_METHODS } from "@/lib/client";
 import { Linkify, StaleBadge, StatusBadge, fmtDays } from "@/components/ui";
 import { Thread } from "@/components/Thread";
 import { AddressInput } from "@/components/AddressInput";
@@ -59,6 +59,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
   const [savingNote, setSavingNote] = useState(false);
   const [compose, setCompose] = useState<"sms" | "email" | null>(null);
   const typeOptions = useLeadTypeOptions();
+  const roster = useRoster();
   const router = useRouter();
   const adj = useAdjacentLeads(lead?.id);
 
@@ -222,11 +223,11 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
             <dl className="kv">
               <dt>Headline</dt><dd><InlineText lead={lead} field="headline" value={lead.headline} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Status</dt><dd><InlineStatus lead={lead} onFlash={setFlash} onDone={loadSoon} /></dd>
-              <dt>Rep (sheet)</dt><dd><InlineSelect lead={lead} field="rep" value={lead.repRaw} options={[...REPS]} emptyLabel="— unassigned (defaults to Brigham)" onFlash={setFlash} onDone={loadSoon} /></dd>
-              <dt>Sub-rep</dt><dd><InlineSelect lead={lead} field="subRep" value={lead.subRep} options={[...REPS]} emptyLabel="— none (add a helper, e.g. Arnold)" onFlash={setFlash} onDone={loadSoon} /></dd>
-              <dt>Opened by</dt><dd><InlineSelect lead={lead} field="openedBy" value={lead.openedBy} options={[...REPS]} emptyLabel="— not recorded" onFlash={setFlash} onDone={loadSoon} /></dd>
+              <dt>Rep (sheet)</dt><dd><InlineSelect lead={lead} field="rep" value={lead.repRaw} options={[...roster]} emptyLabel="— unassigned (defaults to Brigham)" onFlash={setFlash} onDone={loadSoon} /></dd>
+              <dt>Sub-rep</dt><dd><InlineSelect lead={lead} field="subRep" value={lead.subRep} options={[...roster]} emptyLabel="— none (add a helper, e.g. Arnold)" onFlash={setFlash} onDone={loadSoon} /></dd>
+              <dt>Opened by</dt><dd><InlineSelect lead={lead} field="openedBy" value={lead.openedBy} options={[...roster]} emptyLabel="— not recorded" onFlash={setFlash} onDone={loadSoon} /></dd>
               {(lead.statusBucket === "won" || lead.closedBy) && (
-                <><dt>Closed by</dt><dd><InlineSelect lead={lead} field="closedBy" value={lead.closedBy} options={[...REPS]} emptyLabel="— who closed the sale?" onFlash={setFlash} onDone={loadSoon} /></dd></>
+                <><dt>Closed by</dt><dd><InlineSelect lead={lead} field="closedBy" value={lead.closedBy} options={[...roster]} emptyLabel="— who closed the sale?" onFlash={setFlash} onDone={loadSoon} /></dd></>
               )}
               <dt>Phone</dt><dd><InlineText lead={lead} field="phone" value={lead.phone} hint={lead.phoneDialable ? ` → ${lead.phoneDialable}` : ""} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Email</dt><dd><InlineText lead={lead} field="email" value={lead.email} onFlash={setFlash} onDone={loadSoon} /></dd>
@@ -491,7 +492,8 @@ function TimelineEntry({
 
 function RepSelect({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: string) => void; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
-  const options = Array.from(new Set([...REPS, lead.effectiveRep].filter(Boolean)));
+  const roster = useRoster();
+  const options = Array.from(new Set([...roster, lead.effectiveRep].filter(Boolean)));
 
   async function reassign(rep: string) {
     if (rep === lead.effectiveRep) return;
@@ -537,6 +539,7 @@ function RepSelect({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: string)
  */
 function SubRepSelect({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: string) => void; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
+  const roster = useRoster();
 
   async function assign(subRep: string) {
     if (subRep === lead.subRep) return;
@@ -565,7 +568,7 @@ function SubRepSelect({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: stri
       title="Add a second rep who works this lead with the owner"
     >
       <option value="">{lead.subRep ? "— remove sub-rep" : "+ sub-rep"}</option>
-      {REPS.filter((r) => r !== lead.effectiveRep).map((r) => (
+      {roster.filter((r) => r !== lead.effectiveRep).map((r) => (
         <option key={r} value={r}>{r}</option>
       ))}
     </select>
@@ -1267,6 +1270,7 @@ const INLINE_STATUS_CHOICES = ["New", "Active", "Won", "LOST", "Unqualified", "S
 
 function InlineStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: string) => void; onDone: () => void }) {
   const [editing, setEditing] = useState(false);
+  const closerRoster = useRoster();
   const [choice, setChoice] = useState("");
   const [lostWhy, setLostWhy] = useState("");
   const [newLostWhy, setNewLostWhy] = useState("");
@@ -1382,7 +1386,7 @@ function InlineStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: stri
               }}
             >
               <option value="">— pick the closer (saves)</option>
-              {REPS.map((r) => <option key={r} value={r}>{r}</option>)}
+              {closerRoster.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           </>
         )}

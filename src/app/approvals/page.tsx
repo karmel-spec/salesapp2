@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { Lead } from "@/lib/leads";
-import { api, fetchLeads, getWho, REPS } from "@/lib/client";
+import { api, fetchLeads, getWho, useRoster } from "@/lib/client";
 import { RepBadge, StaleBadge } from "@/components/ui";
 
 /** Approval queue: every pending Arnold draft across all leads. */
@@ -25,9 +25,10 @@ export default function ApprovalsPage() {
       .filter((x) => x.drafts.length > 0);
   }, [leads]);
 
+  const roster = useRoster();
   const repOptions = useMemo(
-    () => Array.from(new Set([...REPS, ...queue.map((x) => x.lead.effectiveRep)].filter(Boolean))).sort(),
-    [queue]
+    () => Array.from(new Set([...roster, ...queue.map((x) => x.lead.effectiveRep)].filter(Boolean))).sort(),
+    [queue, roster]
   );
 
   // Default the filter to whoever is signed in on this device.
