@@ -34,6 +34,9 @@ const STORE_API = "https://blpstoremap.netlify.app/api/data";
 const BRIDGE_URL =
   "https://script.google.com/macros/s/AKfycbxY4BKnr_Tr0iCTc9itCWhNYLvgszmkI1IoYSkbBWpyAqRtWI-yaUkJQjcVdgG58KXt/exec";
 const MODEL = process.env.SMS_MODEL || "claude-haiku-4-5-20251001";
+// only these people can set a sale price by text (first-name match on the
+// Tech Phones name) — pricing is an owner decision
+const PRICE_SETTERS = ["brigham", "karmel"];
 
 const PHASES = ["New Arrival - Admin", "Assessment", "CAP", "PRSB & Plate Refinishing",
   "Lacquer Soundboard", "Restringing", "Chip Tuning", "DHRT", "1st Tuning", "Refinishing",
@@ -160,7 +163,7 @@ export default async (req: Request) => {
   const tools = [
     { name: "execute", description: "Apply one change to one piano via the Store Map bridge.",
       input_schema: { type: "object", properties: {
-        action: { type: "string", enum: ["setphase", "move", "queue", "photo", "setmedia", "setkeys", "setcabinetry", "settrack", "setdone"] },
+        action: { type: "string", enum: ["setphase", "move", "queue", "photo", "setmedia", "setkeys", "setcabinetry", "settrack", "setdone", "setprice"] },
         serial: { type: "string", description: "EXACT serial from the piano list" },
         phase: { type: "string", description: "for setphase: exact phase name from the lists" },
         location: { type: "string", description: "for move: the new map spot" },
@@ -170,6 +173,7 @@ export default async (req: Request) => {
         cabinetry: { type: "string", description: "for setcabinetry: shelf tokens like 8-3, 5-RF" },
         tracks: { type: "array", items: { type: "string" }, description: "for settrack: from Rebuild, Hybrid, Refurbish, Refinish, Technology, Old Player, Storage, Misc" },
         phases_done: { type: "array", items: { type: "string" }, description: "for setdone: FULL new list of completed phase names" },
+        price: { type: "string", description: "for setprice: digits only, no $ or commas (e.g. 12995)" },
         note: { type: "string", description: "for photo: what the picture is (e.g. QC worksheet)" },
       }, required: ["action", "serial"] } },
     { name: "clarify", description: "Ask the sender one short question when the piano or intent is ambiguous.",
@@ -185,9 +189,11 @@ export default async (req: Request) => {
     + `If a photo is attached, the action is almost always "photo". `
     + `Match pianos by serial when given; otherwise by make/model/map spot - `
     + `if more than one piano could match, use clarify and name the top candidates `
-    + `(summary + serial). For requests like tuning appointments, price changes, `
-    + `marking duplicates, or anything not in the action list, use unsupported and `
-    + `point them to the Store Map app's Request menu. Never guess a serial.`;
+    + `(summary + serial). A bare price answer ("51889 12995", "$12,995 for the `
+    + `Wurlitzer", or just "12995" right after a price request) is setprice - strip `
+    + `$ and commas. For requests like tuning appointments, marking duplicates, or `
+    + `anything not in the action list, use unsupported and point them to the Store `
+    + `Map app's Request menu. Never guess a serial.`;
   const userMsg = `Sender: ${who}\nAttached photos: ${nMedia}\nMessage: ${body || "(no text)"}\n\nPiano list:\n${roster}`;
   let parsed: any;
   try {
@@ -270,6 +276,21 @@ export default async (req: Request) => {
       const j = await bridge({ action: "settrack", serial: piano.serial, row: piano.row, tracks: a.tracks || [], user });
       if (j.error) throw new Error(j.error);
       return twiml(`Done - track for ${label}: ${(a.tracks || []).join(", ") || "(cleared)"}.`);
+    }
+    // price answers by text (Brigham 8/27): a price request texts Brigham, he
+    // replies with the number, it lands in the Piano Log and the price tag.
+    // Pricing is an owner call — nobody else can set it from a phone.
+    if (a.action === "setprice") {
+      if (!PRICE_SETTERS.some(n => who.toLowerCase().startsWith(n))) {
+        return twiml("Prices are set by Brigham - he gets the request and replies with the number.");
+      }
+      const digits = String(a.price || "").replace(/[^0-9.]/g, "");
+      if (!digits) return twiml("What price? Reply with the serial and the number, e.g. \"51889 12995\".");
+      const j = await bridge({ action: "setprice", serial: piano.serial, row: piano.row,
+        price: digits, user });
+      return twiml(j.ok
+        ? `Priced ${piano.summary.slice(0, 28)} #${piano.serial} at ${j.price} - the tag updates automatically.`
+        : `Couldn't set that price: ${j.error || "failed"}`);
     }
     if (a.action === "setdone") {
       const j = await bridge({ action: "setdone", serial: piano.serial, row: piano.row, phases: a.phases_done || [], user });
