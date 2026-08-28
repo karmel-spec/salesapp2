@@ -193,6 +193,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ matched: false, queued });
     }
 
+    // Twin guard: Brigham's console calls are recorded by Twilio AND his
+    // Plaud — when this lead already has a non-Plaud recorded call the same
+    // day with (nearly) the same length, this recording is a duplicate of a
+    // conversation that's already on the timeline. Skip it.
+    const dayOf = (iso: string) =>
+      new Date(iso).toLocaleDateString("en-US", { timeZone: "America/Denver" });
+    const recDay = dayOf(input.startedAt || new Date().toISOString());
+    const twin =
+      mins !== null &&
+      lead.timeline.find((e) => {
+        if (e.kind !== "call" || e.who === "Plaud" || !/recorded call/i.test(e.text)) return false;
+        const m = e.text.match(/\((\d+) min\)/);
+        return Boolean(m && dayOf(e.at) === recDay && Math.abs(Number(m[1]) - mins) <= 2);
+      });
+    if (twin) {
+      return NextResponse.json({
+        matched: true,
+        leadId: lead.id,
+        leadName: lead.name,
+        how,
+        duplicate: true,
+        detail: `skipped — same-day Twilio recording already on the timeline (${twin.at})`,
+      });
+    }
+
     await appendTimeline(
       lead,
       shape,
