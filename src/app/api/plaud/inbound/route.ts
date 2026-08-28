@@ -45,8 +45,28 @@ export async function POST(req: NextRequest) {
     let lead: Lead | undefined;
     let how = "";
 
+    // 0. A lead's full name in the recording TITLE beats everything else —
+    //    Plaud names consultations after the customer ("08-14 Consultation:
+    //    Carlton Guthrie - …"). Time-proximity once mis-filed such a call
+    //    because the rep console-dialed a DIFFERENT lead minutes later.
+    {
+      const norm = (s: string) => ` ${s.toLowerCase().replace(/[^a-z]+/g, " ").trim()} `;
+      const title = norm(input.title || "");
+      if (title.trim()) {
+        const hits = leads.filter((l) => {
+          if (!l.firstName || !l.lastName) return false;
+          const n = norm(`${l.firstName} ${l.lastName}`);
+          return n.replace(/ /g, "").length >= 5 && title.includes(n);
+        });
+        if (hits.length === 1) {
+          lead = hits[0];
+          how = "full name in recording title";
+        }
+      }
+    }
+
     // 1. Match a console-logged call near the recording start time.
-    if (!Number.isNaN(started)) {
+    if (!lead && !Number.isNaN(started)) {
       const WINDOW = 15 * 60 * 1000;
       let best: { lead: Lead; delta: number } | null = null;
       for (const l of leads) {
