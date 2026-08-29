@@ -11,11 +11,26 @@ import { looseIncludes } from "@/lib/search";
 
 const BUCKETS = ["all", "open", "new", "active", "snoozed", "won", "lost", "closed", "unqualified", "inactive", "support"] as const;
 
-/** Initial filters from the URL (?bucket=open|won|… & ?stale=1) so dashboard tiles can deep-link. */
+const SORT_MODES = ["priority", "newest", "contact-newest", "contact-oldest"] as const;
+type SortMode = (typeof SORT_MODES)[number];
+
+/** Filters picked last session, remembered per device. */
+const FILTERS_KEY = "blp_leads_filters";
+function savedFilters(): { bucket?: string; rep?: string; typeFilter?: string; sortMode?: string } {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(localStorage.getItem(FILTERS_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+/** Initial filters: a URL deep link (?bucket=…&stale=1, dashboard tiles)
+ *  always wins; otherwise the device's remembered filters; else defaults. */
 function initialParams() {
   if (typeof window === "undefined") return { bucket: "all" as (typeof BUCKETS)[number], stale: false };
   const q = new URLSearchParams(window.location.search);
-  const b = q.get("bucket") || "all";
+  const b = q.get("bucket") || (q.get("stale") ? "all" : savedFilters().bucket) || "all";
   return {
     bucket: (BUCKETS as readonly string[]).includes(b) ? (b as (typeof BUCKETS)[number]) : "all",
     stale: q.get("stale") === "1",
@@ -28,15 +43,27 @@ export default function LeadsPage() {
   const [error, setError] = useState("");
   const [q, setQ] = useState("");
   const [bucket, setBucket] = useState<(typeof BUCKETS)[number]>(() => initialParams().bucket);
-  const [rep, setRep] = useState("all");
-  const [typeFilter, setTypeFilter] = useState("all");
+  const [rep, setRep] = useState(() => savedFilters().rep || "all");
+  const [typeFilter, setTypeFilter] = useState(() => savedFilters().typeFilter || "all");
   const [staleOnly, setStaleOnly] = useState(() => initialParams().stale);
   const [showNew, setShowNew] = useState(false);
-  const [sortMode, setSortMode] = useState<"priority" | "newest" | "contact-newest" | "contact-oldest">("priority");
+  const [sortMode, setSortMode] = useState<SortMode>(() => {
+    const s = savedFilters().sortMode || "";
+    return (SORT_MODES as readonly string[]).includes(s) ? (s as SortMode) : "priority";
+  });
 
   useEffect(() => {
     fetchLeads().then((r) => setLeads(r.leads)).catch((e) => setError(e.message));
   }, []);
+
+  // Remember the filters for next visit (per device).
+  useEffect(() => {
+    try {
+      localStorage.setItem(FILTERS_KEY, JSON.stringify({ bucket, rep, typeFilter, sortMode }));
+    } catch {
+      /* private-mode storage — filters just won't persist */
+    }
+  }, [bucket, rep, typeFilter, sortMode]);
 
   const reps = useMemo(() => {
     if (!leads) return [];
