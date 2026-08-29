@@ -154,11 +154,25 @@ def poll_account(USER: str, password: str, key: str, per_account: dict, internal
             # Format B (with content): "New message from <Name> <message text>"
             # Name and message are separated by a newline or 2+ spaces in the
             # real emails; only split on that (never guess a word boundary).
+            # Format C (webchat/new-lead template): explicit labeled fields
+            #   "Name: Cheryl Earl ... Phone: +18017873989 ... Message: <text>"
+            mc = re.search(r"\bName:\s*(.+?)\s+Phone:\s*(\+?[\d()\s.-]{7,20})\s+Message:\s*(.+?)(?:\s*View Lead\b|\s*This message was sent\b|$)",
+                           re.sub(r"\s+", " ", full), re.S | re.I)
             mb = re.search(r"New message from\s+(.+?)(?:\n|\s{2,})(.+)", full, re.S)
-            if mb:
+            if mc:
+                sender = mc.group(1).strip()
+                text = mc.group(3).strip()
+                pm2 = re.search(r"(\d{3})\D?(\d{3})\D?(\d{4})", mc.group(2))
+                if pm2:
+                    phone_labeled = pm2.group(1) + pm2.group(2) + pm2.group(3)
+                else:
+                    phone_labeled = ""
+            elif mb:
+                phone_labeled = ""
                 sender = mb.group(1).strip()
                 text = mb.group(2).strip()
             else:
+                phone_labeled = ""
                 ma = re.search(r"^\s*(.+?)\s+sent a message to\b", full, re.M)
                 sender = (ma.group(1).strip() if ma else "").strip()
                 tm = re.search(r"waiting for a reply[.:]?\s*(.+)", body, re.S)
@@ -167,10 +181,10 @@ def poll_account(USER: str, password: str, key: str, per_account: dict, internal
             text = re.sub(r"^[\s.:>-]+", "", text)[:1000]
             if len(re.sub(r"\W", "", text)) < 3:
                 text = ""
-            phone = ""
+            phone = phone_labeled
             pm = re.search(r"\+?1?\D?(\d{3})\D?(\d{3})\D?(\d{4})", sender)
             if pm:
-                phone = pm.group(1) + pm.group(2) + pm.group(3)
+                phone = phone or (pm.group(1) + pm.group(2) + pm.group(3))
                 sender = ""  # the "name" was actually a raw number
             payload = json.dumps({
                 "senderName": sender,
