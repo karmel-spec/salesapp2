@@ -155,7 +155,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
       <div className="swipe-hint">‹ swipe to move between leads ›</div>
       <div className="page-head">
         <Link href="/leads" className="muted">← Leads</Link>
-        <h1>{lead.name}</h1>
+        <EditableName lead={lead} onFlash={setFlash} onDone={loadSoon} />
         <StatusBadge lead={lead} />
         <StaleBadge lead={lead} />
         <RepSelect lead={lead} onFlash={setFlash} onDone={loadSoon} />
@@ -1099,6 +1099,72 @@ function useLeadTypeOptions(): string[] {
 }
 
 /** Save one or more fields of the lead to the sheet. */
+/** The lead's name as the page title — click it (or the ✏️) to fix a typo.
+ *  Saves the sheet's First/Last name columns; history keeps the old name. */
+function EditableName({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: string) => void; onDone: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [first, setFirst] = useState("");
+  const [last, setLast] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  function open() {
+    setFirst(lead.firstName || lead.name.split(" ")[0] || "");
+    setLast(lead.lastName || lead.name.split(" ").slice(1).join(" "));
+    setEditing(true);
+  }
+
+  async function save() {
+    if (!first.trim()) { onFlash("First name can't be empty."); return; }
+    setBusy(true);
+    try {
+      await patchFields(lead.id, { firstName: first.trim(), lastName: last.trim() });
+      onFlash(`✓ Renamed to ${`${first.trim()} ${last.trim()}`.trim()} in the Leads Log`);
+      setEditing(false);
+      onDone();
+    } catch (e) {
+      onFlash(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <h1
+        className="inline-edit"
+        style={{ cursor: "pointer" }}
+        title="Click to edit this lead's name"
+        onClick={open}
+      >
+        {lead.name} <span style={{ fontSize: 15, opacity: 0.45 }}>✏️</span>
+      </h1>
+    );
+  }
+  return (
+    <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+      <input
+        value={first}
+        onChange={(e) => setFirst(e.target.value)}
+        placeholder="First name"
+        autoFocus
+        disabled={busy}
+        style={{ width: 150, fontSize: 17 }}
+        onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
+      />
+      <input
+        value={last}
+        onChange={(e) => setLast(e.target.value)}
+        placeholder="Last name"
+        disabled={busy}
+        style={{ width: 150, fontSize: 17 }}
+        onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
+      />
+      <button className="btn small" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save name"}</button>
+      <button className="btn ghost small" disabled={busy} onClick={() => setEditing(false)}>✕</button>
+    </span>
+  );
+}
+
 async function patchField(leadId: string, field: string, value: string): Promise<void> {
   await patchFields(leadId, { [field]: value });
 }
