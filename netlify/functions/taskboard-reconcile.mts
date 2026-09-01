@@ -78,10 +78,16 @@ export default async (req: Request) => {
 
     // 2. supabase state (ids + col owners only)
     const [cr, kr] = await Promise.all([
-      fetch(SB + "/rest/v1/tb_cards?select=id", { headers: sbHeaders() }),
+      fetch(SB + "/rest/v1/tb_cards?select=id,owner,text", { headers: sbHeaders() }),
       fetch(SB + "/rest/v1/tb_cols?select=owner", { headers: sbHeaders() }),
     ]);
-    const haveIds = new Set(((await cr.json()) as Array<{ id: string }>).map((x) => x.id));
+    const sbCards = (await cr.json()) as Array<{ id: string; owner: string; text: string }>;
+    const haveIds = new Set(sbCards.map((x) => x.id));
+    // the bridge mirror re-generates ids on add, so proxy-added cards have
+    // same-text twins on the sheet — dedupe by content, not just id
+    const contentKey = (owner: string, text: string) =>
+      (owner || "").toLowerCase().trim() + "|" + (text || "").toLowerCase().replace(/\s+/g, " ").slice(0, 80);
+    const haveContent = new Set(sbCards.map((x) => contentKey(x.owner, x.text)));
     const haveOwners = new Set(((await kr.json()) as Array<{ owner: string }>).map((x) => x.owner.toLowerCase()));
 
     // 3. sheet-only cards → insert (Supabase wins for ids it already has)
@@ -90,7 +96,7 @@ export default async (req: Request) => {
       return isNaN(d.getTime()) ? null : d.toISOString();
     };
     const missing = tb
-      .filter((v) => !haveIds.has(String(v[0])))
+      .filter((v) => !haveIds.has(String(v[0])) && !haveContent.has(contentKey(String(v[1] || ""), String(v[3] || ""))))
       .map((v) => ({
         id: String(v[0]), owner: String(v[1] || ""), col: String(v[2] || "todo"),
         text: String(v[3]).slice(0, 2000), serial: String(v[4] || ""), due: String(v[5] || ""),
