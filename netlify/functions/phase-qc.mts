@@ -117,7 +117,8 @@ export default async (req: Request) => {
     if (p.done) {
       const r = await fetch(`${SB()}/rest/v1/phase_checks?on_conflict=serial,phase,step`, {
         method: "POST", headers: { ...sb(), Prefer: "resolution=merge-duplicates,return=minimal" },
-        body: JSON.stringify({ ...row, done_by: String(p.by || ""), at: now }),
+        body: JSON.stringify({ ...row, done_by: String(p.by || ""), at: now,
+          skipped: !!p.skipped, note: String(p.note || "").slice(0, 200) }),
       });
       if (!r.ok) return json({ error: "save failed " + r.status }, headers, 502);
     } else {
