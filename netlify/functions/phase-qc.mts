@@ -138,9 +138,22 @@ export default async (req: Request) => {
     });
     if (!ins.ok) return json({ error: "queue failed " + ins.status }, headers, 502);
     const id = ((await ins.json()) as Array<{ id: number }>)[0].id;
-    await textByName("Mark Hales",
-      `🔍 Mini-QC requested — ${p.phase} on ${p.piano || "#" + p.serial} by ${String(p.by || "a tech").split(" ")[0]}. ` +
-      `Inspect: ${APP_URL}/#qc=${id} (30 min before this escalates to Karmel)`);
+    // TRAINING PERIOD (Brigham 9/3 → 10/3): Brigham performs EVERY mini-QC
+    // himself to train the managers; Karmel is copied on each request so she
+    // can video the inspection for the training library. After 10/3 requests
+    // go back to the shop manager.
+    const TRAINING_UNTIL = new Date("2026-10-04T00:00:00-06:00").getTime();
+    const who = String(p.by || "a tech").split(" ")[0];
+    const what = `${p.phase} on ${p.piano || "#" + p.serial}`;
+    if (Date.now() < TRAINING_UNTIL) {
+      await textByName("Brigham",
+        `🔍 Mini-QC requested — ${what} by ${who}. Inspect: ${APP_URL}/#qc=${id}`);
+      await textByName("Karmel",
+        `🎥 Mini-QC to video for manager training — Brigham was just asked to inspect ${what} (requested by ${who}). ${APP_URL}/#qc=${id}`);
+    } else {
+      await textByName("Mark Hales",
+        `🔍 Mini-QC requested — ${what} by ${who}. Inspect: ${APP_URL}/#qc=${id} (30 min before this escalates to Karmel)`);
+    }
     return json({ ok: true, id }, headers);
   }
 

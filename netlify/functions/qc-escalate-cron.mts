@@ -14,7 +14,11 @@ export default async () => {
     { headers: h })).json()) as Array<{ id: number; serial: string; piano: string; phase: string; requested_by: string }>;
   for (const q of rows) {
     const msg = `⏰ Mini-QC waiting ${">"}30 min — ${q.phase} on ${q.piano || "#" + q.serial} (requested by ${String(q.requested_by || "").split(" ")[0]}). Inspect: https://blpstoremap.netlify.app/#qc=${q.id}`;
-    for (const name of ["Mark Hales", "Karmel"]) {
+    // during the training month (through 10/3) Brigham owns every mini-QC —
+    // silence nudges him again and loops in Mark; afterwards Mark + Karmel
+    const TRAINING_UNTIL = new Date("2026-10-04T00:00:00-06:00").getTime();
+    const escalateTo = Date.now() < TRAINING_UNTIL ? ["Brigham", "Mark Hales"] : ["Mark Hales", "Karmel"];
+    for (const name of escalateTo) {
       await fetch("https://blpsalesapp.netlify.app/.netlify/functions/request-notify", {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ key, name, message: msg }),
