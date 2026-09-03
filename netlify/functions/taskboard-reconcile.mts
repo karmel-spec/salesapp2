@@ -114,7 +114,7 @@ export default async (req: Request) => {
       if (!ins.ok) throw new Error("card insert " + ins.status + " " + (await ins.text()).slice(0, 120));
     }
 
-    // 4. column configs for owners Supabase doesn't know yet
+    // 4a. column configs for owners Supabase doesn't know yet
     const newCols = bc
       .filter((v) => !haveOwners.has(String(v[0]).toLowerCase()))
       .map((v) => {
@@ -130,9 +130,32 @@ export default async (req: Request) => {
       });
       if (!ins2.ok) throw new Error("cols insert " + ins2.status + " " + (await ins2.text()).slice(0, 120));
     }
+    // 4b. additive merge for KNOWN owners: a stale client's brand-new column
+    //     lands on the sheet only (Karmel's "Management Requests", 9/3) —
+    //     append sheet-only column KEYS; Supabase keeps authority over
+    //     renames, order, and removals.
+    const mergedOwners: string[] = [];
+    const sbCols = (await (await fetch(SB + "/rest/v1/tb_cols?select=owner,cols", { headers: sbHeaders() })).json()) as Array<{ owner: string; cols: [string, string][] }>;
+    const sbByOwner = new Map(sbCols.map((c) => [c.owner.toLowerCase(), c.cols || []]));
+    for (const v of bc) {
+      const owner = String(v[0]).toLowerCase();
+      const have = sbByOwner.get(owner);
+      if (!have) continue;
+      let sheetCols: [string, string][] = [];
+      try { sheetCols = JSON.parse(String(v[1] || "[]")); } catch { continue; }
+      const haveKeys = new Set(have.map((c) => Array.isArray(c) ? c[0] : (c as { key?: string }).key));
+      const adds = sheetCols.filter((c) => Array.isArray(c) && c[0] && !haveKeys.has(c[0]));
+      if (!adds.length) continue;
+      const merged = have.concat(adds);
+      const up = await fetch(`${SB}/rest/v1/tb_cols?owner=eq.${encodeURIComponent(owner)}`, {
+        method: "PATCH", headers: sbHeaders(), body: JSON.stringify({ cols: merged }),
+      });
+      if (up.ok) mergedOwners.push(owner + "+" + adds.length);
+    }
     return new Response(JSON.stringify({
       ok: true, checked: tb.length, addedCards: missing.length,
       addedCols: newCols.map((c) => (c as { owner: string }).owner),
+      mergedCols: mergedOwners,
     }), { headers: { "content-type": "application/json" } });
   } catch (e) {
     return new Response(JSON.stringify({ error: String((e as Error).message || e) }), { status: 502 });
