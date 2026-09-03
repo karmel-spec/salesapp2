@@ -46,8 +46,13 @@ export default async (req: Request) => {
     if (!r.ok) throw new Error("sheets " + r.status);
     const d = (await r.json()) as { valueRanges: Array<{ values?: string[][] }> };
     const okd = (v: string) => { const x = new Date(v).getTime(); return !isNaN(x) && x >= cutoff; };
+    // payroll day-clock officially began 9/1/2026 (Brigham 9/3) — earlier
+    // day punches were trial rows and never show on dashboards. Piano
+    // Time Log history has no epoch: it's all real work.
+    const PAY_EPOCH = new Date("2026-09-01T00:00:00-06:00").getTime();
+    const okPay = (v: string) => { const x = new Date(v).getTime(); return !isNaN(x) && x >= Math.max(cutoff, PAY_EPOCH); };
     const pay = (d.valueRanges[0]?.values || [])
-      .filter((v) => v[0] && v[2] && okd(v[2]))
+      .filter((v) => v[0] && v[2] && okPay(v[2]))
       .map((v) => ({ tech: String(v[0]), start: String(v[2]), end: String(v[3] || ""), minutes: Number(v[4]) || 0, note: String(v[6] || "") }));
     const tl = (d.valueRanges[1]?.values || [])
       .filter((v) => v[0] && v[4] && okd(v[4]))
