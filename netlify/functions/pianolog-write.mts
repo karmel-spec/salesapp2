@@ -69,7 +69,7 @@ export default async (req: Request) => {
   let p: Record<string, unknown>;
   try { p = await req.json(); } catch { return new Response(JSON.stringify({ error: "bad json" }), { status: 400, headers }); }
   if (p.relayKey !== (process.env.BLP_APP_ACCESS_KEY || "")) {
-    return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers });
+    return new Response(JSON.stringify({ error: "unauthorized", dbg: { keys: Object.keys(p), rk: typeof p.relayKey, envSet: !!process.env.BLP_APP_ACCESS_KEY, envLen: (process.env.BLP_APP_ACCESS_KEY || "").length } }), { status: 401, headers });
   }
   const action = String(p.action || "");
   if (!RELAY_OK.test(action)) {
