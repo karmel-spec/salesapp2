@@ -58,16 +58,20 @@ function cors(origin: string | null) {
 const json = (o: unknown, headers: Record<string, string>, status = 200) =>
   new Response(JSON.stringify(o), { status, headers });
 
-let clCache: { at: number; rows: string[][] } | null = null;
-async function checklistRows(): Promise<string[][]> {
-  if (clCache && Date.now() - clCache.at < 600000) return clCache.rows;
+let clCache: { at: number; rows: string[][]; gloss: string[][] } | null = null;
+async function checklistRows(): Promise<{ rows: string[][]; gloss: string[][] }> {
+  if (clCache && Date.now() - clCache.at < 600000) return clCache;
   const t = await googleToken();
+  const ranges = ["'Phase Checklists'!A2:H500", "'Glossary'!A2:C300"];
   const r = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent("'Phase Checklists'!A2:H500")}`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchGet?` +
+      ranges.map((x) => "ranges=" + encodeURIComponent(x)).join("&"),
     { headers: { Authorization: "Bearer " + t } });
-  const rows = (((await r.json()) as { values?: string[][] }).values || []).filter((v) => v[0]);
-  clCache = { at: Date.now(), rows };
-  return rows;
+  const d = (await r.json()) as { valueRanges: Array<{ values?: string[][] }> };
+  const rows = (d.valueRanges[0]?.values || []).filter((v) => v[0]);
+  const gloss = (d.valueRanges[1]?.values || []).filter((v) => v[0] && v[1]);
+  clCache = { at: Date.now(), rows, gloss };
+  return clCache;
 }
 
 async function textByName(name: string, message: string) {
@@ -90,7 +94,7 @@ export default async (req: Request) => {
     if ((u.searchParams.get("key") || "") !== APP_KEY) return json({ error: "unauthorized" }, headers, 401);
     const serial = u.searchParams.get("serial") || "";
     const phase = u.searchParams.get("phase") || "";
-    const rows = await checklistRows();
+    const { rows, gloss } = await checklistRows();
     const items = rows.filter((v) => v[0] === phase)
       .map((v, i) => ({ i, kind: v[1] || "work", variant: (v[2] || "all").toLowerCase(),
         section: v[3] || "", text: v[4] || "", detail: v[5] || "",
@@ -104,7 +108,8 @@ export default async (req: Request) => {
       checks = await cr.json();
       request = ((await qr.json()) as unknown[])[0] || null;
     }
-    return json({ ok: true, items, checks, request }, headers);
+    return json({ ok: true, items, checks, request,
+      glossary: gloss.map((v) => ({ term: v[0], def: v[1], img: v[2] || "" })) }, headers);
   }
 
   let p: Record<string, any>;
