@@ -63,7 +63,7 @@ async function checklistRows(): Promise<string[][]> {
   if (clCache && Date.now() - clCache.at < 600000) return clCache.rows;
   const t = await googleToken();
   const r = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent("'Phase Checklists'!A2:F500")}`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent("'Phase Checklists'!A2:H500")}`,
     { headers: { Authorization: "Bearer " + t } });
   const rows = (((await r.json()) as { values?: string[][] }).values || []).filter((v) => v[0]);
   clCache = { at: Date.now(), rows };
@@ -93,7 +93,8 @@ export default async (req: Request) => {
     const rows = await checklistRows();
     const items = rows.filter((v) => v[0] === phase)
       .map((v, i) => ({ i, kind: v[1] || "work", variant: (v[2] || "all").toLowerCase(),
-        section: v[3] || "", text: v[4] || "", detail: v[5] || "" }));
+        section: v[3] || "", text: v[4] || "", detail: v[5] || "",
+        handbook: v[6] || "", video: v[7] || "" }));
     let checks: unknown[] = [], request: unknown = null;
     if (serial) {
       const [cr, qr] = await Promise.all([
