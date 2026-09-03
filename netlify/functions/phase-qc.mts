@@ -167,6 +167,14 @@ export default async (req: Request) => {
       body: JSON.stringify({ status: outcome, manager: String(p.manager || ""), updated: now }),
     });
     const first = String(q.requested_by || "").split(" ")[0] || "team";
+    // keep the scorecard's QC Log fed: record the inspection outcome there too
+    fetch("https://script.google.com/macros/s/AKfycbxY4BKnr_Tr0iCTc9itCWhNYLvgszmkI1IoYSkbBWpyAqRtWI-yaUkJQjcVdgG58KXt/exec", {
+      method: "POST", headers: { "content-type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ pin: "pianoman", action: "miniqc", serial: q.serial, phase: q.phase,
+        result: outcome === "passed" ? "pass" : "fix",
+        note: outcome === "passed" ? "mini-QC rail pass" : "rework assigned",
+        user: { name: String(p.manager || "Mini-QC"), email: "" } }),
+    }).catch(() => {});
     if (outcome === "passed") {
       // advance the phase through the durable relay (loss-proof)
       await fetch("https://blpsalesapp.netlify.app/.netlify/functions/pianolog-write", {
