@@ -28,6 +28,7 @@ const ALLOW = [
 ];
 const MAP_GOOGLE_CLIENT_ID = "110628682621-v65mkaoanv87sp75ggdfcrglfr7bkr8p.apps.googleusercontent.com";
 const SHOP_GOOGLE_CLIENT_ID = "118454775893-17u7t3glh8eu4kffhe7b42jl71apre4f.apps.googleusercontent.com";
+const PIANOLOG_GOOGLE_CLIENT_ID = "523632876512-i2csml8jkg7c3knaone1sf0886oppfek.apps.googleusercontent.com";  // the training app signs in with this one
 const ADMIN_DOMAIN = "brighamlarsonpianos.com";
 const OWNERS = ["brigham@brighamlarsonpianos.com", "karmel@brighamlarsonpianos.com", "brighamlarson@gmail.com", "karmel.larson@gmail.com"];
 const TRAINERS = ["melissa@brighamlarsonpianos.com"];
@@ -43,7 +44,7 @@ async function verifyGoogle(idToken: string): Promise<string | null> {
   const r = await fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(idToken));
   if (!r.ok) return null;
   const info = (await r.json()) as Record<string, string>;
-  if (info.aud !== MAP_GOOGLE_CLIENT_ID && info.aud !== SHOP_GOOGLE_CLIENT_ID) return null;
+  if (![MAP_GOOGLE_CLIENT_ID, SHOP_GOOGLE_CLIENT_ID, PIANOLOG_GOOGLE_CLIENT_ID].includes(info.aud)) return null;
   if (String(info.email_verified) !== "true") return null;
   const email = String(info.email || "").toLowerCase();
   if (email.endsWith("@" + ADMIN_DOMAIN) || /\.blp@gmail\.com$/.test(email) || OWNERS.includes(email)) return email;
