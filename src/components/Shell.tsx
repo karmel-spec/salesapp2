@@ -22,6 +22,7 @@ const BLP_APPS = [
   { href: "https://blpstoremap.netlify.app", label: "Store Map" },
   { href: "https://blpmap.netlify.app", label: "US Marketing Map" },
   { href: "https://pianologapp.netlify.app", label: "Piano Log App" },
+  { href: "https://blpadmintraining.netlify.app", label: "Admin Training" },
   { href: "https://pianotechnologylibrary.com", label: "PTL" },
   { href: "https://blpagents.netlify.app", label: "Agent App" },
 ];

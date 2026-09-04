@@ -13,6 +13,11 @@ export interface TrainingItem {
 
 export const TRAINING_ITEMS: TrainingItem[] = [
   {
+    title: "BLP Admin Training",
+    desc: "Curriculum, practice log and scorecard for BLP admins — onboarding, foundations, and every admin duty by priority.",
+    href: "https://blpadmintraining.netlify.app/",
+  },
+  {
     title: "Store Map User Guide",
     desc: "How to use the BLP Store Map: signing in, finding pianos, clocking work time, paperwork & photos.",
     href: "https://docs.google.com/document/d/1aq3oTa6pxr6AhquS7pbJakAY4q4iPc_nUJW4yLMXDOM/edit?usp=sharing",
