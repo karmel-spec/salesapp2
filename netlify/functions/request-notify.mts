@@ -7,6 +7,7 @@
  *   POST {key, name, message} → {ok, sent}
  */
 import * as crypto from "node:crypto";
+import { loadSettings } from "./app-settings.mts";
 
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
 const PHONES_TAB = "Tech Phones";
@@ -72,13 +73,23 @@ export default async (req: Request) => {
   // non-exempt text is handed to Twilio with SendAt = next 10:00 Denver —
   // Twilio holds and delivers it, no queue of our own to babysit.
   const mss = process.env.TWILIO_MESSAGING_SERVICE_SID || "";
-  const EXEMPT_NAMES = /^(brigham|karmel|mark|melissa)$/;
-  const EXEMPT_TEXT = /weekly report|time ?clock|clock[- ]?(fix|in|out)|punch|mini-?qc|rework/i;
+  // window + exemptions are EDITABLE on the Settings page (App Settings tab)
+  let qStart = 10, qEnd = 16,
+    exNames = ["brigham", "karmel", "mark", "melissa"],
+    exWords = ["weekly report", "time clock", "timeclock", "clock fix", "clock in", "clock out", "punch", "mini-qc", "miniqc", "rework"];
+  try {
+    const st = (await loadSettings()).settings;
+    if (st.quiet_start) qStart = Number(st.quiet_start);
+    if (st.quiet_end) qEnd = Number(st.quiet_end);
+    if (st.quiet_exempt_names) exNames = st.quiet_exempt_names.split(",").map(x => x.trim().toLowerCase()).filter(Boolean);
+    if (st.quiet_exempt_keywords) exWords = st.quiet_exempt_keywords.split(",").map(x => x.trim().toLowerCase()).filter(Boolean);
+  } catch { /* settings unreachable — built-in defaults */ }
   const dvParts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Denver",
     hour12: false, hour: "2-digit", minute: "2-digit" }).formatToParts(new Date());
   const hr = Number(dvParts.find(x => x.type === "hour")?.value || 12);
-  const inWindow = hr >= 10 && hr < 16;
-  const exempt = body.now === true || EXEMPT_NAMES.test(first) || EXEMPT_TEXT.test(message);
+  const inWindow = hr >= qStart && hr < qEnd;
+  const low = message.toLowerCase();
+  const exempt = body.now === true || exNames.includes(first) || exWords.some(w => low.includes(w));
   // no Twilio Messaging Service on this account → hold the text in the
   // shared Supabase queue instead; sms-quiet-cron delivers it after 10am
   if (!inWindow && !exempt && !mss && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {

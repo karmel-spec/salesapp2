@@ -14,6 +14,7 @@
  *        rework → task-board card with the failed items + text the tech
  */
 import * as crypto from "node:crypto";
+import { loadSettings } from "./app-settings.mts";
 
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
 const APP_URL = "https://blpstoremap.netlify.app";
@@ -149,18 +150,20 @@ export default async (req: Request) => {
     // himself to train the managers; Karmel is copied on each request so she
     // can video the inspection for the training library. After 10/3 requests
     // go back to the shop manager.
-    const TRAINING_UNTIL = new Date("2026-10-04T00:00:00-06:00").getTime();
+    // inspector + video-copy + escalation window come from the Settings page
+    let inspector = "Mark Hales", videoCopy = "", escMin = "30";
+    try {
+      const st = (await loadSettings()).settings;
+      inspector = st.qc_inspector || inspector;
+      videoCopy = st.qc_video_copy || "";
+      escMin = st.qc_escalate_minutes || escMin;
+    } catch { /* defaults */ }
     const who = String(p.by || "a tech").split(" ")[0];
     const what = `${p.phase} on ${p.piano || "#" + p.serial}`;
-    if (Date.now() < TRAINING_UNTIL) {
-      await textByName("Brigham",
-        `🔍 Mini-QC requested — ${what} by ${who}. Inspect: ${APP_URL}/#qc=${id}`);
-      await textByName("Karmel",
-        `🎥 Mini-QC to video for manager training — Brigham was just asked to inspect ${what} (requested by ${who}). ${APP_URL}/#qc=${id}`);
-    } else {
-      await textByName("Mark Hales",
-        `🔍 Mini-QC requested — ${what} by ${who}. Inspect: ${APP_URL}/#qc=${id} (30 min before this escalates to Karmel)`);
-    }
+    await textByName(inspector,
+      `🔍 Mini-QC requested — ${what} by ${who}. Inspect: ${APP_URL}/#qc=${id} (escalates after ${escMin} min)`);
+    if (videoCopy) await textByName(videoCopy,
+      `🎥 Mini-QC to video for manager training — ${inspector} was just asked to inspect ${what} (requested by ${who}). ${APP_URL}/#qc=${id}`);
     return json({ ok: true, id }, headers);
   }
 
