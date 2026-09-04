@@ -79,6 +79,17 @@ export default async (req: Request) => {
   const hr = Number(dvParts.find(x => x.type === "hour")?.value || 12);
   const inWindow = hr >= 10 && hr < 16;
   const exempt = body.now === true || EXEMPT_NAMES.test(first) || EXEMPT_TEXT.test(message);
+  // no Twilio Messaging Service on this account → hold the text in the
+  // shared Supabase queue instead; sms-quiet-cron delivers it after 10am
+  if (!inWindow && !exempt && !mss && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
+    const qr = await fetch(`${process.env.SUPABASE_URL}/rest/v1/bridge_queue`, {
+      method: "POST",
+      headers: { apikey: process.env.SUPABASE_SERVICE_KEY, Authorization: "Bearer " + process.env.SUPABASE_SERVICE_KEY,
+        "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({ action: "sms", status: "sms-queued", payload: { name, message } }) });
+    if (qr.ok) return json({ ok: true, sent: false, queued: true, sendAt: "next 10:00 AM Denver" });
+    // queue unreachable — never drop a message: fall through and send now
+  }
   let sendAt = "";
   if (!inWindow && !exempt && mss) {
     const nowMs = Date.now();
