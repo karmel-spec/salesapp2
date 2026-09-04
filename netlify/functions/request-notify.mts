@@ -43,7 +43,9 @@ export default async (req: Request) => {
   try { body = await req.json(); } catch { return json({ error: "bad json" }, 400); }
   if ((body.key || "") !== APP_KEY) return json({ error: "unauthorized" }, 403);
   const name = String(body.name || "").trim();
-  const message = String(body.message || "").trim().slice(0, 320);
+  // 1200 not 320: the late-clock nudge (piano list + fix link) and the
+  // Brigham/Karmel sweep summaries run long — 320 was cutting the link off
+  const message = String(body.message || "").trim().slice(0, 1200);
   if (!name || !message) return json({ error: "name and message required" }, 400);
 
   const t = await googleToken();
