@@ -8,6 +8,7 @@
  *   Questions | id | trainee | skillId | question | askedAt | by | answer | answeredBy | answeredAt
  *   Notes     | skillId | note | by | at
  *   Trainees  | email | name | start | hoursPerWeek | active
+ *   Overrides | skillId | json (partial skill: title/why/steps/tips/check/approved) | by | at   — owner edits, latest wins
  *
  *   GET  ?fn=auth&key=…                      → {ok}
  *   GET  ?fn=state&trainee=email[&idToken|key] → {ok, state}
@@ -34,7 +35,7 @@ const OWNERS = ["brigham@brighamlarsonpianos.com", "karmel@brighamlarsonpianos.c
 const TRAINERS = ["melissa@brighamlarsonpianos.com"];
 const STAFF = [...OWNERS, ...TRAINERS];
 const TABS = {
-  Progress: "A:E", Opened: "A:C", Reps: "A:F", Signoffs: "A:F", Questions: "A:I", Notes: "A:D", Trainees: "A:E",
+  Progress: "A:E", Opened: "A:C", Reps: "A:F", Signoffs: "A:F", Questions: "A:I", Notes: "A:D", Trainees: "A:E", Overrides: "A:D",
 };
 const STATUSES = new Set(["learning", "practiced", "mastered", "refresh"]);
 const DECISIONS = new Set(["mastered", "more", "refresh"]);
@@ -102,13 +103,14 @@ const t = (v: unknown, n = 400) => String(v ?? "").trim().slice(0, n);
 const low = (v: unknown) => t(v, 120).toLowerCase();
 
 function stateFor(all: Record<string, string[][]>, trainee: string) {
-  const st: any = { status: {}, opened: {}, reps: [], signoffs: [], questions: [], notes: [] };
+  const st: any = { status: {}, opened: {}, reps: [], signoffs: [], questions: [], notes: [], overrides: {} };
   for (const r of all.Progress) if (low(r[0]) === trainee) st.status[t(r[1])] = t(r[2]);
   for (const r of all.Opened) if (low(r[0]) === trainee) st.opened[t(r[1])] = t(r[2]);
   for (const r of all.Reps) if (low(r[0]) === trainee) st.reps.push({ skillId: t(r[1]), date: t(r[2]), note: t(r[3]), by: t(r[4]), at: t(r[5]) });
   for (const r of all.Signoffs) if (low(r[0]) === trainee) st.signoffs.push({ skillId: t(r[1]), decision: t(r[2]), note: t(r[3]), by: t(r[4]), at: t(r[5]) });
   for (const r of all.Questions) if (low(r[1]) === trainee) st.questions.push({ id: t(r[0]), skillId: t(r[2]), question: t(r[3]), askedAt: t(r[4]), by: t(r[5]), answer: t(r[6]), answeredBy: t(r[7]), answeredAt: t(r[8]) });
   for (const r of all.Notes) st.notes.push({ skillId: t(r[0]), note: t(r[1]), by: t(r[2]), at: t(r[3]) });
+  for (const r of all.Overrides || []) { try { const o = JSON.parse(String(r[1] || '{}')); st.overrides[t(r[0])] = Object.assign(st.overrides[t(r[0])] || {}, o, { _by: t(r[2]), _at: t(r[3]) }); } catch (e) { /* skip bad row */ } }
   return st;
 }
 
@@ -171,7 +173,7 @@ export default async (req: Request) => {
       const by = t(body.by, 60) || googleUser || "Team";
       const at = new Date().toISOString();
       const skillId = t(body.skillId, 20);
-      const staffOnly = ["signoff", "answer", "note", "trainee"];
+      const staffOnly = ["signoff", "answer", "note", "trainee", "override"];
       if (staffOnly.includes(action) && !isStaff) return fail(403, "owners and Melissa only — sign in with Google");
       if (!staffOnly.includes(action) && googleUser && !isStaff && googleUser !== trainee) return fail(403, "you can only log your own progress");
 
@@ -216,6 +218,16 @@ export default async (req: Request) => {
           const note = t(body.note, 2000);
           if (!skillId || !note) return fail(400, "skillId and note required");
           await append("Notes", [skillId, note, googleUser || by, at]); return ok({});
+        }
+        case "override": {
+          const patch = body.patch && typeof body.patch === "object" ? body.patch : null;
+          if (!skillId || !patch) return fail(400, "skillId and patch required");
+          const allowed = ["title", "why", "steps", "tips", "check", "approved", "links"];
+          const clean: Record<string, unknown> = {};
+          for (const k of allowed) if (k in patch) clean[k] = patch[k];
+          const js = JSON.stringify(clean);
+          if (js.length > 20000) return fail(400, "patch too large");
+          await append("Overrides", [skillId, js, googleUser || by, at]); return ok({});
         }
         case "trainee": {
           const email = low(body.email);
