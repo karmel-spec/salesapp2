@@ -64,14 +64,56 @@ export default async (req: Request) => {
   const from = process.env.TWILIO_FROM_NUMBER || "";
   if (!sid || !tok || !from) return json({ error: "Twilio env not set" }, 500);
   const to = phone.length === 10 ? "+1" + phone : (phone.startsWith("+") ? phone : "+" + phone);
+
+  // QUIET HOURS (Brigham 9/3): team members only get texts 10am–4pm Denver.
+  // Exempt: weekly-report + timeclock/punch texts, the mini-QC loop (a tech
+  // is standing at the piano waiting for the verdict), and owners/managers
+  // (their summary + escalation texts are the point). Outside the window a
+  // non-exempt text is handed to Twilio with SendAt = next 10:00 Denver —
+  // Twilio holds and delivers it, no queue of our own to babysit.
+  const mss = process.env.TWILIO_MESSAGING_SERVICE_SID || "";
+  const EXEMPT_NAMES = /^(brigham|karmel|mark|melissa)$/;
+  const EXEMPT_TEXT = /weekly report|time ?clock|clock[- ]?(fix|in|out)|punch|mini-?qc|rework/i;
+  const dvParts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Denver",
+    hour12: false, hour: "2-digit", minute: "2-digit" }).formatToParts(new Date());
+  const hr = Number(dvParts.find(x => x.type === "hour")?.value || 12);
+  const inWindow = hr >= 10 && hr < 16;
+  const exempt = body.now === true || EXEMPT_NAMES.test(first) || EXEMPT_TEXT.test(message);
+  let sendAt = "";
+  if (!inWindow && !exempt && mss) {
+    const nowMs = Date.now();
+    // next 10:00 Denver: walk forward in 30-min steps until the Denver
+    // clock reads 10:xx on a moment ≥ today (DST-proof, no tz math)
+    let t = new Date(nowMs);
+    for (let i = 0; i < 60; i++) {
+      const h2 = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Denver",
+        hour12: false, hour: "2-digit" }).format(t));
+      if (h2 === 10 && t.getTime() > nowMs) break;
+      t = new Date(t.getTime() + 30 * 60000);
+    }
+    if (t.getTime() - nowMs > 16 * 60000) sendAt = new Date(Math.floor(t.getTime() / 60000) * 60000).toISOString();
+  }
+  const params: Record<string, string> = { To: to, Body: message };
+  if (sendAt) { params.MessagingServiceSid = mss; params.ScheduleType = "fixed"; params.SendAt = sendAt; }
+  else if (mss) { params.MessagingServiceSid = mss; params.From = from; }
+  else params.From = from;
   const tw = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
     method: "POST",
     headers: { Authorization: "Basic " + Buffer.from(`${sid}:${tok}`).toString("base64"),
       "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ To: to, From: from, Body: message,
-      ...(process.env.TWILIO_MESSAGING_SERVICE_SID
-        ? { MessagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID } : {}) }) });
-  return json({ ok: tw.status < 300, sent: tw.status < 300 });
+    body: new URLSearchParams(params) });
+  if (sendAt && tw.status >= 300) {
+    // scheduling refused (e.g. number not on the messaging service) — never
+    // drop a message: send it now and say so
+    const tw2 = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+      method: "POST",
+      headers: { Authorization: "Basic " + Buffer.from(`${sid}:${tok}`).toString("base64"),
+        "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ To: to, From: from, Body: message }) });
+    return json({ ok: tw2.status < 300, sent: tw2.status < 300, scheduleFailed: true });
+  }
+  return json({ ok: tw.status < 300, sent: tw.status < 300,
+    ...(sendAt ? { scheduled: true, sendAt } : {}) });
 };
 function json(o: unknown, status = 200) {
   return new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json", ...CORS } });
