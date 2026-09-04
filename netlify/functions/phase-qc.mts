@@ -63,7 +63,7 @@ let clCache: { at: number; rows: string[][]; gloss: string[][] } | null = null;
 async function checklistRows(): Promise<{ rows: string[][]; gloss: string[][] }> {
   if (clCache && Date.now() - clCache.at < 600000) return clCache;
   const t = await googleToken();
-  const ranges = ["'Phase Checklists'!A2:H500", "'Glossary'!A2:C300"];
+  const ranges = ["'Phase Checklists'!A2:I500", "'Glossary'!A2:C300"];
   const r = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchGet?` +
       ranges.map((x) => "ranges=" + encodeURIComponent(x)).join("&"),
@@ -99,7 +99,7 @@ export default async (req: Request) => {
     const items = rows.filter((v) => v[0] === phase)
       .map((v, i) => ({ i, kind: v[1] || "work", variant: (v[2] || "all").toLowerCase(),
         section: v[3] || "", text: v[4] || "", detail: v[5] || "",
-        handbook: v[6] || "", video: v[7] || "" }));
+        handbook: v[6] || "", video: v[7] || "", photo: v[8] || "" }));
     let checks: unknown[] = [], request: unknown = null;
     if (serial) {
       const [cr, qr] = await Promise.all([
