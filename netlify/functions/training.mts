@@ -19,6 +19,7 @@
  * Sign-offs, answers, notes and trainee edits need a VERIFIED owner/trainer identity.
  */
 import * as crypto from "node:crypto";
+import { createTransport } from "nodemailer";
 
 const SHEET_ID = process.env.TRAINING_SHEET_ID || "17E2TMyIp5X1Ex9IkOHgODiN0qPeTVsP5R8zPJKrgSCc";
 const ALLOW = [
@@ -37,6 +38,39 @@ const STAFF = [...OWNERS, ...TRAINERS];
 const TABS = {
   Progress: "A:E", Opened: "A:C", Reps: "A:F", Signoffs: "A:F", Questions: "A:I", Notes: "A:D", Trainees: "A:E", Overrides: "A:D",
 };
+const NOTIFY_EMAILS = ["brigham@brighamlarsonpianos.com", "karmel@brighamlarsonpianos.com", "melissa@brighamlarsonpianos.com"];
+const NOTIFY_TEXT_NAMES = ["Brigham", "Karmel", "Melissa"];   // resolved to numbers by request-notify (Tech Phones tab)
+const APP_URL = "https://blpadmintraining.netlify.app";
+// A trainee's question shouldn't sit unseen on the Scorecard: email the owners + Melissa
+// from info@ and text them via the shared notifier. Failures never fail the question itself.
+async function notifyQuestion(trainee: string, skillId: string, question: string, by: string): Promise<string> {
+  const notes: string[] = [];
+  const who = by || trainee;
+  const where = skillId === "GENERAL" ? "a general question (from the search bar)" : `skill ${skillId}`;
+  const link = skillId === "GENERAL" ? `${APP_URL}/#scorecard=${encodeURIComponent(trainee)}` : `${APP_URL}/#skill=${skillId}`;
+  try {
+    const pass = process.env.SMTP_PASS || "";
+    if (pass) {
+      const user = process.env.SMTP_USER || "info@brighamlarsonpianos.com";
+      const transport = createTransport({ host: process.env.SMTP_HOST || "smtp.gmail.com", port: Number(process.env.SMTP_PORT || 465), secure: Number(process.env.SMTP_PORT || 465) === 465, auth: { user, pass } });
+      await transport.sendMail({ from: `"BLP Admin Training" <${user}>`, to: NOTIFY_EMAILS.join(", "), subject: `Training question from ${who}: ${question.slice(0, 70)}${question.length > 70 ? "…" : ""}`,
+        text: `${who} asked a question in the Admin Training app (${where}):\n\n“${question}”\n\nAnswer it here (it lands on their Today page): ${link}\n\n— BLP Admin Training` });
+      notes.push("emailed");
+    } else notes.push("email skipped (SMTP_PASS unset)");
+  } catch (e) { notes.push("email failed: " + String((e as Error).message).slice(0, 80)); }
+  try {
+    const key = process.env.BLP_APP_ACCESS_KEY || "";
+    const msg = `Training question from ${who}: “${question.slice(0, 160)}${question.length > 160 ? "…" : ""}” — answer at ${link}`;
+    let sent = 0;
+    for (const name of NOTIFY_TEXT_NAMES) {
+      const r = await fetch("https://blpsalesapp.netlify.app/.netlify/functions/request-notify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key, name, message: msg }) });
+      const j = await r.json().catch(() => ({})) as { ok?: boolean; sent?: boolean };
+      if (j.ok && j.sent !== false) sent++;
+    }
+    notes.push(`texted ${sent}/${NOTIFY_TEXT_NAMES.length}`);
+  } catch (e) { notes.push("text failed: " + String((e as Error).message).slice(0, 80)); }
+  return notes.join(" · ");
+}
 const STATUSES = new Set(["learning", "practiced", "mastered", "refresh"]);
 const DECISIONS = new Set(["mastered", "more", "refresh"]);
 
@@ -203,7 +237,9 @@ export default async (req: Request) => {
           const q = t(body.question, 1000);
           if (!trainee || !skillId || !q) return fail(400, "trainee, skillId and question required");
           const id = "q" + Date.now();
-          await append("Questions", [id, trainee, skillId, q, at, by, "", "", ""]); return ok({ id });
+          await append("Questions", [id, trainee, skillId, q, at, by, "", "", ""]);
+          const notified = await notifyQuestion(trainee, skillId, q, by);
+          return ok({ id, notified });
         }
         case "answer": {
           const id = t(body.id, 30), answer = t(body.answer, 2000);
