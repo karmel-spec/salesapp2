@@ -96,7 +96,11 @@ export default async (req: Request) => {
     const serial = u.searchParams.get("serial") || "";
     const phase = u.searchParams.get("phase") || "";
     const { rows, gloss } = await checklistRows();
-    const items = rows.filter((v) => v[0] === phase)
+    // Post Sale QC (Brigham 9/8): the pre-delivery final QC uses the SAME
+    // worksheet wording as QC & Assembly, but its checks/requests are kept
+    // under their own phase so the original showroom QC record stays intact
+    const itemsPhase = phase === "Post Sale QC" ? "QC & Assembly" : phase;
+    const items = rows.filter((v) => v[0] === itemsPhase)
       .map((v, i) => ({ i, kind: v[1] || "work", variant: (v[2] || "all").toLowerCase(),
         section: v[3] || "", text: v[4] || "", detail: v[5] || "",
         handbook: v[6] || "", video: v[7] || "", photo: v[8] || "" }));
