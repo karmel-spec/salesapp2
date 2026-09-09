@@ -8,7 +8,6 @@
  */
 import * as crypto from "node:crypto";
 import { loadSettings } from "./app-settings.mts";
-import { smsSafe } from "./lib/sms-text";
 
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
 const PHONES_TAB = "Tech Phones";
@@ -47,9 +46,7 @@ export default async (req: Request) => {
   const name = String(body.name || "").trim();
   // 1200 not 320: the late-clock nudge (piano list + fix link) and the
   // Brigham/Karmel sweep summaries run long — 320 was cutting the link off
-  // smsSafe: emoji / dashes / arrows were arriving as Mac Roman garble
-  // since 9/6 (Mark's request 090826hales33) — see lib/sms-text.ts
-  const message = smsSafe(String(body.message || "")).slice(0, 1200);
+  const message = String(body.message || "").trim().slice(0, 1200);
   if (!name || !message) return json({ error: "name and message required" }, 400);
 
   const t = await googleToken();

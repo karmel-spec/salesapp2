@@ -21,7 +21,6 @@
  *   STANDUP_TEST=1      — skip the 7:50 wall-clock gate (for a manual run)
  */
 import * as crypto from "node:crypto";
-import { smsSafe } from "./sms-text";
 
 const REPORT_SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
 const PHONES_TAB = "Tech Phones";
@@ -107,7 +106,7 @@ async function sendSms(to: string, body: string): Promise<string> {
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: new URLSearchParams({
-      To: to, From: from, Body: smsSafe(body),
+      To: to, From: from, Body: body,
       ...(process.env.TWILIO_MESSAGING_SERVICE_SID
         ? { MessagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID }
         : {}),
