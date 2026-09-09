@@ -1,5 +1,6 @@
 import { createTransport } from "nodemailer";
 import { config } from "./config";
+import { smsSafe } from "../../netlify/functions/lib/sms-text";
 
 /** Outbound comms: Twilio SMS + SMTP email, both env-gated.
  * In open/dev mode (no team passcode) sends are DRY-RUN by default —
@@ -29,7 +30,7 @@ export async function sendSms(to: string, body: string, mediaUrls: string[] = []
         const params = new URLSearchParams({
           To: to,
           From: config.twilioFrom,
-          Body: body,
+          Body: smsSafe(body),
           // Route through the A2P-registered service for opt-out compliance;
           // From pins the branded number (it's in the service's pool).
           ...(config.twilioMessagingServiceSid
