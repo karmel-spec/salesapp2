@@ -180,6 +180,8 @@ export default async (req: Request) => {
       input_schema: { type: "object", properties: { question: { type: "string" } }, required: ["question"] } },
     { name: "unsupported", description: "The request is understood but not doable by text yet.",
       input_schema: { type: "object", properties: { reply: { type: "string" } }, required: ["reply"] } },
+    { name: "message", description: "Not a piano change at all: a reply to a text they received, a question, feedback, or a comment meant for a person. It will be forwarded to a manager.",
+      input_schema: { type: "object", properties: { summary: { type: "string", description: "one-line gist of what they said" } }, required: ["summary"] } },
   ];
   const sys = `You translate one SMS from a piano technician into one Store Map change. `
     + `Team members write shorthand and English is a second language for some - `
@@ -193,7 +195,9 @@ export default async (req: Request) => {
     + `Wurlitzer", or just "12995" right after a price request) is setprice - strip `
     + `$ and commas. For requests like tuning appointments, marking duplicates, or `
     + `anything not in the action list, use unsupported and point them to the Store `
-    + `Map app's Request menu. Never guess a serial.`;
+    + `Map app's Request menu. If the text is not about changing a piano at all - a `
+    + `reply to a notification they got, a question, feedback, "the Chickering should `
+    + `be 4 payments too" - use message so a person sees it. Never guess a serial.`;
   const userMsg = `Sender: ${who}\nAttached photos: ${nMedia}\nMessage: ${body || "(no text)"}\n\nPiano list:\n${roster}`;
   let parsed: any;
   try {
@@ -209,11 +213,14 @@ export default async (req: Request) => {
     parsed = (aj.content || []).find((c: any) => c.type === "tool_use");
     if (!parsed) throw new Error(aj.error?.message || "no tool call");
   } catch (e) {
-    return twiml("Sorry - couldn't understand that one. Try like: \"38930 phase 9\" or \"move 22722 to map 52\".");
+    // Walter 9/9: a text the gateway can't read is still a person talking —
+    // forward it instead of dropping it
+    return forwardToManager(who, from, body, nMedia);
   }
 
   if (parsed.name === "clarify") return twiml(parsed.input.question.slice(0, 300));
   if (parsed.name === "unsupported") return twiml(parsed.input.reply.slice(0, 300));
+  if (parsed.name === "message") return forwardToManager(who, from, body, nMedia);
 
   const a = parsed.input;
   const piano = pianos.find(p => p.serial === a.serial);
@@ -302,5 +309,31 @@ export default async (req: Request) => {
     return twiml(`Couldn't apply that to ${label}: ${String(e.message || e).slice(0, 120)}. Nothing was changed.`);
   }
 };
+
+/* A team member's text that isn't a piano command (a reply to one of the
+ * automated texts, a question, feedback) used to vanish — the shop number
+ * is a robot and nobody saw it (Walter 9/9). Now it is forwarded by text to
+ * the managers in SMS_FORWARD_TO (default Karmel) via request-notify — same
+ * Tech Phones lookup, same quiet-hours rules — and the sender is told. */
+async function forwardToManager(who: string, from: string, body: string, nMedia: number) {
+  const names = (process.env.SMS_FORWARD_TO || "Karmel").split(",").map(s => s.trim()).filter(Boolean);
+  const last4 = from.replace(/\D/g, "").slice(-4);
+  const text = `💬 ${who} texted the shop number${last4 ? ` (…${last4})` : ""}: "${body.slice(0, 600)}"`
+    + (nMedia ? ` [+${nMedia} photo${nMedia === 1 ? "" : "s"}]` : "") + " — reply to them directly.";
+  let delivered = 0;
+  for (const name of names) {
+    try {
+      const r = await fetch("https://blpsalesapp.netlify.app/.netlify/functions/request-notify", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ key: process.env.BLP_APP_ACCESS_KEY || "pianoman", name, message: text, now: true }) });
+      const j = (await r.json()) as { sent?: boolean; queued?: boolean };
+      if (j.sent || j.queued) delivered++;
+    } catch { /* best-effort per recipient */ }
+  }
+  const first = names.map(n => n.split(/\s+/)[0]);
+  return twiml(delivered
+    ? `Passed along to ${first.join(" & ")} - they'll follow up with you directly. (This number only takes piano updates like "38930 phase 9".)`
+    : "Couldn't pass that along right now - please text or tell Karmel directly. (This number only takes piano updates like \"38930 phase 9\".)");
+}
 
 export const config = { path: "/.netlify/functions/sms-inbound" };
