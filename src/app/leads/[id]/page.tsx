@@ -10,7 +10,7 @@ import { Thread } from "@/components/Thread";
 import { AddressInput } from "@/components/AddressInput";
 import { SummaryBar } from "@/components/SummaryBar";
 import type { LeadGeo } from "@/lib/geo-shared";
-import { ThreadComposer } from "@/components/ThreadComposer";
+import { ThreadComposer, replySubject } from "@/components/ThreadComposer";
 import { AttachButton, allowedAttachment, type PickedFile } from "@/components/AttachButton";
 
 type Adjacent = { id: string; name: string } | null;
@@ -682,7 +682,9 @@ function ComposePanel({
   onClose: () => void;
 }) {
   const [body, setBody] = useState("");
-  const [subject, setSubject] = useState("");
+  // Prefill "Re: <their subject>" when they've emailed us — the reply then
+  // reads (and threads) like a normal email reply.
+  const [subject, setSubject] = useState(() => (channel === "email" ? replySubject(lead) : ""));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [photo, setPhoto] = useState<{ name: string; type: string; dataBase64: string; preview: string } | null>(null);

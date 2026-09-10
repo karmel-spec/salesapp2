@@ -225,6 +225,9 @@ def poll_account(USER: str, password: str, key: str, per_account: dict, internal
             "subject": subject,
             "body": body,
             "receivedAt": received.isoformat() if received else None,
+            # RFC Message-ID — the app's replies use it to thread onto the
+            # customer's conversation (In-Reply-To).
+            "messageId": (msg.get("Message-ID") or "").strip(),
         }).encode()
         req = urllib.request.Request(
             f"{APP_URL}/api/email/inbound",

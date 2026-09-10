@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
       subject?: string;
       body?: string;
       receivedAt?: string;
+      messageId?: string; // RFC Message-ID — replies thread onto it
     };
     const fromEmail = (input.fromEmail || "").trim().toLowerCase();
     const body = (input.body || "").trim();
@@ -53,6 +54,8 @@ export async function POST(req: NextRequest) {
         who: lead.name,
         kind: "inbound",
         source: "email",
+        ...(input.messageId ? { emailId: input.messageId } : {}),
+        ...(input.subject ? { emailSubject: input.subject } : {}),
         folder: autoFolder(lead.leadType, lead.headline, `${input.subject || ""} ${body}`),
         text: `📥 Customer emailed${input.subject ? ` ("${input.subject}")` : ""}: "${full}${body.length > MAX_BODY ? "… [truncated]" : ""}"`,
       },

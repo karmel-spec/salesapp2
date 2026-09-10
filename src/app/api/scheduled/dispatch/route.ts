@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { getLead, appendTimeline } from "@/lib/leads";
+import { getLead, appendTimeline, lastInboundEmailRef } from "@/lib/leads";
 import { dueScheduled, updateScheduled } from "@/lib/scheduled";
 import { sendSms, sendEmail, senderFor } from "@/lib/comms";
 import { notifyTelegram } from "@/lib/arnold";
@@ -44,7 +44,8 @@ export async function POST(req: NextRequest) {
             item.body,
             [],
             `${config.publicBaseUrl}/api/track/${trackId}.gif`,
-            item.sendAs
+            item.sendAs,
+            lastInboundEmailRef(lead) // reply lands in the customer's thread
           );
           deliveryNote = `Email "${item.subject}" sent to ${lead.emailClean} from ${fromAddr} (${messageId})`;
         }

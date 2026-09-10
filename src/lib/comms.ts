@@ -123,11 +123,16 @@ export async function sendEmail(
   body: string,
   attachments: EmailAttachment[] = [],
   trackPixelUrl = "", // 1×1 open-tracking pixel appended to the HTML part
-  who = "" // rep name — picks the sender identity (see senderFor)
+  who = "", // rep name — picks the sender identity (see senderFor)
+  threadRef?: { messageId: string } | null // customer's email — reply threads onto it
 ): Promise<{ messageId: string }> {
   const sender = senderFor(who);
   if (config.dryRunSends) {
-    console.log(`[DRY-RUN] email to ${to} from ${sender.user} ("${subject}"): ${body.slice(0, 120)}${attachments.length ? ` +${attachments.length} attachment(s)` : ""}`);
+    console.log(
+      `[DRY-RUN] email to ${to} from ${sender.user} ("${subject}")` +
+        `${threadRef?.messageId ? ` [threads onto ${threadRef.messageId}]` : " [new thread]"}: ` +
+        `${body.slice(0, 120)}${attachments.length ? ` +${attachments.length} attachment(s)` : ""}`
+    );
     return { messageId: "DRYRUN-EMAIL" };
   }
   if (!sender.pass) {
@@ -143,6 +148,9 @@ export async function sendEmail(
     from: `"${sender.fromName}" <${sender.user}>`,
     to,
     subject,
+    // Thread onto the customer's email so every mail client (Gmail, Outlook,
+    // Apple Mail) shows our reply in their existing conversation.
+    ...(threadRef?.messageId ? { inReplyTo: threadRef.messageId, references: threadRef.messageId } : {}),
     text: emailText(body),
     html:
       emailHtml(body) +

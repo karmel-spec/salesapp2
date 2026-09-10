@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { getLead, appendTimeline } from "@/lib/leads";
+import { getLead, appendTimeline, lastInboundEmailRef } from "@/lib/leads";
 import { config } from "@/lib/config";
 import { sendSms, sendEmail } from "@/lib/comms";
 import { saveLeadPhoto } from "@/lib/media";
@@ -89,7 +89,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         body,
         photoBuffer ? [{ filename: photoName, contentType: photoType, content: photoBuffer }] : [],
         `${config.publicBaseUrl}/api/track/${trackId}.gif`,
-        identity
+        identity,
+        lastInboundEmailRef(lead) // reply lands in the customer's thread
       );
       deliveryNote = `Email "${subject}"${photoBuffer ? (isImage ? " (with photo)" : ` (with "${photoName}")`) : ""} sent to ${lead.emailClean} (${messageId})`;
     } else {

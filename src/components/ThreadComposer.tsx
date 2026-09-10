@@ -22,6 +22,17 @@ interface Template {
 
 type Mode = "sms" | "email" | "call" | "note";
 
+/** "Re: <their last email's subject>" — so replies read (and thread) right. */
+export function replySubject(lead: Lead): string {
+  for (let i = lead.timeline.length - 1; i >= 0; i--) {
+    const e = lead.timeline[i];
+    if (e.kind === "inbound" && e.emailSubject) {
+      return /^re:/i.test(e.emailSubject) ? e.emailSubject : `Re: ${e.emailSubject}`;
+    }
+  }
+  return "";
+}
+
 function fill(text: string, lead: Lead): string {
   return text
     .replace(/\{firstName\}/g, lead.firstName || lead.name.split(" ")[0] || "")
@@ -49,6 +60,16 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
   const [pendingScheduled, setPendingScheduled] = useState<
     { id: string; channel: string; sendAt: string; body: string }[]
   >([]);
+
+  // Opening the email tab on a lead who emailed us: prefill "Re: <subject>"
+  // so the reply lands in their existing conversation.
+  useEffect(() => {
+    if (mode === "email" && !subject.trim()) {
+      const re = replySubject(lead);
+      if (re) setSubject(re);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, lead.id]);
 
   useEffect(() => {
     setRepPhone(localStorage.getItem("blp_rep_phone") || "");

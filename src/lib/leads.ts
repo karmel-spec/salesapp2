@@ -76,6 +76,10 @@ export interface TimelineEvent {
   /** Channel the message arrived on: text | phone | email | webchat |
    *  facebook | instagram | salescaptain. Old events sniff it from the text. */
   source?: string;
+  /** Inbound emails: the RFC Message-ID + subject of the customer's email,
+   *  so our replies can thread onto their conversation (In-Reply-To). */
+  emailId?: string;
+  emailSubject?: string;
   /** Inbox: set when the team closes this response out ("Done") — it leaves
    *  the inbox but stays on the lead's timeline/conversation. */
   archivedAt?: string;
@@ -270,6 +274,8 @@ function normalizeTimeline(raw: unknown[]): TimelineEvent[] {
           ...(typeof e.openedAt === "string" ? { openedAt: e.openedAt } : {}),
           ...(typeof e.folder === "string" ? { folder: e.folder } : {}),
           ...(typeof e.source === "string" ? { source: e.source } : {}),
+          ...(typeof e.emailId === "string" ? { emailId: e.emailId } : {}),
+          ...(typeof e.emailSubject === "string" ? { emailSubject: e.emailSubject } : {}),
           ...(typeof e.archivedAt === "string" ? { archivedAt: e.archivedAt } : {}),
           ...(typeof e.archivedBy === "string" ? { archivedBy: e.archivedBy } : {}),
         };
@@ -519,6 +525,32 @@ export async function ensureAppColumns(shape: SheetShape): Promise<SheetShape> {
   return fresh;
 }
 
+/** Google caps a cell at 50,000 chars. Stay safely under it: when a lead's
+ *  timeline JSON outgrows the budget, trim the OLDEST long event texts down
+ *  (the newest 10 events are never touched). Nothing is deleted — old events
+ *  keep their first 500 chars plus a note. */
+const CELL_BUDGET = 47000;
+export function fitTimeline(timeline: TimelineEvent[]): TimelineEvent[] {
+  if (JSON.stringify(timeline).length <= CELL_BUDGET) return timeline;
+  const out = timeline.map((e) => ({ ...e }));
+  const protectedFrom = Math.max(0, out.length - 10);
+  for (let i = 0; i < protectedFrom && JSON.stringify(out).length > CELL_BUDGET; i++) {
+    if (out[i].text.length > 600) {
+      out[i].text = out[i].text.slice(0, 500) + "\n… [older message trimmed to fit storage]";
+    }
+  }
+  return out;
+}
+
+/** Same guard for the human-readable App Activity column: keep the newest
+ *  lines, drop the oldest when the cell would overflow. */
+function fitAppActivity(text: string): string {
+  if (text.length <= CELL_BUDGET) return text;
+  const lines = text.split("\n");
+  while (lines.length > 1 && lines.join("\n").length > CELL_BUDGET - 40) lines.shift();
+  return "… [older activity trimmed to fit storage]\n" + lines.join("\n");
+}
+
 /** Append a timeline event: structured JSON + readable App Activity line. */
 export async function appendTimeline(
   lead: Lead,
@@ -527,17 +559,28 @@ export async function appendTimeline(
   opts: { touchLastContact?: boolean } = {}
 ): Promise<void> {
   const s = await ensureAppColumns(shape);
-  const timeline = [...lead.timeline, event];
+  const timeline = fitTimeline([...lead.timeline, event]);
   const stamp = new Date(event.at);
   const line = `[${stamp.toLocaleDateString("en-US")} ${event.who} · ${event.kind}] ${event.text}`;
   const fields: Partial<Record<keyof typeof COLS, string>> = {
     timelineJson: JSON.stringify(timeline),
-    appActivity: lead.appActivity ? `${lead.appActivity}\n${line}` : line,
+    appActivity: fitAppActivity(lead.appActivity ? `${lead.appActivity}\n${line}` : line),
   };
   if (opts.touchLastContact) {
     fields.lastContact = stamp.toLocaleDateString("en-US");
   }
   await updateLeadFields(lead, s, fields);
+}
+
+/** The newest inbound email's Message-ID + subject — replies thread onto it. */
+export function lastInboundEmailRef(lead: Lead): { messageId: string; subject: string } | null {
+  for (let i = lead.timeline.length - 1; i >= 0; i--) {
+    const e = lead.timeline[i];
+    if (e.kind === "inbound" && e.emailId) {
+      return { messageId: e.emailId, subject: e.emailSubject || "" };
+    }
+  }
+  return null;
 }
 
 /** Cache the AI briefing on the lead's row. */
@@ -641,7 +684,7 @@ function timelineCells(lead: Lead, shape: SheetShape, event: TimelineEvent): { r
   const stamp = new Date(event.at);
   const line = `[${stamp.toLocaleDateString("en-US")} ${event.who} · ${event.kind}] ${event.text}`;
   if (shape.col.timelineJson >= 0) {
-    cells.push({ row: lead.row, col: shape.col.timelineJson, value: JSON.stringify([...lead.timeline, event]) });
+    cells.push({ row: lead.row, col: shape.col.timelineJson, value: JSON.stringify(fitTimeline([...lead.timeline, event])) });
   }
   if (shape.col.appActivity >= 0) {
     cells.push({

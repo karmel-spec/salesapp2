@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { getLead, saveDrafts, appendTimeline, type DraftMessage } from "@/lib/leads";
+import { getLead, saveDrafts, appendTimeline, lastInboundEmailRef, type DraftMessage } from "@/lib/leads";
 import { addScheduled } from "@/lib/scheduled";
 import { sendSms, sendEmail, senderFor } from "@/lib/comms";
 import { notifyArnoldWebhook, notifyTelegram } from "@/lib/arnold";
@@ -158,7 +158,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         finalBody,
         [],
         `${config.publicBaseUrl}/api/track/${trackId}.gif`,
-        identity
+        identity,
+        lastInboundEmailRef(lead) // reply lands in the customer's thread
       );
       deliveryNote = `Email "${finalSubject}" sent to ${lead.emailClean} from ${fromAddr} (${messageId})`;
     }
