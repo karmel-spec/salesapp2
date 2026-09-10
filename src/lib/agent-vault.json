@@ -193,54 +193,6 @@
       ]
     ]
   },
-  "chris": {
-    "mission": "Shop Manager agent — profile from the BLP agent registry.",
-    "responsibilities": [
-      "Own the Shop Manager lane for BLP. _(Scope to be refined with Karmel at wiring time.)_",
-      "Keep decisions, briefs, outputs, and reusable guidance in the BLP Knowledge Vault.",
-      "Ask for approval before public publishing, paid spend, destructive edits, or external communications.",
-      "Protect credentials: never write passwords/API keys/tokens into Obsidian notes."
-    ],
-    "needsApproval": [
-      "Publishing or scheduling public content.",
-      "Sending external emails/messages.",
-      "Spending money or modifying paid services.",
-      "Deleting or overwriting business records.",
-      "Sharing files externally."
-    ],
-    "autonomous": [
-      "Research.",
-      "Drafts.",
-      "Internal notes.",
-      "Recommendations.",
-      "Checklists.",
-      "Non-secret documentation."
-    ],
-    "currentProjects": [
-      "Not wired up yet — waiting to be onboarded."
-    ],
-    "openQuestions": [],
-    "requestedCrons": [],
-    "vaultFolder": "Agents/Chris Larson (Shop Manager)",
-    "docs": [
-      [
-        "Agent Profile",
-        "~/Documents/BLP Knowledge Vault/Agents/Chris Larson (Shop Manager)/Chris Larson (Shop Manager) - Agent Profile.md"
-      ],
-      [
-        "Operating Manual",
-        "~/Documents/BLP Knowledge Vault/Agents/Chris Larson (Shop Manager)/Chris Larson (Shop Manager) - Operating Manual.md"
-      ],
-      [
-        "Current Projects",
-        "~/Documents/BLP Knowledge Vault/Agents/Chris Larson (Shop Manager)/Chris Larson (Shop Manager) - Current Projects.md"
-      ],
-      [
-        "Cron Jobs",
-        "~/Documents/BLP Knowledge Vault/Agents/Chris Larson (Shop Manager)/Chris Larson (Shop Manager) - Cron Jobs.md"
-      ]
-    ]
-  },
   "clara": {
     "mission": "Brigham's Executive Assistant agent — profile from the BLP agent registry.",
     "responsibilities": [
