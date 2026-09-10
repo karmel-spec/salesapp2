@@ -135,6 +135,13 @@ export default function LeadsPage() {
         <h1>Leads</h1>
         <span className="sub">{filtered.length} of {leads.length}</span>
         <span className="spacer" />
+        <button
+          className="topten-burst"
+          title="Arnold's Top Ten — today's ten most promising revenue leads"
+          onClick={() => router.push("/leads/top-ten")}
+        >
+          <span>TOP<br />TEN</span>
+        </button>
         <button className="btn" onClick={() => setShowNew((v) => !v)}>+ New lead</button>
       </div>
 

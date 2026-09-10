@@ -62,7 +62,17 @@ def main() -> None:
             pdf.set_font("helvetica", "", 10)
             pdf.set_text_color(*INK)
             pdf.set_x(18 + 4 + indent * 4)
-            pdf.multi_cell(0, 5.2, "\x95 " + clean(line.lstrip()[2:]))
+            text = line.lstrip()[2:]
+            # Markdown link [name](url): the bullet becomes a clickable link
+            # (blue), e.g. the Top 10 names open their lead in the sales app.
+            link_match = re.search(r"\[([^\]]+)\]\((https?://[^)]+)\)", text)
+            text = re.sub(r"\[([^\]]+)\]\((https?://[^)]+)\)", r"\1", text)
+            if link_match:
+                pdf.set_text_color(21, 88, 160)
+                pdf.multi_cell(0, 5.2, "\x95 " + clean(text), link=link_match.group(2))
+                pdf.set_text_color(*INK)
+            else:
+                pdf.multi_cell(0, 5.2, "\x95 " + clean(text))
         elif line.startswith("> "):
             pdf.set_font("helvetica", "I", 9.5)
             pdf.set_text_color(*GRAY)
