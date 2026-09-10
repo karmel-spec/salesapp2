@@ -15,7 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Shared 💡 suggestion box (same widget every BLP app embeds). */}
         <script src="/suggest.js" defer data-app="Sales App" data-who-key="blp_rep_name" />
         {/* Clara quick-link — Brigham's assistant, shows only for him (blp_rep_name) */}
-        <script src="https://blpagents.netlify.app/assistant.js" defer data-app="Sales App" data-user-key="blp_rep_name" />
+        <script src="https://blpagents.netlify.app/assistant.js" defer data-app="Sales App" data-user-key="blp_rep_name" data-agents="clara,arnold,chris" />
       </body>
     </html>
   );
