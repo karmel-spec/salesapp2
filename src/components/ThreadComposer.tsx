@@ -54,6 +54,11 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
   const [templateName, setTemplateName] = useState("");
   const [scheduling, setScheduling] = useState(false);
   const [attach, setAttach] = useState<PickedFile | null>(null);
+  // Multiple numbers on the lead: which one(s) this text goes to (both OK).
+  const [toPhones, setToPhones] = useState<string[]>(() =>
+    lead.phoneDialable ? [lead.phoneDialable] : []
+  );
+  const multiPhone = lead.phones.length > 1;
   const [senders, setSenders] = useState<{ key: string; label: string }[]>([]);
   const [sendAs, setSendAs] = useState<string | null>(null);
   const [sendAt, setSendAt] = useState("");
@@ -166,6 +171,7 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
             subject,
             who: getWho(),
             sendAs: mode === "email" ? effectiveSendAs : undefined,
+            ...(mode === "sms" && multiPhone ? { toPhones } : {}),
             ...(attach ? { photo: { name: attach.name, type: attach.type, dataBase64: attach.dataBase64 } } : {}),
           }),
         });
@@ -299,6 +305,28 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
         </div>
       )}
 
+      {mode === "sms" && multiPhone && (
+        <div style={{ display: "flex", gap: 12, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <span className="muted" style={{ fontSize: 12.5 }}>Text to:</span>
+          {lead.phones.map((p) => (
+            <label key={p.dialable} style={{ display: "inline-flex", gap: 5, alignItems: "center", fontSize: 13, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={toPhones.includes(p.dialable)}
+                onChange={(e) =>
+                  setToPhones((cur) =>
+                    e.target.checked ? [...cur, p.dialable] : cur.filter((n) => n !== p.dialable)
+                  )
+                }
+              />
+              {p.label ? `${p.label} · ` : ""}{p.number}
+            </label>
+          ))}
+          {toPhones.length === 0 && <span className="muted" style={{ fontSize: 12, color: "#a02020" }}>pick at least one number</span>}
+          {toPhones.length > 1 && <span className="muted" style={{ fontSize: 12 }}>sends to both</span>}
+        </div>
+      )}
+
       {mode === "call" ? (
         <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
           <input
@@ -340,7 +368,7 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
           <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
             <button
               className="btn small"
-              disabled={busy || !body.trim() || (mode === "email" && !subject.trim())}
+              disabled={busy || !body.trim() || (mode === "email" && !subject.trim()) || (mode === "sms" && multiPhone && toPhones.length === 0)}
               onClick={send}
             >
               {busy ? "Saving…" : mode === "note" ? "Save note" : mode === "email" ? "Send email" : "Send text"}

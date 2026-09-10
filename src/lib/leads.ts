@@ -125,7 +125,8 @@ export interface Lead {
   activityTimeline: string;
   notes: string;
   phone: string; // raw cell (may contain commentary)
-  phoneDialable: string; // best-effort E.164-ish extraction
+  phoneDialable: string; // best-effort E.164-ish extraction (first number)
+  phones: LeadPhone[]; // every labeled number parsed from the Phone field
   email: string;
   emailClean: string;
   social: string;
@@ -236,6 +237,37 @@ function parseUSDate(raw: string): Date | null {
 function extractPhone(raw: string): string {
   const m = raw.replace(/\D+/g, " ").match(/\b1?(\d{3})\s*(\d{3})\s*(\d{4})\b/);
   return m ? `+1${m[1]}${m[2]}${m[3]}` : "";
+}
+
+/** One labeled phone number on a lead ("Jane: 951-567-3805"). */
+export interface LeadPhone {
+  label: string; // "Jane", "husband Rick", "" when unlabeled
+  number: string; // as typed in the sheet
+  dialable: string; // +1XXXXXXXXXX
+}
+
+/** The Phone column stays free text; multiple numbers are separated by
+ *  commas/semicolons/newlines/" or ", each optionally labeled with the
+ *  person's name: "Jane 951-567-3805, Rick (husband) 801-555-1234". */
+export function parsePhones(raw: string): LeadPhone[] {
+  const out: LeadPhone[] = [];
+  if (!raw || !raw.trim()) return out;
+  const chunks = raw
+    .split(/\n|;|,|\s\/\s|\bor\b/i)
+    .map((c) => c.trim())
+    .filter(Boolean);
+  for (const chunk of chunks) {
+    const dialable = extractPhone(chunk);
+    if (!dialable || out.some((p) => p.dialable === dialable)) continue;
+    const numberText = (chunk.match(/\+?1?[\d\s().-]{9,}\d/)?.[0]?.trim() || chunk).replace(/^[^+\d(]+/, "");
+    const label = chunk
+      .replace(numberText, " ")
+      .replace(/[:\-–—()>→]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    out.push({ label, number: numberText, dialable });
+  }
+  return out;
 }
 
 function extractEmail(raw: string): string {
@@ -407,6 +439,7 @@ function rowToLead(row: string[], rowNumber: number, shape: SheetShape, now: Dat
     notes: get("notes"),
     phone: get("phone"),
     phoneDialable,
+    phones: parsePhones(get("phone")),
     email: get("email"),
     emailClean,
     social: get("social").trim(),

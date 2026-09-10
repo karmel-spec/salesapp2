@@ -229,7 +229,27 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
               {(lead.statusBucket === "won" || lead.closedBy) && (
                 <><dt>Closed by</dt><dd><InlineSelect lead={lead} field="closedBy" value={lead.closedBy} options={[...roster]} emptyLabel="— who closed the sale?" onFlash={setFlash} onDone={loadSoon} /></dd></>
               )}
-              <dt>Phone</dt><dd><InlineText lead={lead} field="phone" value={lead.phone} hint={lead.phoneDialable ? ` → ${lead.phoneDialable}` : ""} onFlash={setFlash} onDone={loadSoon} /></dd>
+              <dt>Phone</dt><dd>
+                <InlineText
+                  lead={lead}
+                  field="phone"
+                  value={lead.phone}
+                  hint={
+                    lead.phones.length > 1
+                      ? "" // the parsed list below says it all
+                      : lead.phoneDialable
+                        ? ` → ${lead.phoneDialable} — add a second labeled number like "Jane 951-567-3805, Rick 801-555-1234"`
+                        : ""
+                  }
+                  onFlash={setFlash}
+                  onDone={loadSoon}
+                />
+                {lead.phones.length > 1 && (
+                  <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+                    {lead.phones.map((p) => `${p.label || "unlabeled"}: ${p.dialable}`).join(" · ")} — texts can go to either or both
+                  </div>
+                )}
+              </dd>
               <dt>Email</dt><dd><InlineText lead={lead} field="email" value={lead.email} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Social handle</dt><dd><InlineText lead={lead} field="social" value={lead.social} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Address</dt><dd><InlineText lead={lead} field="address" value={lead.address} hint={lead.address ? "" : " — with City, ST it pins on the US Sales Map"} onFlash={setFlash} onDone={loadSoon} /></dd>
@@ -691,7 +711,13 @@ function ComposePanel({
   const [scheduling, setScheduling] = useState(false);
   const [sendAt, setSendAt] = useState("");
   const isEmail = channel === "email";
-  const to = isEmail ? lead.emailClean : lead.phoneDialable;
+  const multiPhone = lead.phones.length > 1;
+  const [toPhones, setToPhones] = useState<string[]>(() => (lead.phoneDialable ? [lead.phoneDialable] : []));
+  const to = isEmail
+    ? lead.emailClean
+    : multiPhone
+      ? lead.phones.filter((p) => toPhones.includes(p.dialable)).map((p) => p.label || p.number).join(" + ") || "—"
+      : lead.phoneDialable;
 
   async function schedule() {
     setBusy(true);
@@ -757,6 +783,7 @@ function ComposePanel({
           body,
           subject,
           who: getWho(),
+          ...(!isEmail && multiPhone ? { toPhones } : {}),
           ...(photo ? { photo: { name: photo.name, type: photo.type, dataBase64: photo.dataBase64 } } : {}),
         }),
       });
@@ -778,6 +805,24 @@ function ComposePanel({
         <button className="btn ghost small" onClick={onClose}>✕</button>
       </div>
       {err && <div className="banner bad">⚠ {err}</div>}
+      {!isEmail && multiPhone && (
+        <div style={{ display: "flex", gap: 12, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <span className="muted" style={{ fontSize: 12.5 }}>Text to:</span>
+          {lead.phones.map((p) => (
+            <label key={p.dialable} style={{ display: "inline-flex", gap: 5, alignItems: "center", fontSize: 13, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={toPhones.includes(p.dialable)}
+                onChange={(e) =>
+                  setToPhones((cur) => (e.target.checked ? [...cur, p.dialable] : cur.filter((n) => n !== p.dialable)))
+                }
+              />
+              {p.label ? `${p.label} · ` : ""}{p.number}
+            </label>
+          ))}
+          {toPhones.length > 1 && <span className="muted" style={{ fontSize: 12 }}>sends to both</span>}
+        </div>
+      )}
       {isEmail && (
         <input
           style={{ width: "100%", marginBottom: 8 }}
@@ -813,7 +858,7 @@ function ComposePanel({
         <button
           className="btn"
           onClick={send}
-          disabled={busy || !body.trim() || (isEmail && !subject.trim())}
+          disabled={busy || !body.trim() || (isEmail && !subject.trim()) || (!isEmail && multiPhone && toPhones.length === 0)}
         >
           {busy ? "Sending…" : `Send ${isEmail ? "email" : "text"} now${photo ? " + photo" : ""}`}
         </button>

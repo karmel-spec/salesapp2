@@ -67,7 +67,11 @@ export async function POST(req: NextRequest) {
 
   try {
     const { leads, shape } = await getLeads(true);
-    const matches = leads.filter((l) => l.phoneDialable === from);
+    // Match ANY of the lead's labeled numbers (spouse's cell etc.), not just
+    // the primary one.
+    const matches = leads.filter(
+      (l) => l.phoneDialable === from || l.phones.some((p) => p.dialable === from)
+    );
     // Prefer open leads, then the most recently touched.
     const lead =
       matches.find((l) => l.statusBucket === "new" || l.statusBucket === "active") ||

@@ -34,6 +34,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       subject?: string;
       who?: string;
       sendAs?: string; // email identity: "" = info@, rep name = their mailbox
+      toPhones?: string[]; // SMS: which of the lead's numbers (both allowed)
       photo?: { name?: string; type?: string; dataBase64?: string };
     };
     const body = (input.body || "").trim();
@@ -71,11 +72,30 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       if (!lead.phoneDialable) {
         return NextResponse.json({ error: `No dialable phone number on this lead ("${lead.phone}")` }, { status: 400 });
       }
+      // Which of the lead's numbers: default the primary; "both" = several.
+      // Only numbers that actually belong to this lead are accepted.
+      const leadNumbers = new Set([lead.phoneDialable, ...lead.phones.map((p) => p.dialable)]);
+      const targets = (input.toPhones?.length ? input.toPhones : [lead.phoneDialable]).filter((n) =>
+        leadNumbers.has(n)
+      );
+      if (!targets.length) {
+        return NextResponse.json({ error: "None of the requested numbers belong to this lead" }, { status: 400 });
+      }
       // Images ride as MMS media; other files go as a link (carriers reject
       // most non-image MMS types).
       const smsBody = photoUrl && !isImage ? `${body}\n📎 ${photoName}: ${photoUrl}` : body;
-      const { sid } = await sendSms(lead.phoneDialable, smsBody, photoUrl && isImage ? [photoUrl] : []);
-      deliveryNote = `${photoUrl ? (isImage ? "MMS (with photo)" : "SMS (with file link)") : "SMS"} sent to ${lead.phoneDialable} (Twilio ${sid})`;
+      const sids: string[] = [];
+      for (const to of targets) {
+        const { sid } = await sendSms(to, smsBody, photoUrl && isImage ? [photoUrl] : []);
+        sids.push(sid);
+      }
+      const label = (n: string) => {
+        const p = lead.phones.find((x) => x.dialable === n);
+        return p?.label ? `${n} (${p.label})` : n;
+      };
+      deliveryNote = `${photoUrl ? (isImage ? "MMS (with photo)" : "SMS (with file link)") : "SMS"} sent to ${targets
+        .map(label)
+        .join(" and ")} (Twilio ${sids.join(", ")})`;
     } else if (input.channel === "email") {
       if (!lead.emailClean) {
         return NextResponse.json({ error: `No valid email on this lead ("${lead.email}")` }, { status: 400 });
