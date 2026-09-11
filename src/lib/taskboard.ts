@@ -26,6 +26,7 @@ export interface TaskItem {
 export interface TaskSummary {
   owner: string; // as written on the board, e.g. "Melissa Terry"
   open: number;
+  askBrigham: number; // open cards sitting in the "Questions for Brigham" column
   overdue: number;
   oldestDays: number | null;
   oldest: TaskItem[]; // oldest open first
@@ -62,6 +63,7 @@ export async function taskSummaries(sample = 5): Promise<Map<string, TaskSummary
     out.set(key, {
       owner: list[0].owner,
       open: list.length,
+      askBrigham: list.filter((c) => c.col === "askbrigham").length,
       overdue: list.filter((c) => c.due && c.due < today).length,
       oldestDays: items.length ? items[0].ageDays : null,
       oldest: items,

@@ -106,6 +106,29 @@ a { color: inherit; text-decoration: none; }
 /* Left-hand counts on sub-items: fixed width so the numbers line up in a column. */
 .nav .count.left { margin-left: 0; min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
 .nav .count.left.mail { min-width: 64px; background: rgba(255, 255, 255, 0.12); }
+/* Yellow post-it note for task-card counts */
+.nav .postit {
+  margin-left: auto;
+  min-width: 34px;
+  padding: 3px 7px 4px;
+  background: #ffe36e;
+  color: #3a2d05;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  line-height: 1.1;
+  border-radius: 1px 1px 3px 1px;
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.35);
+  transform: rotate(-2deg);
+  position: relative;
+}
+.nav .postit::after { /* folded corner */
+  content: ""; position: absolute; right: 0; bottom: 0; width: 0; height: 0;
+  border-style: solid; border-width: 0 0 7px 7px; border-color: transparent transparent rgba(0, 0, 0, 0.18) transparent;
+}
+.nav .postit.empty { background: rgba(255, 255, 255, 0.1); color: rgba(243, 239, 233, 0.5); box-shadow: none; transform: none; }
+.nav a.active .postit { transform: rotate(-2deg) scale(1.05); }
 .nav a.sub .count.left:not(.alert) { background: rgba(255, 255, 255, 0.1); }
 .nav .count {
   margin-left: auto;
@@ -1189,6 +1212,33 @@ tbody tr:hover { background: #faf7f2; }
   .board-key { flex-direction: row; justify-content: space-between; padding: 8px 14px; min-height: 44px; }
   .board-key::before { content: attr(data-q); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; font-weight: 700; opacity: 0.85; }
 }
+
+/* ── Team mailbox (work a colleague's Gmail from the console) ── */
+.mail-split { display: grid; grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.3fr); gap: 16px; align-items: start; }
+.mail-list { padding: 0; overflow: hidden; }
+.mail-toolbar { display: flex; gap: 6px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.mail-row { padding: 10px 14px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.mail-row:hover, .mail-row.open { background: var(--crimson-soft); }
+.mail-row.unread .mail-from, .mail-row.unread .mail-subject { font-weight: 700; }
+.mail-row-top { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.mail-from { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-date { color: var(--ink-3); font-size: 12px; white-space: nowrap; }
+.mail-subject { font-size: 13.5px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-count { display: inline-block; margin-left: 6px; font-size: 11px; color: var(--ink-3); border: 1px solid var(--line); border-radius: 99px; padding: 0 6px; }
+.mail-snippet { color: var(--ink-3); font-size: 12.5px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-row-actions { display: none; gap: 6px; margin-top: 6px; }
+.mail-row:hover .mail-row-actions, .mail-row.open .mail-row-actions { display: flex; }
+.mail-reader { padding: 0; min-height: 320px; }
+.mail-reader-head { padding: 14px 18px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.mail-reader-head h2 { margin: 0; font-size: 19px; flex: 1; min-width: 0; }
+.mail-reader-actions { display: flex; gap: 6px; }
+.mail-msg { padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.mail-msg.ours { background: var(--gold-soft); }
+.mail-msg-head { font-size: 13px; margin-bottom: 6px; }
+.mail-body { white-space: pre-wrap; word-break: break-word; font-family: var(--sans); font-size: 14px; line-height: 1.5; margin: 0; max-height: 420px; overflow-y: auto; }
+.mail-reply { padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
+.mail-reply textarea { width: 100%; box-sizing: border-box; font: inherit; padding: 10px; border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
+@media (max-width: 1080px) { .mail-split { grid-template-columns: 1fr; } }
 
 /* Section dividers inside the inbox list (Unread / Read) */
 .inbox-section {

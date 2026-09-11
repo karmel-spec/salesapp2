@@ -219,7 +219,7 @@ function useLeadCounts(pathname: string): { brigham: number; others: number; sup
 }
 
 /** Team Inbox Board totals: unread email overall, plus per-person email and task-card numbers. */
-type BoardPerson = { key: string; name: string; emailUnread: number | null; emailTotal: number | null; cards: number | null };
+type BoardPerson = { key: string; name: string; emailUnread: number | null; emailTotal: number | null; cards: number | null; askBrigham?: number | null };
 function useBoardTotals(pathname: string): { emailUnread: number; emailTotal: number; people: Record<string, BoardPerson> } {
   const [n, setN] = useState<{ emailUnread: number; emailTotal: number; people: Record<string, BoardPerson> }>({ emailUnread: 0, emailTotal: 0, people: {} });
   useEffect(() => {
@@ -341,7 +341,21 @@ export function Shell({ children }: { children: React.ReactNode }) {
                     <>
                       <span className="count left mail" title={p && p.emailUnread !== null ? `${p.emailUnread} unread of ${p.emailTotal} emails in inbox` : "mailbox not connected yet"}>{mail}</span>
                       {item.label}
-                      <span className="count" title="open Store Map task cards">{p && p.cards !== null ? p.cards : "—"}</span>
+                      {/* Yellow post-it: open cards. Everyone but Brigham splits theirs into
+                          "everything else / Questions for Brigham". */}
+                      {(() => {
+                        if (!p || p.cards === null) return <span className="postit empty" title="no Store Map task board">—</span>;
+                        const ask = p.askBrigham ?? 0;
+                        const isBrigham = item.boardKey === "brigham";
+                        return (
+                          <span
+                            className="postit"
+                            title={isBrigham ? `${p.cards} open cards on Brigham's task board` : `${p.cards - ask} task cards / ${ask} questions for Brigham`}
+                          >
+                            {isBrigham ? p.cards : `${p.cards - ask}/${ask}`}
+                          </span>
+                        );
+                      })()}
                     </>
                   );
                 })()}

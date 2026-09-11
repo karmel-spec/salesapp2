@@ -52,6 +52,7 @@ export interface QueueCell {
   new: number; // unread / open / awaiting
   total: number; // inbox threads / open cards / (replies + drafts)
   overdue?: number;
+  askBrigham?: number; // tasks: cards in the "Questions for Brigham" column
   oldestDays: number | null;
   status: Status;
   label: string; // e.g. "140 new · 488 total"
@@ -81,8 +82,9 @@ export interface Board {
     openCards: number;
     consoleNew: number;
     behind: number;
-    /** Per-person nav numbers: unread/total email on the left, open cards on the right. */
-    people: { key: string; name: string; emailUnread: number | null; emailTotal: number | null; cards: number | null }[];
+    /** Per-person nav numbers: unread/total email on the left; on the right, open
+     *  task cards split into everything else / "Questions for Brigham". */
+    people: { key: string; name: string; emailUnread: number | null; emailTotal: number | null; cards: number | null; askBrigham: number | null }[];
   };
 }
 
@@ -192,6 +194,7 @@ export async function getBoard(force = false): Promise<Board> {
             new: t.open,
             total: t.open,
             overdue: t.overdue,
+            askBrigham: t.askBrigham,
             oldestDays: t.oldestDays,
             status: statusFor(t.oldestDays, t.overdue, true),
             label: `${t.open} open · ${t.overdue} overdue`,
@@ -226,6 +229,7 @@ export async function getBoard(force = false): Promise<Board> {
         emailUnread: r.email && !r.email.note ? r.email.new : null,
         emailTotal: r.email && !r.email.note ? r.email.total : null,
         cards: r.tasks ? r.tasks.new : null,
+        askBrigham: r.tasks ? r.tasks.askBrigham ?? 0 : null,
       })),
     },
   };

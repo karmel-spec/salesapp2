@@ -212,9 +212,9 @@ function FocusPanel({ row }: { row: BoardRow }) {
       </div>
       <div className="board-actions">
         {row.email && !row.email.note && (
-          <a className="btn small" href={`https://mail.google.com/mail/u/?authuser=${encodeURIComponent(BOARD_MAIL[row.key] || "")}#inbox`} target="_blank" rel="noreferrer">
-            Open {row.name}&apos;s inbox ↗
-          </a>
+          <Link className="btn small" href={`/board/${row.key}`}>
+            Work {row.name}&apos;s inbox
+          </Link>
         )}
         {row.tasks && (
           <a className="btn small ghost" href="https://blpstoremap.netlify.app" target="_blank" rel="noreferrer">
@@ -236,13 +236,3 @@ function FocusPanel({ row }: { row: BoardRow }) {
   );
 }
 
-/** Mailbox per person, for the "Open inbox" link (mirrors lib/board.ts). */
-const BOARD_MAIL: Record<string, string> = {
-  brigham: "brigham@brighamlarsonpianos.com",
-  melissa: "melissa@brighamlarsonpianos.com",
-  karmel: "karmel@brighamlarsonpianos.com",
-  alisa: "alisa@brighamlarsonpianos.com",
-  lisa: "lisa@brighamlarsonpianos.com",
-  info: "info@brighamlarsonpianos.com",
-  blp: "brighamlarsonpianos@gmail.com",
-};
