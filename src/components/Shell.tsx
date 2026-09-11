@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useRoster, api } from "@/lib/client";
 
-const NAV: { href: string; label: string; sub?: boolean }[] = [
+const NAV: { href: string; label: string; sub?: boolean; boardKey?: string }[] = [
   { href: "/bl-inbox", label: "BL Client Responses" },
   { href: "/bl-leads", label: "BL Leads" },
   { href: "/leads", label: "Leads" },
@@ -16,6 +16,13 @@ const NAV: { href: string; label: string; sub?: boolean }[] = [
   { href: "/new-inquiries/moving", label: "Moving", sub: true },
   { href: "/customer-service", label: "Customer Service", sub: true },
   { href: "/board", label: "Team Inbox Board" },
+  // Per-person rows: unread/total email on the left, open task cards on the right.
+  { href: "/board/brigham", label: "Brigham", sub: true, boardKey: "brigham" },
+  { href: "/board/karmel", label: "Karmel", sub: true, boardKey: "karmel" },
+  { href: "/board/alisa", label: "Alisa", sub: true, boardKey: "alisa" },
+  { href: "/board/melissa", label: "Melissa", sub: true, boardKey: "melissa" },
+  { href: "/board/lisa", label: "Lisa", sub: true, boardKey: "lisa" },
+  { href: "/board/blp", label: "BLP", sub: true, boardKey: "blp" },
   { href: "/", label: "Dashboard" },
   { href: "/settings", label: "Settings" },
 ];
@@ -211,15 +218,16 @@ function useLeadCounts(pathname: string): { brigham: number; others: number; sup
   return counts;
 }
 
-/** Unread email across the team's connected inboxes (Team Inbox Board bubble). */
-function useBoardTotals(pathname: string): number {
-  const [n, setN] = useState(0);
+/** Team Inbox Board totals: unread email overall, plus per-person email and task-card numbers. */
+type BoardPerson = { key: string; name: string; emailUnread: number | null; emailTotal: number | null; cards: number | null };
+function useBoardTotals(pathname: string): { emailUnread: number; emailTotal: number; people: Record<string, BoardPerson> } {
+  const [n, setN] = useState<{ emailUnread: number; emailTotal: number; people: Record<string, BoardPerson> }>({ emailUnread: 0, emailTotal: 0, people: {} });
   useEffect(() => {
     let dead = false;
     const tick = () =>
-      api<{ emailUnread: number }>("/api/board?count=1")
+      api<{ emailUnread: number; emailTotal?: number; people?: BoardPerson[] }>("/api/board?count=1")
         .then((r) => {
-          if (!dead) setN(r.emailUnread);
+          if (!dead) setN({ emailUnread: r.emailUnread, emailTotal: r.emailTotal ?? 0, people: Object.fromEntries((r.people || []).map((p) => [p.key, p])) });
         })
         .catch(() => {});
     tick();
@@ -259,7 +267,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const unread = useInboxUnread(pathname);
   const leadCounts = useLeadCounts(pathname);
   const unfiledCalls = useUnfiledCalls(pathname);
-  const boardEmail = useBoardTotals(pathname);
+  const boardTotals = useBoardTotals(pathname);
+  const boardEmail = boardTotals.emailUnread;
   const inboxUnread = unread.brigham + unread.fresh + unread.others; // mobile burger total
   // Crimson "alert" bubbles = messages awaiting a reply; plain bubbles = lead counts.
   // Inbox bubbles read "unread/read": unread messages / clients in that page's Read
@@ -278,7 +287,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       case "/customer-service":
         return { n: Math.max(0, unread.fresh - (unread.newFolders.tuning || 0) - (unread.newFolders.moving || 0)), alert: true, awaiting: rc["new:other"] ?? 0 };
       case "/": return { n: unfiledCalls, alert: true }; // unfiled call recordings
-      case "/board": return { n: boardEmail, alert: false }; // unread email, all inboxes
+      case "/board": return { n: boardEmail, alert: false, awaiting: boardTotals.emailTotal }; // unread / in inbox, all mailboxes
       default: return { n: 0, alert: false };
     }
   };
@@ -324,8 +333,20 @@ export function Shell({ children }: { children: React.ReactNode }) {
               item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(item.href + "/");
             return (
               <Link key={item.href} href={item.href} className={`${active ? "active" : ""}${item.sub ? " sub" : ""}`}>
+                {/* Board people: unread/total email on the left, open task cards on the right. */}
+                {item.boardKey && (() => {
+                  const p = boardTotals.people[item.boardKey];
+                  const mail = p && p.emailUnread !== null ? `${p.emailUnread}/${p.emailTotal}` : "—";
+                  return (
+                    <>
+                      <span className="count left mail" title={p && p.emailUnread !== null ? `${p.emailUnread} unread of ${p.emailTotal} emails in inbox` : "mailbox not connected yet"}>{mail}</span>
+                      {item.label}
+                      <span className="count" title="open Store Map task cards">{p && p.cards !== null ? p.cards : "—"}</span>
+                    </>
+                  );
+                })()}
                 {/* Sub-items show the count on the LEFT so the three add up visibly to the parent. */}
-                {item.sub && (
+                {item.sub && !item.boardKey && (
                   <span
                     className={`count left${badgeFor(item.href).alert ? " alert" : ""}`}
                     title={badgeFor(item.href).awaiting !== undefined ? `${badgeFor(item.href).n} unread messages / ${badgeFor(item.href).awaiting} clients read — awaiting a reply, or history` : undefined}
@@ -334,7 +355,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                     {badgeFor(item.href).awaiting !== undefined && <span className="awaiting">/{badgeFor(item.href).awaiting}</span>}
                   </span>
                 )}
-                {item.label}
+                {!item.boardKey && item.label}
                 {!item.sub && (badgeFor(item.href).n > 0 || (badgeFor(item.href).awaiting ?? 0) > 0) && (
                   <span
                     className={badgeFor(item.href).alert ? "count alert" : "count"}

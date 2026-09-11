@@ -75,7 +75,15 @@ export interface Board {
   updatedAt: string;
   thresholds: typeof THRESHOLDS;
   rows: BoardRow[];
-  totals: { emailUnread: number; openCards: number; consoleNew: number; behind: number };
+  totals: {
+    emailUnread: number;
+    emailTotal: number; // threads sitting in Inbox (not archived), all connected mailboxes
+    openCards: number;
+    consoleNew: number;
+    behind: number;
+    /** Per-person nav numbers: unread/total email on the left, open cards on the right. */
+    people: { key: string; name: string; emailUnread: number | null; emailTotal: number | null; cards: number | null }[];
+  };
 }
 
 function statusFor(oldestDays: number | null, overdue = 0, hasAnything = true): Status {
@@ -208,9 +216,17 @@ export async function getBoard(force = false): Promise<Board> {
     rows,
     totals: {
       emailUnread: rows.reduce((n, r) => n + (r.email?.new || 0), 0),
+      emailTotal: rows.reduce((n, r) => n + (r.email?.total || 0), 0),
       openCards: rows.reduce((n, r) => n + (r.tasks?.new || 0), 0),
       consoleNew: rows.reduce((n, r) => n + (r.console?.new || 0), 0),
       behind: rows.filter((r) => r.worst === "behind").length,
+      people: rows.map((r) => ({
+        key: r.key,
+        name: r.name,
+        emailUnread: r.email && !r.email.note ? r.email.new : null,
+        emailTotal: r.email && !r.email.note ? r.email.total : null,
+        cards: r.tasks ? r.tasks.new : null,
+      })),
     },
   };
   cache = { at: Date.now(), board };
