@@ -10,6 +10,9 @@
  *                 name in that app; falls back to asking once.
  * data-position : "bottom-left" (default) or "top-right" — where the 💡
  *                 button floats on desktop (phones always use bottom-left).
+ * data-dock     : optional CSS selector of an element the app owns; when it
+ *                 exists the 💡 button renders inline inside it (the panel
+ *                 still opens as an overlay next to it).
  *
  * Ideas/edits/bugs land on the central "App Suggestions" list (Leads Log
  * workbook) with status flow Requested → In progress → Live → Tested, and
@@ -24,6 +27,7 @@
   var APP = (script.dataset && script.dataset.app) || document.title.slice(0, 30) || "BLP app";
   var WHO_KEY = (script.dataset && script.dataset.whoKey) || "blp_rep_name";
   var TOP_RIGHT = (script.dataset && script.dataset.position) === "top-right";
+  var DOCK_SEL = (script.dataset && script.dataset.dock) || "";
   var API = (function () {
     try {
       var o = new URL(script.src).origin;
@@ -50,6 +54,11 @@
     // Top-right placement (data-position="top-right"), desktop only.
     "@media (min-width:761px){.blps-btn.blps-tr{left:auto;bottom:auto;right:14px;top:12px;width:40px;height:40px;font-size:18px}" +
     ".blps-panel.blps-tr{left:auto;bottom:auto;right:14px;top:60px;max-height:min(540px,calc(100vh - 80px))}}" +
+    // Docked button (data-dock): inline in the host's element; the panel opens
+    // beside it — bottom-left on desktop (sidebar footer), top-right on phones.
+    ".blps-btn.blps-dock{position:static;width:34px;height:34px;font-size:17px;box-shadow:none;border-color:rgba(255,255,255,.35)}" +
+    "@media (max-width:760px){.blps-btn.blps-dock{width:30px;height:30px;font-size:15px}" +
+    ".blps-panel.blps-dock{left:auto;bottom:auto;right:10px;top:58px;max-height:min(540px,calc(100vh - 70px))}}" +
     ".blps-head{background:#2c2620;color:#fff;padding:12px 14px;font-size:14px}" +
     ".blps-head b{display:block}" +
     ".blps-head span{font-size:11.5px;opacity:.75}" +
@@ -81,12 +90,14 @@
   document.head.appendChild(style);
 
   var btn = document.createElement("button");
-  btn.className = "blps-btn" + (TOP_RIGHT ? " blps-tr" : "");
+  var dockEl = null;
+  try { dockEl = DOCK_SEL ? document.querySelector(DOCK_SEL) : null; } catch (e) { dockEl = null; }
+  btn.className = "blps-btn" + (dockEl ? " blps-dock" : TOP_RIGHT ? " blps-tr" : "");
   btn.title = "Suggest an improvement to the " + APP;
   btn.innerHTML = "&#128161;";
 
   var panel = document.createElement("div");
-  panel.className = "blps-panel" + (TOP_RIGHT ? " blps-tr" : "");
+  panel.className = "blps-panel" + (dockEl ? " blps-dock" : TOP_RIGHT ? " blps-tr" : "");
   panel.innerHTML =
     '<div class="blps-head" style="display:flex;align-items:center"><div><b>&#128161; Suggest an improvement</b>' +
     '<span>bugs, edits, ideas for the ' + APP + ' — straight onto the fix list</span></div>' +
@@ -106,7 +117,7 @@
     '<div class="blps-mine"><b>My requests</b><div class="blps-list">&#8230;</div></div>';
 
   function mount() {
-    document.body.appendChild(btn);
+    (dockEl || document.body).appendChild(btn);
     document.body.appendChild(panel);
     panel.querySelector(".blps-who").value = whoAmI();
   }

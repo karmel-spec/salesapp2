@@ -12,10 +12,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <Shell>{children}</Shell>
+        {/* Helper dock: a body-level element (not React-managed, so widgets
+            can inject into it before hydration) that CSS pins to the sidebar
+            footer on desktop and the top bar on phones. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "document.body.appendChild(Object.assign(document.createElement('div'),{id:'blp-dock',className:'helper-dock'}));",
+          }}
+        />
+        {/* AI assistants (Clara/Arnold/Chris) — docked first, then the 💡 */}
+        <script src="https://blpagents.netlify.app/assistant.js" defer data-app="Sales App" data-user-key="blp_rep_name" data-agents="clara,arnold,chris" data-dock="#blp-dock" />
         {/* Shared 💡 suggestion box (same widget every BLP app embeds). */}
-        <script src="/suggest.js" defer data-app="Sales App" data-who-key="blp_rep_name" data-position="top-right" />
-        {/* Clara quick-link — Brigham's assistant, shows only for him (blp_rep_name) */}
-        <script src="https://blpagents.netlify.app/assistant.js" defer data-app="Sales App" data-user-key="blp_rep_name" data-agents="clara,arnold,chris" />
+        <script src="/suggest.js" defer data-app="Sales App" data-who-key="blp_rep_name" data-dock="#blp-dock" />
       </body>
     </html>
   );
