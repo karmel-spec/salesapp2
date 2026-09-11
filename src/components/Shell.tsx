@@ -15,7 +15,7 @@ const NAV: { href: string; label: string; sub?: boolean; boardKey?: string }[] =
   { href: "/new-inquiries/tuning", label: "Tuning", sub: true },
   { href: "/new-inquiries/moving", label: "Moving", sub: true },
   { href: "/customer-service", label: "Customer Service", sub: true },
-  { href: "/board", label: "Team Inbox Board" },
+  { href: "/board", label: "Inbox Board" },
   // Per-person rows: unread/total email on the left, open task cards on the right.
   { href: "/board/brigham", label: "Brigham", sub: true, boardKey: "brigham" },
   { href: "/board/karmel", label: "Karmel", sub: true, boardKey: "karmel" },

@@ -73,7 +73,7 @@ export function TeamBoard({ initialPerson }: { initialPerson?: string }) {
   return (
     <>
       <div className="page-head">
-        <h1>Team Inbox Board</h1>
+        <h1>Inbox Board</h1>
         <span className="sub">
           every queue a customer can be waiting in, by the person who owns it · updated{" "}
           {updated.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
