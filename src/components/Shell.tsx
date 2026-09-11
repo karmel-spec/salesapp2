@@ -55,6 +55,35 @@ function BlpAppsMenu() {
   );
 }
 
+/**
+ * "+ New lead" — lives in the sidebar so it's one click from any page. Opens
+ * the new-lead form on the signed-in person's Leads tab (BL Leads for
+ * Brigham, Leads for everyone else) via ?new=1.
+ */
+function NewLeadButton({ className }: { className: string }) {
+  const [who, setWho] = useState("");
+  const pathname = usePathname();
+  useEffect(() => {
+    setWho(localStorage.getItem("blp_rep_name") || "");
+  }, [pathname]);
+  const target = who === "Brigham" ? "/bl-leads" : "/leads";
+  return (
+    <Link
+      href={`${target}?new=1`}
+      className={className}
+      onClick={(e) => {
+        // Already on that tab: the page won't remount, so tell it directly.
+        if (pathname === target) {
+          e.preventDefault();
+          window.dispatchEvent(new CustomEvent("blp:new-lead"));
+        }
+      }}
+    >
+      + New lead
+    </Link>
+  );
+}
+
 function WhoAmI() {
   const [who, setWho] = useState("");
   const roster = useRoster();
@@ -201,6 +230,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/blp-logo.png" alt="Brigham Larson Pianos" className="brand-logo" />
           <div className="brand-sub">Sales Console</div>
+          <NewLeadButton className="btn new-lead-btn" />
         </div>
         <button
           className="nav-burger"
@@ -212,6 +242,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </button>
         {drawerOpen && <div className="nav-backdrop" onClick={() => setDrawerOpen(false)} />}
         <nav className={`nav${drawerOpen ? " open" : ""}`}>
+          {/* Phones: the brand area is a slim top bar, so the button lives in the drawer instead. */}
+          <NewLeadButton className="btn new-lead-btn drawer-only" />
           {NAV.map((item) => {
             const active =
               item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(item.href + "/");

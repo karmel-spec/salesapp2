@@ -76,6 +76,18 @@ a { color: inherit; text-decoration: none; }
   max-width: 190px;
   text-align: center;
 }
+/* "+ New lead" under the Sales Console heading, same width as the logo. */
+.new-lead-btn {
+  display: block;
+  width: 100%;
+  max-width: 190px;
+  box-sizing: border-box;
+  margin: 12px auto 0;
+  text-align: center;
+  text-decoration: none;
+  font-weight: 700;
+}
+.new-lead-btn.drawer-only { display: none; }
 .nav { padding: 14px 10px; display: flex; flex-direction: column; gap: 2px; flex: 1; }
 .nav a {
   padding: 9px 12px;
@@ -371,6 +383,8 @@ tbody tr:hover { background: #faf7f2; }
     gap: 4px;
   }
   .brand { padding: 10px 12px; border-bottom: none; flex-shrink: 0; }
+  .brand .new-lead-btn { display: none; }
+  .nav .new-lead-btn.drawer-only { display: block; max-width: none; margin: 0 0 10px; padding: 12px 14px; }
   .brand-logo { width: 132px; max-width: none; }
   .brand-sub { display: none; }
   .nav-burger {

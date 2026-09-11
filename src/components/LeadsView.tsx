@@ -65,11 +65,31 @@ export function LeadsView({ scope: tabScope }: { scope?: LeadsScope }) {
   const [typeFilter, setTypeFilter] = useState(() => initialParams(scope).typeFilter);
   const [staleOnly, setStaleOnly] = useState(() => initialParams().stale);
   const [draftsOnly, setDraftsOnly] = useState(() => initialParams().drafts);
-  const [showNew, setShowNew] = useState(false);
+  // ?new=1 (the sidebar's "+ New lead" button) opens the form on arrival.
+  const [showNew, setShowNew] = useState(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("new") === "1"
+  );
   const [sortMode, setSortMode] = useState<SortMode>(() => initialParams().sortMode);
 
   useEffect(() => {
     fetchLeads().then((r) => setLeads(r.leads)).catch((e) => setError(e.message));
+  }, []);
+
+  // The sidebar's "+ New lead" button: opens the form when we're already on
+  // this tab (event) or on arrival (?new=1, which we then clear from the URL).
+  useEffect(() => {
+    const open = () => {
+      setShowNew(true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    window.addEventListener("blp:new-lead", open);
+    if (new URLSearchParams(window.location.search).get("new") === "1") {
+      setShowNew(true);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("new");
+      window.history.replaceState(null, "", url.pathname + (url.search || ""));
+    }
+    return () => window.removeEventListener("blp:new-lead", open);
   }, []);
 
   // The slice this tab works from; every count and filter starts here.
@@ -185,7 +205,6 @@ export function LeadsView({ scope: tabScope }: { scope?: LeadsScope }) {
           <span>TOP<br />TEN</span>
         </button>
         )}
-        <button className="btn" onClick={() => setShowNew((v) => !v)}>+ New lead</button>
       </div>
 
       {showNew && <NewLeadForm onDone={() => { setShowNew(false); fetchLeads(true).then((r) => setLeads(r.leads)); }} />}
