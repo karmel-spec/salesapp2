@@ -8,6 +8,8 @@
  * data-app      : which app the idea is about (shown on the fix list)
  * data-who-key  : optional localStorage key holding the signed-in user's
  *                 name in that app; falls back to asking once.
+ * data-position : "bottom-left" (default) or "top-right" — where the 💡
+ *                 button floats on desktop (phones always use bottom-left).
  *
  * Ideas/edits/bugs land on the central "App Suggestions" list (Leads Log
  * workbook) with status flow Requested → In progress → Live → Tested, and
@@ -21,6 +23,7 @@
   var script = document.currentScript || {};
   var APP = (script.dataset && script.dataset.app) || document.title.slice(0, 30) || "BLP app";
   var WHO_KEY = (script.dataset && script.dataset.whoKey) || "blp_rep_name";
+  var TOP_RIGHT = (script.dataset && script.dataset.position) === "top-right";
   var API = (function () {
     try {
       var o = new URL(script.src).origin;
@@ -44,6 +47,9 @@
     ".blps-btn:hover{transform:scale(1.08)}" +
     ".blps-panel{position:fixed;left:18px;bottom:72px;z-index:2147482000;width:min(340px,calc(100vw - 30px));max-height:min(540px,calc(100vh - 100px));background:#fff;border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.35);display:none;flex-direction:column;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#221d18}" +
     ".blps-panel.open{display:flex}" +
+    // Top-right placement (data-position="top-right"), desktop only.
+    "@media (min-width:761px){.blps-btn.blps-tr{left:auto;bottom:auto;right:14px;top:12px;width:40px;height:40px;font-size:18px}" +
+    ".blps-panel.blps-tr{left:auto;bottom:auto;right:14px;top:60px;max-height:min(540px,calc(100vh - 80px))}}" +
     ".blps-head{background:#2c2620;color:#fff;padding:12px 14px;font-size:14px}" +
     ".blps-head b{display:block}" +
     ".blps-head span{font-size:11.5px;opacity:.75}" +
@@ -75,12 +81,12 @@
   document.head.appendChild(style);
 
   var btn = document.createElement("button");
-  btn.className = "blps-btn";
+  btn.className = "blps-btn" + (TOP_RIGHT ? " blps-tr" : "");
   btn.title = "Suggest an improvement to the " + APP;
   btn.innerHTML = "&#128161;";
 
   var panel = document.createElement("div");
-  panel.className = "blps-panel";
+  panel.className = "blps-panel" + (TOP_RIGHT ? " blps-tr" : "");
   panel.innerHTML =
     '<div class="blps-head" style="display:flex;align-items:center"><div><b>&#128161; Suggest an improvement</b>' +
     '<span>bugs, edits, ideas for the ' + APP + ' — straight onto the fix list</span></div>' +

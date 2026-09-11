@@ -7,6 +7,7 @@ import { useRoster, api } from "@/lib/client";
 
 const NAV = [
   { href: "/leads", label: "Leads" },
+  { href: "/bl-inbox", label: "BL Client Responses" },
   { href: "/inbox", label: "Client Responses" },
   { href: "/activity", label: "Activity" },
   { href: "/", label: "Dashboard" },
@@ -86,20 +87,21 @@ function WhoAmI() {
 }
 
 /**
- * Unread client responses (sales + general inboxes), polled every 45s and
- * re-checked on navigation so acknowledging in the inbox updates the nav
- * bubble right away. Drives the "Client Responses" badge.
+ * Unread client responses, polled every 45s and re-checked on navigation so
+ * acknowledging in an inbox updates the nav bubbles right away. Split into
+ * the two inboxes: direct replies to Brigham's outreach vs everything else.
  */
-function useInboxUnread(pathname: string): number {
-  const [unread, setUnread] = useState(0);
+function useInboxUnread(pathname: string): { brigham: number; others: number } {
+  const [counts, setCounts] = useState({ brigham: 0, others: 0 });
   useEffect(() => {
     let dead = false;
     const tick = () =>
-      api<{ unread: number; salesUnread?: number; generalUnread?: number }>("/api/inbox?count=1")
+      api<{ unread: number; brighamUnread?: number }>("/api/inbox?count=1")
         .then((r) => {
-          if (!dead) setUnread((r.salesUnread ?? r.unread) + (r.generalUnread ?? 0));
+          const brigham = r.brighamUnread ?? 0;
+          if (!dead) setCounts({ brigham, others: Math.max(0, r.unread - brigham) });
         })
-        .catch(() => {}); // quiet — the bubble just stays as-is until next poll
+        .catch(() => {}); // quiet — the bubbles just stay as-is until next poll
     tick();
     const iv = setInterval(tick, 45_000);
     return () => {
@@ -107,13 +109,16 @@ function useInboxUnread(pathname: string): number {
       clearInterval(iv);
     };
   }, [pathname]);
-  return unread;
+  return counts;
 }
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const inboxUnread = useInboxUnread(pathname);
+  const unread = useInboxUnread(pathname);
+  const inboxUnread = unread.brigham + unread.others; // mobile burger total
+  const badgeFor = (href: string) =>
+    href === "/bl-inbox" ? unread.brigham : href === "/inbox" ? unread.others : 0;
 
   // Navigating (or Esc) closes the mobile drawer.
   useEffect(() => {
@@ -154,9 +159,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
             return (
               <Link key={item.href} href={item.href} className={active ? "active" : ""}>
                 {item.label}
-                {item.href === "/inbox" && inboxUnread > 0 && (
-                  <span className="count alert" aria-label={`${inboxUnread} new client responses`}>
-                    {inboxUnread}
+                {badgeFor(item.href) > 0 && (
+                  <span className="count alert" aria-label={`${badgeFor(item.href)} new client responses`}>
+                    {badgeFor(item.href)}
                   </span>
                 )}
               </Link>

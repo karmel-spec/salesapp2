@@ -1,7 +1,8 @@
 import { ActivityView } from "@/components/ActivityView";
 
-/** New Client Responses — the inbound-replies inbox (Sales + General tabs),
- * split out of Activity as its own nav destination. Deep link: ?tab=general */
+/** Client Responses — new inquiries plus replies to the rest of the team.
+ * Direct replies to Brigham's outreach live in /bl-inbox instead.
+ * Deep link: ?tab=general */
 export default function InboxPage() {
-  return <ActivityView inboxOnly />;
+  return <ActivityView inboxOnly scope="others" />;
 }

@@ -10,6 +10,7 @@ import { ThreadComposer } from "@/components/ThreadComposer";
 import { messageSource, SOURCE_META } from "@/lib/source";
 import { SourceIcon } from "@/components/SourceIcon";
 import { looseIncludes } from "@/lib/search";
+import { inScope, type InboxScope } from "@/lib/inbox-split";
 
 type Row = {
   at: string;
@@ -111,7 +112,14 @@ function replySummary(r: Row): { subject: string; snippet: string } {
  * Shared by two routes: /activity (full log, filter chips) and /inbox
  * (`inboxOnly` — pinned to customer replies, titled "New Client Responses").
  */
-export function ActivityView({ inboxOnly = false }: { inboxOnly?: boolean }) {
+export function ActivityView({
+  inboxOnly = false,
+  scope,
+}: {
+  inboxOnly?: boolean;
+  /** "brigham" = only replies to Brigham's outreach; "others" = the rest. */
+  scope?: InboxScope;
+}) {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState(() => (inboxOnly ? "inbound" : initialFilter()));
@@ -202,6 +210,8 @@ export function ActivityView({ inboxOnly = false }: { inboxOnly?: boolean }) {
     const all: Row[] = [];
     for (const l of leads) {
       for (const e of l.timeline) {
+        // Split inboxes: a reply belongs to exactly one of them.
+        if (e.kind === "inbound" && !inScope(l, e, scope)) continue;
         all.push({
           ...e,
           leadId: l.id,
@@ -223,7 +233,7 @@ export function ActivityView({ inboxOnly = false }: { inboxOnly?: boolean }) {
       return isNaN(d.getTime()) ? 0 : d.getTime();
     };
     return all.sort((a, b) => t(b) - t(a));
-  }, [leads]);
+  }, [leads, scope]);
 
   const unreadCount = useMemo(
     () => rows.filter((r) => r.kind === "inbound" && !r.read && !r.archived && !CLOSED_BUCKETS.has(r.leadBucket)).length,
@@ -564,9 +574,24 @@ export function ActivityView({ inboxOnly = false }: { inboxOnly?: boolean }) {
 
   async function ackAll() {
     setMarking(true);
-    applyRead(null, null); // optimistic
     try {
-      await api("/api/inbox", { method: "POST", body: JSON.stringify({ all: true, who: getWho() }) });
+      if (scope) {
+        // Only this inbox's replies — never the other inbox's.
+        const byLead = new Map<string, string[]>();
+        for (const r of rows) {
+          if (r.kind !== "inbound" || r.read || r.archived || CLOSED_BUCKETS.has(r.leadBucket)) continue;
+          byLead.set(r.leadId, [...(byLead.get(r.leadId) || []), r.at]);
+        }
+        for (const [leadId, ats] of byLead) applyRead(leadId, ats); // optimistic
+        await Promise.all(
+          [...byLead].map(([leadId, ats]) =>
+            api("/api/inbox", { method: "POST", body: JSON.stringify({ leadId, ats, who: getWho() }) })
+          )
+        );
+      } else {
+        applyRead(null, null); // optimistic
+        await api("/api/inbox", { method: "POST", body: JSON.stringify({ all: true, who: getWho() }) });
+      }
     } catch {
       reload();
     } finally {
@@ -583,11 +608,13 @@ export function ActivityView({ inboxOnly = false }: { inboxOnly?: boolean }) {
   return (
     <>
       <div className="page-head">
-        <h1>{inboxOnly ? "New Client Responses" : "Activity"}</h1>
+        <h1>{scope === "brigham" ? "BL Client Responses" : inboxOnly ? "Client Responses" : "Activity"}</h1>
         <span className="sub">
-          {inboxOnly
-            ? `customer texts, emails and webchats awaiting review${unreadCount > 0 ? ` — ${unreadCount} new` : ""}`
-            : "everything the team and Arnold have done, newest first"}
+          {scope === "brigham"
+            ? `direct replies to Brigham's texts, emails and calls${unreadCount > 0 ? ` — ${unreadCount} new` : ""}`
+            : inboxOnly
+              ? `new inquiries and replies to the rest of the team${unreadCount > 0 ? ` — ${unreadCount} new` : ""}`
+              : "everything the team and Arnold have done, newest first"}
         </span>
       </div>
 
