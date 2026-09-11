@@ -4,9 +4,14 @@
     {
       "name": "salesapp2",
       "cwd": "/Users/ivorylarson/salesapp2",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 8790
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-lc", "cd /Users/ivorylarson/salesapp2 && npx next dev -p ${PORT:-8790}"],
+      "port": 8790,
+      "autoPort": true
+    },
+    {
+      "name": "salesapp2-attach",
+      "url": "http://localhost:8790"
     }
   ]
 }

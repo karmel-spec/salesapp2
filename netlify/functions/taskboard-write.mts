@@ -32,6 +32,7 @@ async function sb(path: string, method: string, body?: unknown) {
   const key = process.env.SUPABASE_SERVICE_KEY || "";
   const r = await fetch(url + "/rest/v1/" + path, {
     method,
+    signal: AbortSignal.timeout(8000),
     headers: {
       apikey: key,
       Authorization: "Bearer " + key,
@@ -102,15 +103,32 @@ export default async (req: Request, context: { waitUntil?: (p: Promise<unknown>)
     } else {
       return new Response(JSON.stringify({ error: "bad op" }), { status: 400, headers });
     }
-    // background: forward to the bridge → sheet mirror + notifications + log
-    const mirror = fetch(BRIDGE_URL, {
-      method: "POST",
-      headers: { "content-type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ ...p, action: "taskcard" }),
-    }).catch(() => {});
-    if (context?.waitUntil) context.waitUntil(mirror);
-    else await Promise.race([mirror, new Promise((res) => setTimeout(res, 50))]);
-    return new Response(JSON.stringify(out), { headers });
+    // Mirror to the bridge (sheet copy, activity log, owner notifications)
+    // through the BACKGROUND function: it acks in ~200 ms and does the slow
+    // 3–30 s bridge call on its own clock. Doing that call here — even
+    // "fire-and-forget" — kept this Lambda alive until the bridge answered,
+    // so the response took 2.5–30 s and the app's 20 s timeout fired
+    // (Melissa's vanishing cards, 9/5–9/11). Falls back to the old inline
+    // call only if the background invoke itself fails.
+    const mirrorBody = JSON.stringify({ ...p, key: process.env.BLP_APP_ACCESS_KEY || "" });
+    let handedOff = false;
+    try {
+      const origin = new URL(req.url).origin;
+      const bg = await fetch(origin + "/.netlify/functions/taskboard-mirror-background", {
+        method: "POST", headers: { "content-type": "application/json" }, body: mirrorBody,
+        signal: AbortSignal.timeout(4000),
+      });
+      handedOff = bg.status === 202 || bg.ok;
+    } catch { handedOff = false; }
+    if (!handedOff) {
+      const mirror = fetch(BRIDGE_URL, {
+        method: "POST",
+        headers: { "content-type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ ...p, action: "taskcard" }),
+      }).catch(() => {});
+      if (context?.waitUntil) context.waitUntil(mirror);
+    }
+    return new Response(JSON.stringify({ ...out, mirrored: handedOff ? "background" : "inline" }), { headers });
   } catch (e) {
     return new Response(JSON.stringify({ error: String((e as Error).message || e) }), { status: 502, headers });
   }
