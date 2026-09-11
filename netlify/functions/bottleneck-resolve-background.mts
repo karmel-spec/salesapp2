@@ -57,12 +57,16 @@ async function appendRules(rules: string[], by: string) {
 async function bridge(body: Record<string, unknown>) {
   const r = await fetch(BRIDGE, { method: "POST", redirect: "follow",
     headers: { "content-type": "text/plain;charset=utf-8" },
-    body: JSON.stringify({ pin: process.env.STOREMAP_TEAM_PIN || "", ...body }) });
+    // The bridge accepts the team PIN, the app key, or a verified Google
+    // sign-in. STOREMAP_TEAM_PIN was missing/stale in the Netlify env, so
+    // every executed action came back "unauthorized" for everyone (Mark
+    // 9/11) — the app key is always accepted, so send both.
+    body: JSON.stringify({ pin: process.env.STOREMAP_TEAM_PIN || APP_KEY, key: APP_KEY, ...body }) });
   return r.json();
 }
 
 const ALLOWED = new Set(["move", "setphase", "setdone", "settrack", "setcabinetry", "queue",
-  "settype", "setpayplan", "setkeys", "markduplicate", "unmarkduplicate"]);
+  "settype", "setpayplan", "setkeys", "markduplicate", "unmarkduplicate", "note"]);   // note → scope note on the card
 
 export default async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("", { headers: CORS });
@@ -117,11 +121,12 @@ export default async (req: Request) => {
     + "Larson Pianos. Only act on what an answer explicitly resolves — never guess serials (they must "
     + "come from the piano list) and never invent actions beyond the answers. Actions you cannot express "
     + "with the allowed bridge actions (sheet layout changes, adding brand-new pianos, emails) go in "
-    + "followups for a human. Phases must be one of: New Arrival - Admin, Assessment, CAP, PRSB & Plate "
-    + "Refinishing, Lacquer Soundboard, Restringing, Chip Tuning, DHRT, 1st Tuning, Refinishing, "
-    + "QC & Assembly, 2nd Tuning, Exit Prep - Admin, Delivered, In Queue, Paused, For Sale, "
-    + "Waiting on Brigham, Waiting on Curtis Harper, Waiting on OTHER. Answers that state lasting policy "
-    + "go in rules_extracted.";
+    + "followups for a human. Phases must be one of: New Arrival - Admin, Assessment, CAP, PRSBa - Pre-Plate, "
+    + "Lacquer Soundboard, PRSBb - Plate In, Restringing, Chip Tuning, DHRT, 1st Tuning, Refinishing, "
+    + "QC & Assembly, 2nd Tuning, Exit Prep - Admin, Delivered, In Queue, Paused, For Sale, Sale Pending, "
+    + "Sold, Post Sale QC, Waiting on Brigham, Waiting on Curtis Harper, Waiting on Customer, Waiting on OTHER. "
+    + "Use action \"note\" with a `note` field to record an instruction or status on a piano's card. "
+    + "Answers that state lasting policy go in rules_extracted.";
   const userMsg = "BOTTLENECKS AND BRIGHAM'S ANSWERS:\n"
     + items.map((i: any) => `• ${i.title}\n  Context: ${i.body}\n  ANSWER: ${i.answer}`).join("\n\n")
     + `\n\nPIANO LIST:\n${roster}`;
@@ -145,7 +150,11 @@ export default async (req: Request) => {
     const p = pianos.find(x => x.serial === a.serial);
     if (!p) { executed.push(`✗ ${a.serial}: unknown serial`); continue; }
     const { action, serial, why, ...rest } = a;
-    const j = await bridge({ action, serial, row: p.row, user, ...rest });
+    // "note" (the AI's most common ask — Mark 9/11 saw "note: not allowed")
+    // → the card's Scope of Work special-instructions note
+    const j = action === "note"
+      ? await bridge({ action: "setscopenote", serial, row: p.row, user, value: String(a.note || "").slice(0, 500) })
+      : await bridge({ action, serial, row: p.row, user, ...rest });
     const ok = j.ok || j.moved;
     executed.push(`${ok ? "✓" : "✗"} ${why || action + " " + serial}${ok ? "" : ": " + (j.error || "failed")}`);
     await new Promise(r => setTimeout(r, 350));
