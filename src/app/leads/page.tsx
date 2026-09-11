@@ -14,26 +14,20 @@ const BUCKETS = ["all", "open", "new", "active", "snoozed", "won", "lost", "clos
 const SORT_MODES = ["priority", "newest", "contact-newest", "contact-oldest"] as const;
 type SortMode = (typeof SORT_MODES)[number];
 
-/** Filters picked last session, remembered per device. */
-const FILTERS_KEY = "blp_leads_filters";
-function savedFilters(): { bucket?: string; rep?: string; typeFilter?: string; sortMode?: string } {
-  if (typeof window === "undefined") return {};
-  try {
-    return JSON.parse(localStorage.getItem(FILTERS_KEY) || "{}");
-  } catch {
-    return {};
-  }
-}
-
-/** Initial filters: a URL deep link (?bucket=…&stale=1, dashboard tiles)
- *  always wins; otherwise the device's remembered filters; else defaults. */
+/** Initial filters, the same every visit: the signed-in rep's own Active
+ *  Sales leads, newest first. A URL deep link (?bucket=…&stale=1 from the
+ *  dashboard tiles) overrides the status filter. */
 function initialParams() {
-  if (typeof window === "undefined") return { bucket: "all" as (typeof BUCKETS)[number], stale: false };
+  const defaults = { bucket: "active" as (typeof BUCKETS)[number], stale: false, rep: "all", typeFilter: "Sales", sortMode: "newest" as SortMode };
+  if (typeof window === "undefined") return defaults;
   const q = new URLSearchParams(window.location.search);
-  const b = q.get("bucket") || (q.get("stale") ? "all" : savedFilters().bucket) || "all";
+  const who = localStorage.getItem("blp_rep_name") || "";
+  const b = q.get("bucket") || (q.get("stale") ? "all" : defaults.bucket);
   return {
-    bucket: (BUCKETS as readonly string[]).includes(b) ? (b as (typeof BUCKETS)[number]) : "all",
+    ...defaults,
+    bucket: (BUCKETS as readonly string[]).includes(b) ? (b as (typeof BUCKETS)[number]) : defaults.bucket,
     stale: q.get("stale") === "1",
+    rep: who || "all",
   };
 }
 
@@ -43,27 +37,15 @@ export default function LeadsPage() {
   const [error, setError] = useState("");
   const [q, setQ] = useState("");
   const [bucket, setBucket] = useState<(typeof BUCKETS)[number]>(() => initialParams().bucket);
-  const [rep, setRep] = useState(() => savedFilters().rep || "all");
-  const [typeFilter, setTypeFilter] = useState(() => savedFilters().typeFilter || "all");
+  const [rep, setRep] = useState(() => initialParams().rep);
+  const [typeFilter, setTypeFilter] = useState(() => initialParams().typeFilter);
   const [staleOnly, setStaleOnly] = useState(() => initialParams().stale);
   const [showNew, setShowNew] = useState(false);
-  const [sortMode, setSortMode] = useState<SortMode>(() => {
-    const s = savedFilters().sortMode || "";
-    return (SORT_MODES as readonly string[]).includes(s) ? (s as SortMode) : "priority";
-  });
+  const [sortMode, setSortMode] = useState<SortMode>(() => initialParams().sortMode);
 
   useEffect(() => {
     fetchLeads().then((r) => setLeads(r.leads)).catch((e) => setError(e.message));
   }, []);
-
-  // Remember the filters for next visit (per device).
-  useEffect(() => {
-    try {
-      localStorage.setItem(FILTERS_KEY, JSON.stringify({ bucket, rep, typeFilter, sortMode }));
-    } catch {
-      /* private-mode storage — filters just won't persist */
-    }
-  }, [bucket, rep, typeFilter, sortMode]);
 
   const reps = useMemo(() => {
     if (!leads) return [];
@@ -158,11 +140,12 @@ export default function LeadsPage() {
         </select>
         <select value={rep} onChange={(e) => setRep(e.target.value)}>
           <option value="all">All reps</option>
-          {reps.map((r) => <option key={r} value={r}>{r}</option>)}
+          {/* Keep the signed-in rep selectable even before they own a lead. */}
+          {(rep !== "all" && !reps.includes(rep) ? [rep, ...reps] : reps).map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
         <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} aria-label="Type of lead">
           <option value="all">All types of leads</option>
-          {leadTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+          {(typeFilter !== "all" && !leadTypes.includes(typeFilter) ? [typeFilter, ...leadTypes] : leadTypes).map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
         <select value={sortMode} onChange={(e) => setSortMode(e.target.value as typeof sortMode)} aria-label="Sort order">
           <option value="priority">Priority order</option>

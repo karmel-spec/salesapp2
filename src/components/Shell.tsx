@@ -6,17 +6,17 @@ import Link from "next/link";
 import { useRoster, api } from "@/lib/client";
 
 const NAV = [
-  { href: "/", label: "Dashboard" },
   { href: "/leads", label: "Leads" },
-  { href: "/map", label: "US Sales Map" },
   { href: "/approvals", label: "Approvals" },
   { href: "/activity", label: "Activity" },
-  { href: "/reports", label: "Reports" },
+  { href: "/", label: "Dashboard & Reports" },
   { href: "/settings", label: "Settings" },
 ];
 
-/** The rest of the BLP app family — external links in a collapsible group. */
+/** The rest of the BLP app family — a collapsible group. Internal routes
+ * (href starting with "/") open in-app; the rest open in a new tab. */
 const BLP_APPS = [
+  { href: "/map", label: "US Sales Map" },
   { href: "https://brighamlarsonpianos.tech", label: "Shop App" },
   { href: "https://blpcrm.netlify.app", label: "CRM" },
   { href: "https://blpstoremap.netlify.app", label: "Store Map" },
@@ -36,11 +36,17 @@ function BlpAppsMenu() {
         <span aria-hidden>{open ? "▾" : "▸"}</span>
       </button>
       {open &&
-        BLP_APPS.map((a) => (
-          <a key={a.href} href={a.href} target="_blank" rel="noreferrer" className="apps-link">
-            {a.label} <span aria-hidden>↗</span>
-          </a>
-        ))}
+        BLP_APPS.map((a) =>
+          a.href.startsWith("/") ? (
+            <Link key={a.href} href={a.href} className="apps-link">
+              {a.label}
+            </Link>
+          ) : (
+            <a key={a.href} href={a.href} target="_blank" rel="noreferrer" className="apps-link">
+              {a.label} <span aria-hidden>↗</span>
+            </a>
+          )
+        )}
     </div>
   );
 }
