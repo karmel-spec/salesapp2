@@ -45,11 +45,15 @@ export async function POST(req: NextRequest) {
     }
     if (!lead && name) {
       const n = name.toLowerCase();
-      // Full-name contains match, then fall back to exact first+last.
+      // Name matching only when the phone can't decide: two different
+      // "Carlos"es with two different numbers were merged into one lead this
+      // way. A candidate must have no phone on file, or the same phone.
+      const phoneOk = (l: Lead) => !phone || !l.phoneDialable || l.phoneDialable.endsWith(phone);
+      const candidates = leads.filter(phoneOk);
       lead =
-        leads.find((l) => l.name.toLowerCase() === n) ||
-        leads.find((l) => l.name && n.includes(l.name.toLowerCase())) ||
-        leads.find((l) => l.firstName && l.lastName && n === `${l.firstName} ${l.lastName}`.toLowerCase());
+        candidates.find((l) => l.name.toLowerCase() === n) ||
+        candidates.find((l) => l.name && l.name.includes(" ") && n.includes(l.name.toLowerCase())) ||
+        candidates.find((l) => l.firstName && l.lastName && n === `${l.firstName} ${l.lastName}`.toLowerCase());
       if (lead) how = "name match";
     }
 

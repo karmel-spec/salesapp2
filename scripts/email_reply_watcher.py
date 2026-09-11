@@ -88,10 +88,29 @@ def accounts() -> list:
     return out
 
 
+# Messages the console rejected with a 5xx: retried up to 3 runs, then skipped
+# with a loud log line so one bad alert can't jam the queue for every alert
+# behind it (Moises' webchat blocked brigham@ for 8 hours on 2026-09-11).
+FAILURES: dict = {}
+MAX_TRIES = 3
+
+
+def failed(acct: str, uid_, why: str) -> bool:
+    k = f"{acct}:{uid_}"
+    FAILURES[k] = FAILURES.get(k, 0) + 1
+    if FAILURES[k] >= MAX_TRIES:
+        print(f"{acct} uid {uid_}: GAVE UP after {FAILURES[k]} tries ({why}) — skipped; check the console function logs")
+        FAILURES.pop(k, None)
+        return True  # skip it
+    print(f"{acct} uid {uid_}: console POST failed ({why}) — will retry next run ({FAILURES[k]}/{MAX_TRIES})")
+    return False
+
+
 def main() -> None:
     key = env("BLP_ARNOLD_ACCESS_KEY")
     state = json.loads(STATE_FILE.read_text()) if STATE_FILE.exists() else {}
     per_account = state.get("accounts", {})
+    FAILURES.update(state.get("failures", {}))
     # Legacy single-account state carries over to info@.
     if "last_uid" in state and "info@brighamlarsonpianos.com" not in per_account:
         per_account["info@brighamlarsonpianos.com"] = int(state["last_uid"])
@@ -102,7 +121,7 @@ def main() -> None:
             poll_account(user, password, key, per_account, internal)
         except Exception as e:
             print(f"{user}: poll failed ({e}) — will retry next run")
-    STATE_FILE.write_text(json.dumps({"accounts": per_account}))
+    STATE_FILE.write_text(json.dumps({"accounts": per_account, "failures": FAILURES}))
 
 
 def poll_account(USER: str, password: str, key: str, per_account: dict, internal: set) -> None:
@@ -162,11 +181,10 @@ def poll_account(USER: str, password: str, key: str, per_account: dict, internal
             if mc:
                 sender = mc.group(1).strip()
                 text = mc.group(3).strip()
-                pm2 = re.search(r"(\d{3})\D?(\d{3})\D?(\d{4})", mc.group(2))
-                if pm2:
-                    phone_labeled = pm2.group(1) + pm2.group(2) + pm2.group(3)
-                else:
-                    phone_labeled = ""
+                # Last 10 digits: "+15204793403" is a US number with country
+                # code — taking the FIRST ten digits produced "1520479340".
+                digits = re.sub(r"\D", "", mc.group(2))
+                phone_labeled = digits[-10:] if len(digits) >= 10 else ""
             elif mb:
                 phone_labeled = ""
                 sender = mb.group(1).strip()
@@ -212,10 +230,12 @@ def poll_account(USER: str, password: str, key: str, per_account: dict, internal
                     last_uid = uid
                     per_account[USER] = last_uid
                     continue
-                print(f"{USER} uid {uid}: SalesCaptain POST failed ({e}) — will retry")
+                if failed(USER, uid, str(e)):
+                    last_uid = uid; per_account[USER] = last_uid; continue
                 break
             except Exception as e:
-                print(f"{USER} uid {uid}: SalesCaptain POST failed ({e}) — will retry")
+                if failed(USER, uid, str(e)):
+                    last_uid = uid; per_account[USER] = last_uid; continue
                 break
             continue
 
@@ -246,7 +266,8 @@ def poll_account(USER: str, password: str, key: str, per_account: dict, internal
             last_uid = uid  # advance only after the console accepted the message
             per_account[USER] = last_uid
         except Exception as e:
-            print(f"{USER} uid {uid}: console POST failed ({e}) — will retry next run")
+            if failed(USER, uid, str(e)):
+                last_uid = uid; per_account[USER] = last_uid; continue
             break
 
     per_account[USER] = last_uid
