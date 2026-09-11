@@ -72,6 +72,9 @@ a { color: inherit; text-decoration: none; }
   letter-spacing: 1.6px;
   color: rgba(243, 239, 233, 0.55);
   margin-top: 4px;
+  /* Same box as the logo above, so the text centers under it. */
+  max-width: 190px;
+  text-align: center;
 }
 .nav { padding: 14px 10px; display: flex; flex-direction: column; gap: 2px; flex: 1; }
 .nav a {
