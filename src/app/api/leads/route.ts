@@ -19,11 +19,14 @@ export async function GET(req: NextRequest) {
   try {
     const force = req.nextUrl.searchParams.get("refresh") === "1";
     const { leads } = await getLeads(force);
-    // Nav bubbles: active (new + active) leads, Brigham's vs everyone else's.
+    // Nav bubbles: active (new + active) leads, Brigham's vs everyone else's,
+    // plus the Customer Service queue (Support status). Inactive, lost, won,
+    // closed and unqualified are never counted here.
     if (req.nextUrl.searchParams.get("count") === "1") {
       const open = leads.filter((l) => l.statusBucket === "new" || l.statusBucket === "active");
       const brighamActive = open.filter((l) => l.effectiveRep === "Brigham").length;
-      return NextResponse.json({ brighamActive, othersActive: open.length - brighamActive });
+      const support = leads.filter((l) => l.statusBucket === "support").length;
+      return NextResponse.json({ brighamActive, othersActive: open.length - brighamActive, support });
     }
     return NextResponse.json({ leads, writeEnabled: canWrite() });
   } catch (err) {

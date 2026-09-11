@@ -8,6 +8,7 @@ import { useRoster, api } from "@/lib/client";
 const NAV = [
   { href: "/bl-leads", label: "BL Leads" },
   { href: "/leads", label: "Leads" },
+  { href: "/customer-service", label: "Customer Service" },
   { href: "/new-inquiries", label: "New Inquiries" },
   { href: "/bl-inbox", label: "BL Client Responses" },
   { href: "/inbox", label: "Client Responses" },
@@ -116,14 +117,14 @@ function useInboxUnread(pathname: string): { brigham: number; fresh: number; oth
 }
 
 /** Active-lead counts for the two Leads tabs (Brigham's vs everyone else's). */
-function useLeadCounts(pathname: string): { brigham: number; others: number } {
-  const [counts, setCounts] = useState({ brigham: 0, others: 0 });
+function useLeadCounts(pathname: string): { brigham: number; others: number; support: number } {
+  const [counts, setCounts] = useState({ brigham: 0, others: 0, support: 0 });
   useEffect(() => {
     let dead = false;
     const tick = () =>
-      api<{ brighamActive: number; othersActive: number }>("/api/leads?count=1")
+      api<{ brighamActive: number; othersActive: number; support?: number }>("/api/leads?count=1")
         .then((r) => {
-          if (!dead) setCounts({ brigham: r.brighamActive, others: r.othersActive });
+          if (!dead) setCounts({ brigham: r.brighamActive, others: r.othersActive, support: r.support ?? 0 });
         })
         .catch(() => {});
     tick();
@@ -150,6 +151,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       case "/inbox": return { n: unread.others, alert: true };
       case "/bl-leads": return { n: leadCounts.brigham, alert: false };
       case "/leads": return { n: leadCounts.others, alert: false };
+      case "/customer-service": return { n: leadCounts.support, alert: true };
       default: return { n: 0, alert: false };
     }
   };

@@ -18,13 +18,18 @@ type SortMode = (typeof SORT_MODES)[number];
  *  Sales leads, newest first. A URL deep link (?bucket=…, ?stale=1 or
  *  ?drafts=1 from the dashboard tiles) overrides the status filter; the
  *  flag links also widen the type filter so their counts match the tiles. */
-/** Which slice of the log a Leads tab shows: Brigham's leads, everyone
- *  else's, or (dashboard deep links with ?all=1) the whole company. */
-export type LeadsScope = "brigham" | "others";
+/** Which slice of the log a tab shows: Brigham's leads, everyone else's,
+ *  Customer Service (the Support status — walk-up questions, not sales), or
+ *  (dashboard deep links with ?all=1) the whole company. Support contacts
+ *  never appear on the two lead tabs. */
+export type LeadsScope = "brigham" | "others" | "support";
 const BRIGHAM = "Brigham";
 
 function initialParams(scope?: LeadsScope) {
-  const defaults = { bucket: "active" as (typeof BUCKETS)[number], stale: false, drafts: false, rep: "all", typeFilter: "Sales", sortMode: "newest" as SortMode };
+  const defaults =
+    scope === "support"
+      ? { bucket: "all" as (typeof BUCKETS)[number], stale: false, drafts: false, rep: "all", typeFilter: "all", sortMode: "newest" as SortMode }
+      : { bucket: "active" as (typeof BUCKETS)[number], stale: false, drafts: false, rep: "all", typeFilter: "Sales", sortMode: "newest" as SortMode };
   if (typeof window === "undefined") return defaults;
   const q = new URLSearchParams(window.location.search);
   const who = localStorage.getItem("blp_rep_name") || "";
@@ -36,8 +41,9 @@ function initialParams(scope?: LeadsScope) {
     stale: q.get("stale") === "1",
     drafts: q.get("drafts") === "1",
     typeFilter: flagged ? "all" : defaults.typeFilter,
-    // BL Leads is already Brigham's; on the team tab Brigham sees everyone.
-    rep: scope === "brigham" || who === BRIGHAM ? "all" : who || "all",
+    // BL Leads is already Brigham's; on the team tab Brigham sees everyone;
+    // Customer Service is a shared queue.
+    rep: scope === "brigham" || scope === "support" || who === BRIGHAM ? "all" : who || "all",
   };
 }
 
@@ -50,9 +56,9 @@ export function LeadsView({ scope: tabScope }: { scope?: LeadsScope }) {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [error, setError] = useState("");
   const [q, setQ] = useState("");
-  const [bucket, setBucket] = useState<(typeof BUCKETS)[number]>(() => initialParams().bucket);
+  const [bucket, setBucket] = useState<(typeof BUCKETS)[number]>(() => initialParams(scope).bucket);
   const [rep, setRep] = useState(() => initialParams(scope).rep);
-  const [typeFilter, setTypeFilter] = useState(() => initialParams().typeFilter);
+  const [typeFilter, setTypeFilter] = useState(() => initialParams(scope).typeFilter);
   const [staleOnly, setStaleOnly] = useState(() => initialParams().stale);
   const [draftsOnly, setDraftsOnly] = useState(() => initialParams().drafts);
   const [showNew, setShowNew] = useState(false);
@@ -65,8 +71,10 @@ export function LeadsView({ scope: tabScope }: { scope?: LeadsScope }) {
   // The slice this tab works from; every count and filter starts here.
   const pool = useMemo(() => {
     if (!leads) return [];
-    if (scope === "brigham") return leads.filter((l) => l.effectiveRep === BRIGHAM);
-    if (scope === "others") return leads.filter((l) => l.effectiveRep !== BRIGHAM);
+    if (scope === "support") return leads.filter((l) => l.statusBucket === "support");
+    const real = leads.filter((l) => l.statusBucket !== "support"); // customer service lives on its own tab
+    if (scope === "brigham") return real.filter((l) => l.effectiveRep === BRIGHAM);
+    if (scope === "others") return real.filter((l) => l.effectiveRep !== BRIGHAM);
     return leads;
   }, [leads, scope]);
 
@@ -136,12 +144,19 @@ export function LeadsView({ scope: tabScope }: { scope?: LeadsScope }) {
   return (
     <>
       <div className="page-head">
-        <h1>{scope === "brigham" ? "BL Leads" : "Leads"}</h1>
+        <h1>{scope === "brigham" ? "BL Leads" : scope === "support" ? "Customer Service" : "Leads"}</h1>
         <span className="sub">
           {filtered.length} of {pool.length}
-          {scope === "brigham" ? " assigned to Brigham" : scope === "others" ? " (everyone but Brigham)" : " company-wide"}
+          {scope === "brigham"
+            ? " assigned to Brigham"
+            : scope === "others"
+              ? " (everyone but Brigham)"
+              : scope === "support"
+                ? " support inquiries — walk-up questions, tuning, moving; not sales leads"
+                : " company-wide"}
         </span>
         <span className="spacer" />
+        {scope !== "support" && (
         <button
           className="topten-burst"
           title="Arnold's Top Ten — today's ten most promising revenue leads"
@@ -149,6 +164,7 @@ export function LeadsView({ scope: tabScope }: { scope?: LeadsScope }) {
         >
           <span>TOP<br />TEN</span>
         </button>
+        )}
         <button className="btn" onClick={() => setShowNew((v) => !v)}>+ New lead</button>
       </div>
 
@@ -156,13 +172,15 @@ export function LeadsView({ scope: tabScope }: { scope?: LeadsScope }) {
 
       <div className="toolbar">
         <input type="search" placeholder="Search name, piano, notes…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <select value={bucket} onChange={(e) => setBucket(e.target.value as (typeof BUCKETS)[number])}>
-          {BUCKETS.map((b) => (
-            <option key={b} value={b}>
-              {b === "all" ? "All statuses" : b === "open" ? "Open (new + active)" : b[0].toUpperCase() + b.slice(1)}
-            </option>
-          ))}
-        </select>
+        {scope !== "support" && (
+          <select value={bucket} onChange={(e) => setBucket(e.target.value as (typeof BUCKETS)[number])}>
+            {BUCKETS.filter((b) => b !== "support").map((b) => (
+              <option key={b} value={b}>
+                {b === "all" ? "All statuses" : b === "open" ? "Open (new + active)" : b[0].toUpperCase() + b.slice(1)}
+              </option>
+            ))}
+          </select>
+        )}
         {scope !== "brigham" && (
           <select value={rep} onChange={(e) => setRep(e.target.value)}>
             <option value="all">All reps</option>
