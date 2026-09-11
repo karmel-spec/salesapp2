@@ -127,22 +127,22 @@ export default function Dashboard() {
       {sweepResult && <div className="banner info">{sweepResult}</div>}
 
       <div className="grid tiles" style={{ marginBottom: 18 }}>
-        <Link href="/leads?bucket=open" className="card tile linky">
+        <Link href="/leads?bucket=open&all=1" className="card tile linky">
           <div className="label">Open leads</div>
           <div className="value">{stats.open.length}</div>
           <div className="hint">new + active pipeline →</div>
         </Link>
-        <Link href="/leads?stale=1" className={`card tile linky ${stats.stale.length ? "alert" : ""}`}>
+        <Link href="/leads?stale=1&all=1" className={`card tile linky ${stats.stale.length ? "alert" : ""}`}>
           <div className="label">Stale (30d+)</div>
           <div className="value">{stats.stale.length}</div>
           <div className="hint">auto-assigned to Arnold →</div>
         </Link>
-        <Link href="/leads?drafts=1" className={`card tile linky ${stats.approvals ? "alert" : ""}`}>
+        <Link href="/leads?drafts=1&all=1" className={`card tile linky ${stats.approvals ? "alert" : ""}`}>
           <div className="label">Awaiting approval</div>
           <div className="value">{stats.approvals}</div>
           <div className="hint">Arnold drafts to review on their leads →</div>
         </Link>
-        <Link href="/leads?bucket=won" className="card tile linky">
+        <Link href="/leads?bucket=won&all=1" className="card tile linky">
           <div className="label">Won</div>
           <div className="value">{stats.won.length}</div>
           <div className="hint">all-time on this log →</div>

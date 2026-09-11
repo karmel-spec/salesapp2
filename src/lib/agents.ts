@@ -101,8 +101,8 @@ const OVERRIDES: Record<string, Partial<AgentConfig>> = {
     links: [
       { name: "Chat with Arnold (Telegram)", href: "https://t.me/arnoldlarsonbot", note: "ask him anything, assign work conversationally" },
       { name: "Brain health check", href: "https://arnold.brighamlarsonpianos.com/health", note: "should say status: ok — if not, his Mac is asleep" },
-      { name: "His approval queue", href: "/leads?drafts=1", note: "leads with a draft of his waiting — approve from the lead page, with context" },
-      { name: "His lead queue", href: "/leads?stale=1", note: "stale leads currently assigned to him" },
+      { name: "His approval queue", href: "/leads?drafts=1&all=1", note: "leads with a draft of his waiting — approve from the lead page, with context" },
+      { name: "His lead queue", href: "/leads?stale=1&all=1", note: "stale leads currently assigned to him" },
     ],
     onMacFiles: [
       ["Identity & soul", "~/Documents/BLP Knowledge Vault/agents/arnold/ (IDENTITY.md, SOUL.md, MEMORY.md)"],

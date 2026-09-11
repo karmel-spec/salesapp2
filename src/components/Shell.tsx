@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRoster, api } from "@/lib/client";
 
 const NAV = [
+  { href: "/bl-leads", label: "BL Leads" },
   { href: "/leads", label: "Leads" },
   { href: "/new-inquiries", label: "New Inquiries" },
   { href: "/bl-inbox", label: "BL Client Responses" },
@@ -114,13 +115,44 @@ function useInboxUnread(pathname: string): { brigham: number; fresh: number; oth
   return counts;
 }
 
+/** Active-lead counts for the two Leads tabs (Brigham's vs everyone else's). */
+function useLeadCounts(pathname: string): { brigham: number; others: number } {
+  const [counts, setCounts] = useState({ brigham: 0, others: 0 });
+  useEffect(() => {
+    let dead = false;
+    const tick = () =>
+      api<{ brighamActive: number; othersActive: number }>("/api/leads?count=1")
+        .then((r) => {
+          if (!dead) setCounts({ brigham: r.brighamActive, others: r.othersActive });
+        })
+        .catch(() => {});
+    tick();
+    const iv = setInterval(tick, 60_000);
+    return () => {
+      dead = true;
+      clearInterval(iv);
+    };
+  }, [pathname]);
+  return counts;
+}
+
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const unread = useInboxUnread(pathname);
+  const leadCounts = useLeadCounts(pathname);
   const inboxUnread = unread.brigham + unread.fresh + unread.others; // mobile burger total
-  const badgeFor = (href: string) =>
-    href === "/bl-inbox" ? unread.brigham : href === "/new-inquiries" ? unread.fresh : href === "/inbox" ? unread.others : 0;
+  // Crimson "alert" bubbles = messages awaiting a reply; plain bubbles = lead counts.
+  const badgeFor = (href: string): { n: number; alert: boolean } => {
+    switch (href) {
+      case "/bl-inbox": return { n: unread.brigham, alert: true };
+      case "/new-inquiries": return { n: unread.fresh, alert: true };
+      case "/inbox": return { n: unread.others, alert: true };
+      case "/bl-leads": return { n: leadCounts.brigham, alert: false };
+      case "/leads": return { n: leadCounts.others, alert: false };
+      default: return { n: 0, alert: false };
+    }
+  };
 
   // Navigating (or Esc) closes the mobile drawer.
   useEffect(() => {
@@ -157,13 +189,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <nav className={`nav${drawerOpen ? " open" : ""}`}>
           {NAV.map((item) => {
             const active =
-              item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+              item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(item.href + "/");
             return (
               <Link key={item.href} href={item.href} className={active ? "active" : ""}>
                 {item.label}
-                {badgeFor(item.href) > 0 && (
-                  <span className="count alert" aria-label={`${badgeFor(item.href)} new client responses`}>
-                    {badgeFor(item.href)}
+                {badgeFor(item.href).n > 0 && (
+                  <span className={badgeFor(item.href).alert ? "count alert" : "count"}>
+                    {badgeFor(item.href).n}
                   </span>
                 )}
               </Link>

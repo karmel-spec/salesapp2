@@ -44,7 +44,7 @@ function ArnoldWidgets() {
             {!status ? "checking the tunnel" : brainLive ? "full Hermes Arnold, via his tunnel" : status.claudeFallback ? "falls back to Claude-as-Arnold" : "Mac asleep or tunnel down"}
           </div>
         </div>
-        <Link href="/leads?drafts=1" className="card tile linky">
+        <Link href="/leads?drafts=1&all=1" className="card tile linky">
           <div className="label">Drafts awaiting approval</div>
           <div className="value">{status?.pendingDrafts ?? "…"}</div>
           <div className="hint">review &amp; send from each lead →</div>
@@ -54,7 +54,7 @@ function ArnoldWidgets() {
           <div className="value">{status?.sentToday ?? "…"}</div>
           <div className="hint">approved by humans</div>
         </div>
-        <Link href="/leads?stale=1" className="card tile linky">
+        <Link href="/leads?stale=1&all=1" className="card tile linky">
           <div className="label">His lead queue</div>
           <div className="value">{status?.queue ?? "…"}</div>
           <div className="hint">stale leads he&apos;s working →</div>
