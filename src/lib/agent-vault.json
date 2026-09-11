@@ -217,7 +217,9 @@
       "Non-secret documentation."
     ],
     "currentProjects": [
-      "Not wired up yet — waiting to be onboarded."
+      "Brigham's Daily Brief (live since 2026-09-09, 7:00 AM Mon–Fri). Recipe Agents/clara/BRIEF_SOURCES.",
+      "Approved cleanup pass — brighamlarson@gmail.com (started 2026-09-10). Recipe Agents/clara/INBOX_CLEANUP. First scan done 2026-09-10: 241 inbox threads, 126 senders. Proposal: `Agents/clara/inbox-cleanup/2026-09-10 proposal.md`. Waiting on Brigham's row-number approvals. Clara has changed nothing in the mailbox yet.",
+      "Thursday 8:00 AM handbook training log — Agents/clara/TRAINING_PLAN, section #1 planned 2026-09-10."
     ],
     "openQuestions": [],
     "requestedCrons": [],
