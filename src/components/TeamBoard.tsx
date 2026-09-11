@@ -103,7 +103,7 @@ export function TeamBoard({ initialPerson }: { initialPerson?: string }) {
         <div className={`card tile ${board.totals.behind ? "alert" : ""}`}>
           <div className="label">People behind</div>
           <div className="value">{board.totals.behind}</div>
-          <div className="hint">oldest item over {board.thresholds.behind} days, or overdue cards</div>
+          <div className="hint">email over {board.thresholds.email.behind} days, cards/replies over {board.thresholds.tasks.behind}, or overdue cards</div>
         </div>
       </div>
 
@@ -123,7 +123,7 @@ export function TeamBoard({ initialPerson }: { initialPerson?: string }) {
           <div className="board-scale">
             <span>current</span>
             <i className="board-ramp" />
-            <span>{board.thresholds.behind}+ days</span>
+            <span>{board.thresholds.email.behind}+ days email · {board.thresholds.tasks.behind}+ tasks</span>
             <span className="muted" style={{ marginLeft: "auto" }}>
               number = items waiting · small text = oldest · striped = no such queue
             </span>
@@ -201,7 +201,7 @@ function FocusPanel({ row }: { row: BoardRow }) {
         {items.length === 0 && <div className="muted" style={{ padding: 16 }}>Nothing waiting — all current.</div>}
         {items.map((it, i) => (
           <a key={i} className="board-item" href={it.href || "#"} target={it.href?.startsWith("http") ? "_blank" : undefined} rel="noreferrer">
-            <span className={`when ${it.ageDays >= 7 ? "behind" : it.ageDays >= 2 ? "watch" : "current"}`}>{it.ageDays === 0 ? "today" : `${it.ageDays}d`}</span>
+            <span className={`when ${it.ageDays >= (it.src === "Email inbox" ? 3 : 7) ? "behind" : it.ageDays >= (it.src === "Email inbox" ? 1 : 2) ? "watch" : "current"}`}>{it.ageDays === 0 ? "today" : `${it.ageDays}d`}</span>
             <span className="what">
               <b>{it.title}</b>
               <span>{it.detail}</span>

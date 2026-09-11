@@ -36,8 +36,13 @@ export const BOARD_PEOPLE: BoardPerson[] = [
   { key: "curtis", name: "Curtis", role: "shop", taskOwner: "Curtis Biggs" },
 ];
 
-/** Backlog thresholds (days) for the amber / red signals. */
-export const THRESHOLDS = { watch: 2, behind: 7 };
+/** Backlog thresholds (days) for the amber / red signals. Customer email is
+ *  judged more strictly than task cards and console queues (Brigham, 9/11). */
+export const THRESHOLDS = {
+  email: { watch: 1, behind: 3 },
+  tasks: { watch: 2, behind: 7 },
+  console: { watch: 2, behind: 7 },
+};
 
 export type Status = "behind" | "watch" | "current" | "none";
 
@@ -89,12 +94,13 @@ export interface Board {
   };
 }
 
-function statusFor(oldestDays: number | null, overdue = 0, hasAnything = true): Status {
+function statusFor(kind: keyof typeof THRESHOLDS, oldestDays: number | null, overdue = 0, hasAnything = true): Status {
   if (!hasAnything) return "none";
   if (overdue > 0) return "behind";
   if (oldestDays === null) return "current";
-  if (oldestDays >= THRESHOLDS.behind) return "behind";
-  if (oldestDays >= THRESHOLDS.watch) return "watch";
+  const t = THRESHOLDS[kind];
+  if (oldestDays >= t.behind) return "behind";
+  if (oldestDays >= t.watch) return "watch";
   return "current";
 }
 
@@ -115,7 +121,7 @@ function emailCell(m: MailboxSummary, person: BoardPerson): QueueCell {
     new: m.unread,
     total: m.total,
     oldestDays: m.oldestDays,
-    status: statusFor(m.oldestDays, 0, true),
+    status: statusFor("email", m.oldestDays, 0, true),
     label: `${m.unread} new · ${m.total} in inbox`,
     items: m.oldest.map((o) => ({
       title: `${o.from} — ${o.subject}`,
@@ -160,7 +166,7 @@ function consoleCell(person: BoardPerson, leads: Lead[]): QueueCell | undefined 
     new: replies,
     total: replies + drafts,
     oldestDays: oldest,
-    status: statusFor(oldest, 0, true),
+    status: statusFor("console", oldest, 0, true),
     label: isInfo ? `${replies} new inquiries` : `${replies} replies · ${drafts} drafts`,
     items: items.slice(0, 5),
   };
@@ -201,7 +207,7 @@ export async function getBoard(force = false): Promise<Board> {
             overdue: t.overdue,
             askBrigham: t.askBrigham,
             oldestDays: t.oldestDays,
-            status: statusFor(t.oldestDays, t.overdue, true),
+            status: statusFor("tasks", t.oldestDays, t.overdue, true),
             label: `${t.open} open · ${t.overdue} overdue`,
             items: t.oldest.map((c) => ({ title: c.title, detail: c.overdue ? `overdue · due ${c.due}` : c.due ? `due ${c.due}` : "task card", ageDays: c.ageDays, href: "https://blpstoremap.netlify.app" })),
           }
@@ -211,7 +217,7 @@ export async function getBoard(force = false): Promise<Board> {
     for (const c of [row.email, row.tasks, row.console]) {
       if (!c || c.status === "none") continue;
       row.worst = worse(row.worst, c.status);
-      const d = c.overdue ? Math.max(c.oldestDays ?? 0, THRESHOLDS.behind) : c.oldestDays ?? -1;
+      const d = c.overdue ? Math.max(c.oldestDays ?? 0, THRESHOLDS.tasks.behind) : c.oldestDays ?? -1;
       if (d > row.worstDays) row.worstDays = d;
     }
     return row;
