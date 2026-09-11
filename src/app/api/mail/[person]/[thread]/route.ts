@@ -16,9 +16,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ person: str
     const { person, thread } = await ctx.params;
     const box = mailboxFor(person);
     if ("error" in box) return NextResponse.json({ error: box.error }, { status: box.status });
-    const detail = box.kind === "imap" ? await imapGet(thread) : await getThread(box.user, thread);
+    const detail = box.kind === "imap" ? await imapGet(box.user, thread) : await getThread(box.user, thread);
     if (detail.messages.some((m) => m.unread)) {
-      (box.kind === "imap" ? imapModify([thread], "read") : modifyThread(box.user, thread, [], ["UNREAD"])).catch(() => {});
+      (box.kind === "imap" ? imapModify(box.user, [thread], "read") : modifyThread(box.user, thread, [], ["UNREAD"])).catch(() => {});
       detail.messages = detail.messages.map((m) => ({ ...m, unread: false }));
     }
     return NextResponse.json({ user: box.user, provider: box.kind, ...detail });
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ person: st
     const body = (input.body || "").trim();
     if (!body) return NextResponse.json({ error: "Reply is empty" }, { status: 400 });
 
-    const detail = box.kind === "imap" ? await imapGet(thread) : await getThread(box.user, thread);
+    const detail = box.kind === "imap" ? await imapGet(box.user, thread) : await getThread(box.user, thread);
     // Reply to the most recent message that isn't from this mailbox.
     const last = [...detail.messages].reverse().find((m) => m.fromAddress.toLowerCase() !== box.user.toLowerCase()) || detail.messages[detail.messages.length - 1];
     if (!last) return NextResponse.json({ error: "Thread has no messages" }, { status: 400 });
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ person: st
     const fromName = `${box.name} · Brigham Larson Pianos`;
     const sent =
       box.kind === "imap"
-        ? await imapReply({ to: last.fromAddress, subject: detail.subject, body: signed, inReplyTo: last.messageIdHeader, references: last.references, fromName })
+        ? await imapReply(box.user, { to: last.fromAddress, subject: detail.subject, body: signed, inReplyTo: last.messageIdHeader, references: last.references, fromName })
         : await sendReply(box.user, { threadId: thread, to: last.fromAddress, subject: detail.subject, body: signed, inReplyTo: last.messageIdHeader, references: last.references, fromName });
     return NextResponse.json({ ok: true, id: sent.id, to: last.fromAddress });
   } catch (err) {

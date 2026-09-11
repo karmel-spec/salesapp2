@@ -11,9 +11,9 @@ export function mailboxFor(key: string): MailProvider {
   const p = BOARD_PEOPLE.find((x) => x.key === key.toLowerCase());
   if (!p || !p.mailbox) return { error: "No mailbox for that person", status: 404 };
   if (p.personalGmail) {
-    if (!imapConfigured()) {
+    if (!imapConfigured(p.mailbox)) {
       return {
-        error: `${p.name} (${p.mailbox}) isn't connected yet. It's a personal Gmail, so it connects with a Google App Password: turn on 2-Step Verification for that account, create an App Password, and add it to Netlify as BLP_GMAIL_APP_PASSWORD.`,
+        error: `${p.name} (${p.mailbox}) isn't connected yet. It's a personal Gmail, so it connects with a Google App Password: turn on 2-Step Verification for that account, create an App Password, and add it in Netlify.`,
         status: 409,
       };
     }

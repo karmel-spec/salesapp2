@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ person: str
     const box = mailboxFor(person);
     if ("error" in box) return NextResponse.json({ error: box.error }, { status: box.status });
     const pageToken = req.nextUrl.searchParams.get("page") || "";
-    const page = box.kind === "imap" ? await imapList(pageToken) : await listInbox(box.user, pageToken);
+    const page = box.kind === "imap" ? await imapList(box.user, pageToken) : await listInbox(box.user, pageToken);
     return NextResponse.json({ user: box.user, name: box.name, provider: box.kind, ...page });
   } catch (err) {
     return jsonError(err);
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ person: st
       return NextResponse.json({ error: `Unknown action "${action}"` }, { status: 400 });
     }
     if (box.kind === "imap") {
-      await imapModify(ids, action);
+      await imapModify(box.user, ids, action);
     } else {
       const [add, remove] = action === "read" ? [[], ["UNREAD"]] : action === "unread" ? [["UNREAD"], []] : [[], ["INBOX", "UNREAD"]];
       await Promise.all(ids.map((id) => modifyThread(box.user, id, add, remove)));

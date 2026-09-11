@@ -23,7 +23,9 @@ export interface BoardPerson {
 }
 
 export const BOARD_PEOPLE: BoardPerson[] = [
-  { key: "brigham", name: "Brigham", role: "owner", mailbox: "brigham@brighamlarsonpianos.com", taskOwner: "Brigham Larson", rep: "Brigham" },
+  // Brigham's real inbox is his personal Gmail; the Workspace address gets its own row.
+  { key: "brigham", name: "Brigham", role: "owner · brighamlarson@gmail.com", mailbox: "brighamlarson@gmail.com", personalGmail: true, taskOwner: "Brigham Larson", rep: "Brigham" },
+  { key: "brigham-work", name: "Brigham (work)", role: "brigham@brighamlarsonpianos.com", mailbox: "brigham@brighamlarsonpianos.com" },
   { key: "melissa", name: "Melissa", role: "sales & events", mailbox: "melissa@brighamlarsonpianos.com", taskOwner: "Melissa Terry", rep: "Melissa" },
   { key: "karmel", name: "Karmel", role: "operations", mailbox: "karmel@brighamlarsonpianos.com", taskOwner: "Karmel Larson", rep: "Karmel" },
   { key: "alisa", name: "Alisa", role: "marketing", mailbox: "alisa@brighamlarsonpianos.com", rep: "Alisa" },
@@ -182,8 +184,8 @@ export async function getBoard(force = false): Promise<Board> {
     getLeads(false),
     taskSummaries().catch((): Map<string, TaskSummary> => new Map()),
     Promise.all(
-      BOARD_PEOPLE.filter((p) => p.mailbox && (!p.personalGmail || imapConfigured())).map((p) =>
-        p.personalGmail ? imapSummary() : mailboxSummary(p.mailbox!)
+      BOARD_PEOPLE.filter((p) => p.mailbox && (!p.personalGmail || imapConfigured(p.mailbox))).map((p) =>
+        p.personalGmail ? imapSummary(p.mailbox!) : mailboxSummary(p.mailbox!)
       )
     ),
   ]);

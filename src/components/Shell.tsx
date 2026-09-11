@@ -23,6 +23,7 @@ const NAV: { href: string; label: string; sub?: boolean; boardKey?: string }[] =
   { href: "/board/alisa", label: "Alisa", sub: true, boardKey: "alisa" },
   { href: "/board/melissa", label: "Melissa", sub: true, boardKey: "melissa" },
   { href: "/board/lisa", label: "Lisa", sub: true, boardKey: "lisa" },
+  { href: "/board/info", label: "Info", sub: true, boardKey: "info" },
   { href: "/board/blp", label: "BLP", sub: true, boardKey: "blp" },
   { href: "/", label: "Dashboard" },
   { href: "/settings", label: "Settings" },

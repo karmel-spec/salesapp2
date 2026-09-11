@@ -4,33 +4,34 @@ import { createTransport } from "nodemailer";
 import type { MailboxSummary, ThreadSummary, ThreadDetail, MailMessage } from "./gmail";
 
 /**
- * Personal-Gmail mailbox (BLP Email, brighamlarsonpianos@gmail.com) worked
- * over IMAP + SMTP with a Google App Password. Workspace delegation can't
- * cover a personal account, and OAuth for Gmail's restricted scopes would
- * either need Google's app verification or expire weekly in testing mode —
- * an app password has neither problem.
- *
- * Env: BLP_GMAIL_USER (default brighamlarsonpianos@gmail.com),
- *      BLP_GMAIL_APP_PASSWORD (16-char app password, 2-Step Verification on).
+ * Personal-Gmail mailboxes worked over IMAP + SMTP with Google App Passwords:
+ *  - BLP Email  brighamlarsonpianos@gmail.com  → BLP_GMAIL_APP_PASSWORD
+ *  - Brigham    brighamlarson@gmail.com        → BRIGHAM_GMAIL_APP_PASSWORD
+ * Workspace delegation can't cover personal accounts, and OAuth for Gmail's
+ * restricted scopes would need Google verification or expire weekly in
+ * testing mode — an app password has neither problem.
  *
  * IMAP has no thread objects, so each message stands in for a "thread"
  * (id = IMAP UID). Same shapes as gmail.ts so the UI doesn't care.
  */
 
-export const IMAP_USER = process.env.BLP_GMAIL_USER || "brighamlarsonpianos@gmail.com";
-const PASS = process.env.BLP_GMAIL_APP_PASSWORD || "";
+const ACCOUNTS: Record<string, string> = {
+  "brighamlarsonpianos@gmail.com": (process.env.BLP_GMAIL_APP_PASSWORD || "").replace(/\s+/g, ""),
+  "brighamlarson@gmail.com": (process.env.BRIGHAM_GMAIL_APP_PASSWORD || "").replace(/\s+/g, ""),
+};
 
-export function imapConfigured(): boolean {
-  return Boolean(PASS);
+export function imapConfigured(user: string): boolean {
+  return Boolean(ACCOUNTS[user]);
 }
 
-async function withClient<T>(fn: (c: ImapFlow) => Promise<T>): Promise<T> {
-  if (!PASS) throw new Error("BLP Email isn't connected yet — add BLP_GMAIL_APP_PASSWORD (a Google App Password) in Netlify.");
+async function withClient<T>(user: string, fn: (c: ImapFlow) => Promise<T>): Promise<T> {
+  const pass = ACCOUNTS[user];
+  if (!pass) throw new Error(`${user} isn't connected yet — add its Google App Password in Netlify.`);
   const client = new ImapFlow({
     host: "imap.gmail.com",
     port: 993,
     secure: true,
-    auth: { user: IMAP_USER, pass: PASS },
+    auth: { user, pass },
     logger: false,
   });
   await client.connect();
@@ -51,9 +52,9 @@ const ageDays = (d: string | Date | undefined) => Math.max(0, Math.round((Date.n
 const nameOf = (addr?: { name?: string; address?: string }) => addr?.name?.trim() || addr?.address || "(unknown)";
 
 /** Inbox counts + the oldest unread messages (same shape as the Gmail API summary). */
-export async function imapSummary(sample = 5): Promise<MailboxSummary> {
+export async function imapSummary(user: string, sample = 5): Promise<MailboxSummary> {
   try {
-    return await withClient(async (c) => {
+    return await withClient(user, async (c) => {
       const lock = await c.getMailboxLock("INBOX");
       try {
         const status = await c.status("INBOX", { messages: true, unseen: true });
@@ -69,19 +70,19 @@ export async function imapSummary(sample = 5): Promise<MailboxSummary> {
           });
         }
         oldest.sort((a, b) => b.ageDays - a.ageDays);
-        return { user: IMAP_USER, total: status.messages ?? 0, unread: status.unseen ?? unseen.length, oldestDays: oldest[0]?.ageDays ?? null, oldest };
+        return { user, total: status.messages ?? 0, unread: status.unseen ?? unseen.length, oldestDays: oldest[0]?.ageDays ?? null, oldest };
       } finally {
         lock.release();
       }
     });
   } catch (err) {
-    return { user: IMAP_USER, total: 0, unread: 0, oldestDays: null, oldest: [], error: err instanceof Error ? err.message : String(err) };
+    return { user, total: 0, unread: 0, oldestDays: null, oldest: [], error: err instanceof Error ? err.message : String(err) };
   }
 }
 
 /** Newest 30 inbox messages; `page` = "before UID" for older ones. */
-export async function imapList(page = ""): Promise<{ threads: ThreadSummary[]; nextPageToken?: string }> {
-  return withClient(async (c) => {
+export async function imapList(user: string, page = ""): Promise<{ threads: ThreadSummary[]; nextPageToken?: string }> {
+  return withClient(user, async (c) => {
     const lock = await c.getMailboxLock("INBOX");
     try {
       const all = ((await c.search({ all: true })) as number[]).sort((a, b) => b - a); // newest first
@@ -111,8 +112,8 @@ export async function imapList(page = ""): Promise<{ threads: ThreadSummary[]; n
 }
 
 /** One message, parsed to plain text. */
-export async function imapGet(uid: string): Promise<ThreadDetail> {
-  return withClient(async (c) => {
+export async function imapGet(user: string, uid: string): Promise<ThreadDetail> {
+  return withClient(user, async (c) => {
     const lock = await c.getMailboxLock("INBOX");
     try {
       const dl = await c.download(uid, undefined, { uid: true });
@@ -157,8 +158,8 @@ function htmlToText(html: string): string {
 }
 
 /** read / unread / archive (archive = move out of INBOX into All Mail). */
-export async function imapModify(uids: string[], action: "read" | "unread" | "archive"): Promise<void> {
-  await withClient(async (c) => {
+export async function imapModify(user: string, uids: string[], action: "read" | "unread" | "archive"): Promise<void> {
+  await withClient(user, async (c) => {
     const lock = await c.getMailboxLock("INBOX");
     try {
       const range = uids.join(",");
@@ -175,12 +176,13 @@ export async function imapModify(uids: string[], action: "read" | "unread" | "ar
 }
 
 /** Reply over SMTP as the personal account, threaded with In-Reply-To. */
-export async function imapReply(opts: { to: string; subject: string; body: string; inReplyTo?: string; references?: string; fromName?: string }): Promise<{ id: string }> {
-  if (!PASS) throw new Error("BLP Email isn't connected yet");
-  const transport = createTransport({ host: "smtp.gmail.com", port: 465, secure: true, auth: { user: IMAP_USER, pass: PASS } });
+export async function imapReply(user: string, opts: { to: string; subject: string; body: string; inReplyTo?: string; references?: string; fromName?: string }): Promise<{ id: string }> {
+  const pass = ACCOUNTS[user];
+  if (!pass) throw new Error(`${user} isn't connected yet`);
+  const transport = createTransport({ host: "smtp.gmail.com", port: 465, secure: true, auth: { user, pass } });
   const subject = /^re:/i.test(opts.subject) ? opts.subject : `Re: ${opts.subject}`;
   const info = await transport.sendMail({
-    from: opts.fromName ? `"${opts.fromName.replace(/"/g, "")}" <${IMAP_USER}>` : IMAP_USER,
+    from: opts.fromName ? `"${opts.fromName.replace(/"/g, "")}" <${user}>` : user,
     to: opts.to,
     subject,
     text: opts.body,
