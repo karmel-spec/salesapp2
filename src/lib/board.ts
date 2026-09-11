@@ -92,7 +92,7 @@ export interface Board {
     behind: number;
     /** Per-person nav numbers: unread/total email on the left; on the right, open
      *  task cards split into everything else / "Questions for Brigham". */
-    people: { key: string; name: string; emailUnread: number | null; emailTotal: number | null; cards: number | null; askBrigham: number | null }[];
+    people: { key: string; name: string; taskOwner?: string; emailUnread: number | null; emailTotal: number | null; cards: number | null; askBrigham: number | null }[];
   };
 }
 
@@ -239,6 +239,7 @@ export async function getBoard(force = false): Promise<Board> {
       people: rows.map((r) => ({
         key: r.key,
         name: r.name,
+        taskOwner: BOARD_PEOPLE.find((p) => p.key === r.key)?.taskOwner,
         emailUnread: r.email && !r.email.note ? r.email.new : null,
         emailTotal: r.email && !r.email.note ? r.email.total : null,
         cards: r.tasks ? r.tasks.new : null,

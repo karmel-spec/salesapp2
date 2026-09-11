@@ -221,7 +221,7 @@ function useLeadCounts(pathname: string): { brigham: number; others: number; sup
 }
 
 /** Team Inbox Board totals: unread email overall, plus per-person email and task-card numbers. */
-type BoardPerson = { key: string; name: string; emailUnread: number | null; emailTotal: number | null; cards: number | null; askBrigham?: number | null };
+type BoardPerson = { key: string; name: string; taskOwner?: string; emailUnread: number | null; emailTotal: number | null; cards: number | null; askBrigham?: number | null };
 function useBoardTotals(pathname: string): { emailUnread: number; emailTotal: number; people: Record<string, BoardPerson> } {
   const [n, setN] = useState<{ emailUnread: number; emailTotal: number; people: Record<string, BoardPerson> }>({ emailUnread: 0, emailTotal: 0, people: {} });
   useEffect(() => {
@@ -336,34 +336,37 @@ export function Shell({ children }: { children: React.ReactNode }) {
           {NAV.map((item) => {
             const active =
               item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(item.href + "/");
+            if (item.boardKey) {
+              const p = boardTotals.people[item.boardKey];
+              const mail = p && p.emailUnread !== null ? `${p.emailUnread}/${p.emailTotal}` : "—";
+              const ask = p?.askBrigham ?? 0;
+              const isBrigham = item.boardKey === "brigham";
+              // Deep link into the Store Map on that person's task board.
+              const boardHref = p?.taskOwner ? `https://blpstoremap.netlify.app/#board=${encodeURIComponent(p.taskOwner)}` : "";
+              return (
+                <div key={item.href} className={`nav-row sub${active ? " active" : ""}`}>
+                  <Link href={item.href} className="nav-row-main" title={`Open ${item.label}'s email`}>
+                    <span className="count left mail" title={p && p.emailUnread !== null ? `${p.emailUnread} unread of ${p.emailTotal} emails in inbox` : "mailbox not connected yet"}>{mail}</span>
+                    {item.label}
+                  </Link>
+                  {p && p.cards !== null && boardHref ? (
+                    <a
+                      className="postit"
+                      href={boardHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={`Open ${item.label}'s task board in the Store Map — ${isBrigham ? `${p.cards} open cards` : `${p.cards - ask} task cards / ${ask} questions for Brigham`}`}
+                    >
+                      {isBrigham ? p.cards : `${p.cards - ask}/${ask}`}
+                    </a>
+                  ) : (
+                    <span className="postit empty" title="no Store Map task board">—</span>
+                  )}
+                </div>
+              );
+            }
             return (
               <Link key={item.href} href={item.href} className={`${active ? "active" : ""}${item.sub ? " sub" : ""}`}>
-                {/* Board people: unread/total email on the left, open task cards on the right. */}
-                {item.boardKey && (() => {
-                  const p = boardTotals.people[item.boardKey];
-                  const mail = p && p.emailUnread !== null ? `${p.emailUnread}/${p.emailTotal}` : "—";
-                  return (
-                    <>
-                      <span className="count left mail" title={p && p.emailUnread !== null ? `${p.emailUnread} unread of ${p.emailTotal} emails in inbox` : "mailbox not connected yet"}>{mail}</span>
-                      {item.label}
-                      {/* Yellow post-it: open cards. Everyone but Brigham splits theirs into
-                          "everything else / Questions for Brigham". */}
-                      {(() => {
-                        if (!p || p.cards === null) return <span className="postit empty" title="no Store Map task board">—</span>;
-                        const ask = p.askBrigham ?? 0;
-                        const isBrigham = item.boardKey === "brigham";
-                        return (
-                          <span
-                            className="postit"
-                            title={isBrigham ? `${p.cards} open cards on Brigham's task board` : `${p.cards - ask} task cards / ${ask} questions for Brigham`}
-                          >
-                            {isBrigham ? p.cards : `${p.cards - ask}/${ask}`}
-                          </span>
-                        );
-                      })()}
-                    </>
-                  );
-                })()}
                 {/* Sub-items show the count on the LEFT so the three add up visibly to the parent. */}
                 {item.sub && !item.boardKey && (
                   <span
@@ -374,7 +377,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                     {badgeFor(item.href).awaiting !== undefined && <span className="awaiting">/{badgeFor(item.href).awaiting}</span>}
                   </span>
                 )}
-                {!item.boardKey && item.label}
+                {item.label}
                 {!item.sub && (badgeFor(item.href).n > 0 || (badgeFor(item.href).awaiting ?? 0) > 0) && (
                   <span
                     className={badgeFor(item.href).alert ? "count alert" : "count"}
