@@ -7,8 +7,9 @@ import { api, fetchLeads } from "@/lib/client";
 import { RepBadge, StaleBadge, StatusBadge, fmtDays, pendingDrafts } from "@/components/ui";
 import { UnfiledCalls } from "@/components/UnfiledCalls";
 import { ReportsView } from "@/components/ReportsView";
+import { ActivityView } from "@/components/ActivityView";
 
-type Tab = "dashboard" | "reports" | "calls";
+type Tab = "dashboard" | "reports" | "calls" | "activity";
 
 /** Dashboard & Reports — one feature, three tabs (Dashboard / Reports /
  * Unfiled calls), one shared leads fetch. Deep links: /?tab=reports (old
@@ -21,7 +22,7 @@ export default function Dashboard() {
   const [sweepResult, setSweepResult] = useState("");
   const [tab, setTab] = useState<Tab>(() => {
     const t = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tab") : null;
-    return t === "reports" || t === "calls" ? t : "dashboard";
+    return t === "reports" || t === "calls" || t === "activity" ? t : "dashboard";
   });
   const [unfiledCount, setUnfiledCount] = useState(0);
 
@@ -80,13 +81,17 @@ export default function Dashboard() {
   return (
     <>
       <div className="page-head">
-        <h1>{tab === "reports" ? "Reports" : tab === "calls" ? "Unfiled call recordings" : "Dashboard"}</h1>
+        <h1>
+          {tab === "reports" ? "Reports" : tab === "calls" ? "Unfiled call recordings" : tab === "activity" ? "Activity log" : "Dashboard"}
+        </h1>
         <span className="sub">
           {tab === "reports"
             ? `computed live from the Leads Log — ${leads.length} leads all-time`
             : tab === "calls"
               ? "Plaud calls that didn't match a lead — pick who it was, hit Attach"
-              : "Leads Log · live from Google Sheets"}
+              : tab === "activity"
+                ? "everything the team and Arnold have done, newest first"
+                : "Leads Log · live from Google Sheets"}
         </span>
         <span className="spacer" />
         <button className="btn ghost small" onClick={() => load()}>↻ Refresh</button>
@@ -108,6 +113,9 @@ export default function Dashboard() {
           📼 Unfiled calls
           {unfiledCount > 0 && <span className="unread-count">{unfiledCount}</span>}
         </button>
+        <button className={`inbox-tab sales${tab === "activity" ? " active" : ""}`} onClick={() => switchTab("activity")}>
+          📜 Activity log
+        </button>
       </div>
 
       {/* Always mounted so the tab badge knows the count; shown only on its tab. */}
@@ -116,6 +124,7 @@ export default function Dashboard() {
       </div>
 
       {tab === "reports" && <ReportsView leads={leads} />}
+      {tab === "activity" && <ActivityView embedded />}
       {tab === "dashboard" && (
         <>
       {!writeEnabled && (

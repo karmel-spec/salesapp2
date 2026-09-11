@@ -115,10 +115,13 @@ function replySummary(r: Row): { subject: string; snippet: string } {
 export function ActivityView({
   inboxOnly = false,
   scope,
+  embedded = false,
 }: {
   inboxOnly?: boolean;
   /** "brigham" = only replies to Brigham's outreach; "others" = the rest. */
   scope?: InboxScope;
+  /** Rendered inside another page (the Dashboard's Activity log tab): no page header. */
+  embedded?: boolean;
 }) {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [error, setError] = useState("");
@@ -607,6 +610,7 @@ export function ActivityView({
 
   return (
     <>
+      {!embedded && (
       <div className="page-head">
         <h1>
           {scope === "brigham"
@@ -627,6 +631,7 @@ export function ActivityView({
                 : "everything the team and Arnold have done, newest first"}
         </span>
       </div>
+      )}
 
       <div className="toolbar">
         {!inboxOnly && FILTERS.map((f) => (

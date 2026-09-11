@@ -12,7 +12,6 @@ const NAV = [
   { href: "/new-inquiries", label: "New Inquiries" },
   { href: "/bl-inbox", label: "BL Client Responses" },
   { href: "/inbox", label: "Client Responses" },
-  { href: "/activity", label: "Activity" },
   { href: "/", label: "Dashboard" },
   { href: "/settings", label: "Settings" },
 ];
@@ -31,26 +30,60 @@ const BLP_APPS = [
   { href: "/map", label: "US Sales Map" },
 ].sort((a, b) => a.label.localeCompare(b.label));
 
+/**
+ * BLP Apps: a flyout panel that opens beside the sidebar (desktop) so the
+ * full app list never has to fit inside the nav's height; inside the phone
+ * drawer it renders inline, where the drawer scrolls.
+ */
 function BlpAppsMenu() {
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+  const host = (href: string) => {
+    try {
+      return new URL(href).hostname.replace(/^www\./, "");
+    } catch {
+      return "";
+    }
+  };
   return (
     <div className="apps-menu">
-      <button className="apps-toggle" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+      <button className="apps-toggle" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-haspopup="true">
         <span>🎹 BLP Apps</span>
         <span aria-hidden>{open ? "▾" : "▸"}</span>
       </button>
-      {open &&
-        BLP_APPS.map((a) =>
-          a.href.startsWith("/") ? (
-            <Link key={a.href} href={a.href} className="apps-link">
-              {a.label}
-            </Link>
-          ) : (
-            <a key={a.href} href={a.href} target="_blank" rel="noreferrer" className="apps-link">
-              {a.label} <span aria-hidden>↗</span>
-            </a>
-          )
-        )}
+      {open && (
+        <>
+          <div className="apps-backdrop" onClick={() => setOpen(false)} />
+          <div className="apps-flyout" role="menu" aria-label="BLP apps">
+            <div className="apps-flyout-head">
+              <span>BLP apps</span>
+              <span className="muted-light">↗ opens in a new tab</span>
+            </div>
+            <div className="apps-grid">
+              {BLP_APPS.map((a) =>
+                a.href.startsWith("/") ? (
+                  <Link key={a.href} href={a.href} className="apps-tile" role="menuitem" onClick={() => setOpen(false)}>
+                    <b>{a.label}</b>
+                    <small>in the console</small>
+                  </Link>
+                ) : (
+                  <a key={a.href} href={a.href} target="_blank" rel="noreferrer" className="apps-tile" role="menuitem" onClick={() => setOpen(false)}>
+                    <b>{a.label} <span aria-hidden>↗</span></b>
+                    <small>{host(a.href)}</small>
+                  </a>
+                )
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
