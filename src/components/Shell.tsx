@@ -6,25 +6,25 @@ import Link from "next/link";
 import { useRoster, api } from "@/lib/client";
 import { GlobalSearch } from "@/components/GlobalSearch";
 
-const NAV: { href: string; label: string; sub?: boolean; boardKey?: string }[] = [
+const NAV: { href: string; label: string; sub?: boolean; boardKey?: string; group?: string; in?: string }[] = [
   { href: "/bl-inbox", label: "BL Client Responses" },
   { href: "/bl-leads", label: "BL Leads" },
   { href: "/leads", label: "Leads" },
   { href: "/inbox", label: "Client Responses" },
   // New Inquiries splits into three sub-inboxes whose counts add up to it.
-  { href: "/new-inquiries", label: "New Inquiries" },
-  { href: "/new-inquiries/tuning", label: "Tuning", sub: true },
-  { href: "/new-inquiries/moving", label: "Moving", sub: true },
-  { href: "/customer-service", label: "Customer Service", sub: true },
-  { href: "/board", label: "Inbox Board" },
+  { href: "/new-inquiries", label: "New Inquiries", group: "inquiries" },
+  { href: "/new-inquiries/tuning", label: "Tuning", sub: true, in: "inquiries" },
+  { href: "/new-inquiries/moving", label: "Moving", sub: true, in: "inquiries" },
+  { href: "/customer-service", label: "Customer Service", sub: true, in: "inquiries" },
+  { href: "/board", label: "Inbox Board", group: "board" },
   // Per-person rows: unread/total email on the left, open task cards on the right.
-  { href: "/board/brigham", label: "Brigham", sub: true, boardKey: "brigham" },
-  { href: "/board/karmel", label: "Karmel", sub: true, boardKey: "karmel" },
-  { href: "/board/alisa", label: "Alisa", sub: true, boardKey: "alisa" },
-  { href: "/board/melissa", label: "Melissa", sub: true, boardKey: "melissa" },
-  { href: "/board/lisa", label: "Lisa", sub: true, boardKey: "lisa" },
-  { href: "/board/info", label: "Info", sub: true, boardKey: "info" },
-  { href: "/board/blp", label: "BLP", sub: true, boardKey: "blp" },
+  { href: "/board/brigham", label: "Brigham", sub: true, boardKey: "brigham", in: "board" },
+  { href: "/board/karmel", label: "Karmel", sub: true, boardKey: "karmel", in: "board" },
+  { href: "/board/alisa", label: "Alisa", sub: true, boardKey: "alisa", in: "board" },
+  { href: "/board/melissa", label: "Melissa", sub: true, boardKey: "melissa", in: "board" },
+  { href: "/board/lisa", label: "Lisa", sub: true, boardKey: "lisa", in: "board" },
+  { href: "/board/info", label: "Info", sub: true, boardKey: "info", in: "board" },
+  { href: "/board/blp", label: "BLP", sub: true, boardKey: "blp", in: "board" },
   { href: "/", label: "Dashboard" },
   { href: "/settings", label: "Settings" },
 ];
@@ -266,6 +266,25 @@ function useUnfiledCalls(pathname: string): number {
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Collapsible nav groups (New Inquiries, Inbox Board) — remembered per device.
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    try {
+      setCollapsed(JSON.parse(localStorage.getItem("blp_nav_collapsed") || "{}"));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const toggleGroup = (g: string) =>
+    setCollapsed((cur) => {
+      const next = { ...cur, [g]: !cur[g] };
+      try {
+        localStorage.setItem("blp_nav_collapsed", JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
   const unread = useInboxUnread(pathname);
   const leadCounts = useLeadCounts(pathname);
   const unfiledCalls = useUnfiledCalls(pathname);
@@ -334,8 +353,25 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <NewLeadButton className="btn new-lead-btn drawer-only" />
           <GlobalSearch className="drawer-only" />
           {NAV.map((item) => {
+            if (item.in && collapsed[item.in]) return null;
             const active =
               item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(item.href + "/");
+            const chevron = item.group ? (
+              <button
+                type="button"
+                className="nav-toggle"
+                aria-expanded={!collapsed[item.group]}
+                aria-label={`${collapsed[item.group] ? "Expand" : "Collapse"} ${item.label}`}
+                title={collapsed[item.group] ? `Show the ${item.label} list` : `Hide the ${item.label} list`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  toggleGroup(item.group!);
+                }}
+              >
+                {collapsed[item.group] ? "▸" : "▾"}
+              </button>
+            ) : null;
             if (item.boardKey) {
               const p = boardTotals.people[item.boardKey];
               const mail = p && p.emailUnread !== null ? `${p.emailUnread}/${p.emailTotal}` : "—";
@@ -378,6 +414,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                   </span>
                 )}
                 {item.label}
+                {chevron}
                 {!item.sub && (badgeFor(item.href).n > 0 || (badgeFor(item.href).awaiting ?? 0) > 0) && (
                   <span
                     className={badgeFor(item.href).alert ? "count alert" : "count"}
