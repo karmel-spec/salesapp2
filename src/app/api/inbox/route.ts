@@ -36,6 +36,11 @@ export async function GET(req: NextRequest) {
     let brighamUnread = 0; // direct replies to Brigham's outreach
     let newUnread = 0; // cold first-contact inquiries, nobody has answered yet
     const newFolders: Record<string, number> = {}; // unread new inquiries by folder (tuning, moving…)
+    // Read but still waiting on us: no text/email/call to that client since the message.
+    let brighamAwaiting = 0;
+    let othersAwaiting = 0;
+    const OUTREACH = new Set(["sms_out", "email_out", "call", "call_attempt"]);
+    const when = (s: string) => new Date(s).getTime() || 0;
     const items: InboxItem[] = [];
     // Closed-out clients (won/closed/lost/inactive/unqualified) drop out of
     // the inbox and its unread counts — the quick status toggle files them.
@@ -59,6 +64,15 @@ export async function GET(req: NextRequest) {
             const f = (e.folder || "").trim().toLowerCase();
             if (f) newFolders[f] = (newFolders[f] || 0) + 1;
           }
+        } else {
+          const scope = scopeOf(l, e);
+          if (scope === "brigham" || scope === "others") {
+            const answered = l.timeline.some((x) => OUTREACH.has(x.kind) && when(x.at) > when(e.at));
+            if (!answered) {
+              if (scope === "brigham") brighamAwaiting++;
+              else othersAwaiting++;
+            }
+          }
         }
         items.push({
           leadId: l.id,
@@ -75,7 +89,7 @@ export async function GET(req: NextRequest) {
       }
     }
     if (req.nextUrl.searchParams.get("count") === "1") {
-      return NextResponse.json({ unread, salesUnread, generalUnread, brighamUnread, newUnread, newFolders });
+      return NextResponse.json({ unread, salesUnread, generalUnread, brighamUnread, newUnread, newFolders, brighamAwaiting, othersAwaiting });
     }
     const t = (s: string) => {
       const d = new Date(s);

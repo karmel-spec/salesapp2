@@ -159,18 +159,26 @@ function WhoAmI() {
  * acknowledging in an inbox updates the nav bubbles right away. Split into
  * the two inboxes: direct replies to Brigham's outreach vs everything else.
  */
-function useInboxUnread(pathname: string): { brigham: number; fresh: number; others: number; newFolders: Record<string, number> } {
-  const [counts, setCounts] = useState<{ brigham: number; fresh: number; others: number; newFolders: Record<string, number> }>({
-    brigham: 0, fresh: 0, others: 0, newFolders: {},
+type InboxCounts = {
+  brigham: number; fresh: number; others: number;
+  newFolders: Record<string, number>;
+  brighamAwaiting: number; othersAwaiting: number; // read, but no reply from us yet
+};
+function useInboxUnread(pathname: string): InboxCounts {
+  const [counts, setCounts] = useState<InboxCounts>({
+    brigham: 0, fresh: 0, others: 0, newFolders: {}, brighamAwaiting: 0, othersAwaiting: 0,
   });
   useEffect(() => {
     let dead = false;
     const tick = () =>
-      api<{ unread: number; brighamUnread?: number; newUnread?: number; newFolders?: Record<string, number> }>("/api/inbox?count=1")
+      api<{ unread: number; brighamUnread?: number; newUnread?: number; newFolders?: Record<string, number>; brighamAwaiting?: number; othersAwaiting?: number }>("/api/inbox?count=1")
         .then((r) => {
           const brigham = r.brighamUnread ?? 0;
           const fresh = r.newUnread ?? 0;
-          if (!dead) setCounts({ brigham, fresh, others: Math.max(0, r.unread - brigham - fresh), newFolders: r.newFolders || {} });
+          if (!dead) setCounts({
+            brigham, fresh, others: Math.max(0, r.unread - brigham - fresh), newFolders: r.newFolders || {},
+            brighamAwaiting: r.brighamAwaiting ?? 0, othersAwaiting: r.othersAwaiting ?? 0,
+          });
         })
         .catch(() => {}); // quiet — the bubbles just stay as-is until next poll
     tick();
@@ -233,13 +241,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const unfiledCalls = useUnfiledCalls(pathname);
   const inboxUnread = unread.brigham + unread.fresh + unread.others; // mobile burger total
   // Crimson "alert" bubbles = messages awaiting a reply; plain bubbles = lead counts.
-  const badgeFor = (href: string): { n: number; alert: boolean } => {
+  // Response inboxes read "unread/awaiting": new messages / read ones still waiting on a reply.
+  const badgeFor = (href: string): { n: number; alert: boolean; awaiting?: number } => {
     switch (href) {
-      case "/bl-inbox": return { n: unread.brigham, alert: true };
+      case "/bl-inbox": return { n: unread.brigham, alert: true, awaiting: unread.brighamAwaiting };
       case "/new-inquiries": return { n: unread.fresh, alert: true };
       case "/new-inquiries/tuning": return { n: unread.newFolders.tuning || 0, alert: true };
       case "/new-inquiries/moving": return { n: unread.newFolders.moving || 0, alert: true };
-      case "/inbox": return { n: unread.others, alert: true };
+      case "/inbox": return { n: unread.others, alert: true, awaiting: unread.othersAwaiting };
       case "/bl-leads": return { n: leadCounts.brigham, alert: false };
       case "/leads": return { n: leadCounts.others, alert: false };
       // Everything in New Inquiries that isn't Tuning or Moving — the sorting queue.
@@ -296,9 +305,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
                   <span className={`count left${badgeFor(item.href).alert ? " alert" : ""}`}>{badgeFor(item.href).n}</span>
                 )}
                 {item.label}
-                {!item.sub && badgeFor(item.href).n > 0 && (
-                  <span className={badgeFor(item.href).alert ? "count alert" : "count"}>
+                {!item.sub && (badgeFor(item.href).n > 0 || (badgeFor(item.href).awaiting ?? 0) > 0) && (
+                  <span
+                    className={badgeFor(item.href).alert ? "count alert" : "count"}
+                    title={badgeFor(item.href).awaiting !== undefined ? `${badgeFor(item.href).n} unread / ${badgeFor(item.href).awaiting} read but still awaiting our reply` : undefined}
+                  >
                     {badgeFor(item.href).n}
+                    {badgeFor(item.href).awaiting !== undefined && <span className="awaiting">/{badgeFor(item.href).awaiting}</span>}
                   </span>
                 )}
               </Link>
