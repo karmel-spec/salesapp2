@@ -24,6 +24,10 @@ type SortMode = (typeof SORT_MODES)[number];
  *  never appear on the two lead tabs. */
 export type LeadsScope = "brigham" | "others" | "support";
 const BRIGHAM = "Brigham";
+/** Type-filter value for leads whose "Type of lead" cell is blank. */
+const NO_TYPE = "__none__";
+/** Former team members: their old leads keep the badge, but they're not filter options. */
+const RETIRED_REPS = new Set(["Sally", "Susie"]);
 
 function initialParams(scope?: LeadsScope) {
   const defaults =
@@ -78,12 +82,20 @@ export function LeadsView({ scope: tabScope }: { scope?: LeadsScope }) {
     return leads;
   }, [leads, scope]);
 
+  // Filter options = the current team roster (so new admins like Lisa appear
+  // before they own a lead) plus anyone who actually holds a lead here.
+  const roster = useRoster();
   const reps = useMemo(() => {
-    // Sally retired — her historical leads keep her badge, but she's not a filter option.
-    return Array.from(new Set(pool.flatMap((l) => [l.effectiveRep, l.effectiveSubRep]).filter(Boolean)))
-      .filter((r) => r !== "Sally")
+    return Array.from(new Set([...roster, ...pool.flatMap((l) => [l.effectiveRep, l.effectiveSubRep])].filter(Boolean)))
+      .filter((r) => !RETIRED_REPS.has(r))
       .sort();
-  }, [pool]);
+  }, [pool, roster]);
+
+  // Header counts: shown (after filters) · active (New + Active) · total in this tab.
+  const activeInPool = useMemo(
+    () => pool.filter((l) => l.statusBucket === "new" || l.statusBucket === "active").length,
+    [pool]
+  );
 
   const leadTypes = useMemo(() => {
     if (!leads) return [];
@@ -112,7 +124,9 @@ export function LeadsView({ scope: tabScope }: { scope?: LeadsScope }) {
         if (l.statusBucket !== "new" && l.statusBucket !== "active") return false;
       } else if (bucket !== "all" && l.statusBucket !== bucket) return false;
       if (rep !== "all" && l.effectiveRep !== rep && l.effectiveSubRep !== rep) return false;
-      if (typeFilter !== "all" && l.leadType.trim().toLowerCase() !== typeFilter.toLowerCase()) return false;
+      if (typeFilter === NO_TYPE) {
+        if (l.leadType.trim()) return false;
+      } else if (typeFilter !== "all" && l.leadType.trim().toLowerCase() !== typeFilter.toLowerCase()) return false;
       if (staleOnly && !l.isStale) return false;
       if (draftsOnly && pendingDrafts(l).length === 0) return false;
       if (!needle) return true;
@@ -145,15 +159,15 @@ export function LeadsView({ scope: tabScope }: { scope?: LeadsScope }) {
     <>
       <div className="page-head">
         <h1>{scope === "brigham" ? "BL Leads" : scope === "support" ? "Customer Service" : "Leads"}</h1>
-        <span className="sub">
-          {filtered.length} of {pool.length}
-          {scope === "brigham"
-            ? " assigned to Brigham"
-            : scope === "others"
-              ? " (everyone but Brigham)"
-              : scope === "support"
-                ? " support inquiries — walk-up questions, tuning, moving; not sales leads"
-                : " company-wide"}
+        <span className="sub" title="Shown = after the filters below · Active = status New or Active (the nav bubble) · Total = every lead on this tab in any status">
+          {scope === "support" ? (
+            <>{filtered.length} of {pool.length} support inquiries — walk-up questions, tuning, moving; not sales leads</>
+          ) : (
+            <>
+              {filtered.length} shown · {activeInPool} active · {pool.length} total
+              {scope === "brigham" ? " assigned to Brigham" : scope === "others" ? " (everyone but Brigham)" : " company-wide"}
+            </>
+          )}
         </span>
         <span className="spacer" />
         {scope !== "support" && (
@@ -190,7 +204,8 @@ export function LeadsView({ scope: tabScope }: { scope?: LeadsScope }) {
         )}
         <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} aria-label="Type of lead">
           <option value="all">All types of leads</option>
-          {(typeFilter !== "all" && !leadTypes.includes(typeFilter) ? [typeFilter, ...leadTypes] : leadTypes).map((t) => <option key={t} value={t}>{t}</option>)}
+          <option value={NO_TYPE}>No type set</option>
+          {(typeFilter !== "all" && typeFilter !== NO_TYPE && !leadTypes.includes(typeFilter) ? [typeFilter, ...leadTypes] : leadTypes).map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
         <select value={sortMode} onChange={(e) => setSortMode(e.target.value as typeof sortMode)} aria-label="Sort order">
           <option value="priority">Priority order</option>
