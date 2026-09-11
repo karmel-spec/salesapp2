@@ -150,6 +150,13 @@ def poll_account(USER: str, password: str, key: str, per_account: dict, internal
     matched = 0
     for uid in sorted(uids):
         typ, msg_data = imap.uid("fetch", str(uid), "(RFC822)")
+        # A message archived/moved between the UID search and this fetch comes
+        # back empty; posting that to the console just 500s. Skip it.
+        if not msg_data or not isinstance(msg_data[0], tuple) or not msg_data[0][1]:
+            print(f"{USER} uid {uid}: message no longer in the inbox (archived or moved) — skipped")
+            last_uid = uid
+            per_account[USER] = last_uid
+            continue
         if typ != "OK" or not msg_data or msg_data[0] is None:
             continue
         msg = email.message_from_bytes(msg_data[0][1])
@@ -224,6 +231,12 @@ def poll_account(USER: str, password: str, key: str, per_account: dict, internal
                 last_uid = uid
                 per_account[USER] = last_uid
             except urllib.error.HTTPError as e:
+                try:
+                    e_body = e.read().decode("utf-8", "replace")[:300]
+                except Exception:
+                    e_body = ""
+                if e_body:
+                    print(f"{USER} uid {uid}: console said: {e_body}")
                 if 400 <= e.code < 500:
                     # Unparseable notification — skip it rather than jamming the queue.
                     print(f"{USER} uid {uid}: SalesCaptain rejected ({e.code}) — skipped")
@@ -266,7 +279,13 @@ def poll_account(USER: str, password: str, key: str, per_account: dict, internal
             last_uid = uid  # advance only after the console accepted the message
             per_account[USER] = last_uid
         except Exception as e:
-            if failed(USER, uid, str(e)):
+            why = str(e)
+            if isinstance(e, urllib.error.HTTPError):
+                try:
+                    why += " — " + e.read().decode("utf-8", "replace")[:300]
+                except Exception:
+                    pass
+            if failed(USER, uid, why):
                 last_uid = uid; per_account[USER] = last_uid; continue
             break
 

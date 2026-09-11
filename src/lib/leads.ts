@@ -977,6 +977,23 @@ export async function markAllInboundRead(who: string): Promise<number> {
  * call note). Keeps an audit trail on the event and rebuilds the App
  * Activity column so the sheet's readable log matches.
  */
+/** Remove timeline events by their `at` stamps — for duplicates or misfiled
+ *  messages. Rewrites both the JSON and the human-readable activity mirror. */
+export async function removeTimelineEvents(lead: Lead, shape: SheetShape, ats: string[]): Promise<number> {
+  const s = await ensureAppColumns(shape);
+  const drop = new Set(ats);
+  const timeline = lead.timeline.filter((e) => !drop.has(e.at));
+  const removed = lead.timeline.length - timeline.length;
+  if (!removed) return 0;
+  const target = await ensureRowCurrent(lead, s);
+  await writeCells([
+    { row: target.row, col: requireCol(s, "timelineJson"), value: JSON.stringify(timeline) },
+    { row: target.row, col: requireCol(s, "appActivity"), value: timeline.map(activityLine).join("\n") },
+  ]);
+  invalidateCache();
+  return removed;
+}
+
 export async function updateTimelineEvent(
   lead: Lead,
   shape: SheetShape,
