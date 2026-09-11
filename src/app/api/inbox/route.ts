@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
     // Subsets of `unread`, one per nav inbox (the remainder = "Client Responses").
     let brighamUnread = 0; // direct replies to Brigham's outreach
     let newUnread = 0; // cold first-contact inquiries, nobody has answered yet
+    const newFolders: Record<string, number> = {}; // unread new inquiries by folder (tuning, moving…)
     const items: InboxItem[] = [];
     // Closed-out clients (won/closed/lost/inactive/unqualified) drop out of
     // the inbox and its unread counts — the quick status toggle files them.
@@ -53,7 +54,11 @@ export async function GET(req: NextRequest) {
           else generalUnread++;
           const scope = scopeOf(l, e);
           if (scope === "brigham") brighamUnread++;
-          else if (scope === "new") newUnread++;
+          else if (scope === "new") {
+            newUnread++;
+            const f = (e.folder || "").trim().toLowerCase();
+            if (f) newFolders[f] = (newFolders[f] || 0) + 1;
+          }
         }
         items.push({
           leadId: l.id,
@@ -70,7 +75,7 @@ export async function GET(req: NextRequest) {
       }
     }
     if (req.nextUrl.searchParams.get("count") === "1") {
-      return NextResponse.json({ unread, salesUnread, generalUnread, brighamUnread, newUnread });
+      return NextResponse.json({ unread, salesUnread, generalUnread, brighamUnread, newUnread, newFolders });
     }
     const t = (s: string) => {
       const d = new Date(s);

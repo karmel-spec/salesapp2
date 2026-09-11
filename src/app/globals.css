@@ -100,6 +100,10 @@ a { color: inherit; text-decoration: none; }
 }
 .nav a:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
 .nav a.active { background: var(--crimson); color: #fff; }
+/* Folder sub-items under New Inquiries (Tuning, Moving) */
+.nav a.sub { padding-left: 26px; font-size: 13px; color: rgba(243, 239, 233, 0.66); position: relative; }
+.nav a.sub::before { content: ""; position: absolute; left: 14px; top: 50%; width: 6px; height: 1px; background: rgba(243, 239, 233, 0.35); }
+.nav a.sub.active::before { background: rgba(255, 255, 255, 0.7); }
 .nav .count {
   margin-left: auto;
   background: rgba(255, 255, 255, 0.16);
@@ -1119,6 +1123,7 @@ tbody tr:hover { background: #faf7f2; }
 
 /* ── Two-inbox tabs (Sales vs General) ── */
 .inbox-tabs { display: flex; gap: 8px; margin: 0 0 10px; flex-wrap: wrap; }
+.inbox-tabs[hidden] { display: none; }
 .inbox-tab {
   display: inline-flex;
   align-items: center;

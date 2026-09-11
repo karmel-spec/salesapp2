@@ -117,12 +117,15 @@ export function ActivityView({
   inboxOnly = false,
   scope,
   embedded = false,
+  folder,
 }: {
   inboxOnly?: boolean;
   /** "brigham" = only replies to Brigham's outreach; "others" = the rest. */
   scope?: InboxScope;
   /** Rendered inside another page (the Dashboard's Activity log tab): no page header. */
   embedded?: boolean;
+  /** Pin the view to one folder (the sidebar's Tuning / Moving pages). */
+  folder?: string;
 }) {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [error, setError] = useState("");
@@ -130,6 +133,7 @@ export function ActivityView({
   const [who, setWho] = useState("all");
   const [sortMode, setSortMode] = useState("unread");
   const [inboxTab, setInboxTab] = useState<"sales" | "general">(() => {
+    if (folder) return "general"; // folders live on the General side
     if (typeof window === "undefined") return "sales";
     return new URLSearchParams(window.location.search).get("tab") === "general" ? "general" : "sales";
   });
@@ -141,6 +145,7 @@ export function ActivityView({
   const [doneFilter, setDoneFilter] = useState<"open" | "closed">("open");
   const [search, setSearch] = useState("");
   const [folderFilter, setFolderFilter] = useState<string>(() => {
+    if (folder) return folder;
     if (typeof window === "undefined") return "all";
     return new URLSearchParams(window.location.search).get("tab") === "general" ? "inbox" : "all";
   }); // "inbox" | "all" | folder name
@@ -216,6 +221,8 @@ export function ActivityView({
       for (const e of l.timeline) {
         // Split inboxes: a reply belongs to exactly one of them.
         if (e.kind === "inbound" && !inScope(l, e, scope)) continue;
+        // Pinned folder page: only that folder's messages count, show, or get marked read.
+        if (e.kind === "inbound" && folder && (e.folder || "").trim().toLowerCase() !== folder.toLowerCase()) continue;
         all.push({
           ...e,
           leadId: l.id,
@@ -237,7 +244,7 @@ export function ActivityView({
       return isNaN(d.getTime()) ? 0 : d.getTime();
     };
     return all.sort((a, b) => t(b) - t(a));
-  }, [leads, scope]);
+  }, [leads, scope, folder]);
 
   const unreadCount = useMemo(
     () => rows.filter((r) => r.kind === "inbound" && !r.read && !r.archived && !CLOSED_BUCKETS.has(r.leadBucket)).length,
@@ -617,7 +624,7 @@ export function ActivityView({
           {scope === "brigham"
             ? "BL Client Responses"
             : scope === "new"
-              ? "New Inquiries"
+              ? folder ? `${folder} inquiries` : "New Inquiries"
               : inboxOnly
                 ? "Client Responses"
                 : "Activity"}
@@ -626,7 +633,9 @@ export function ActivityView({
           {scope === "brigham"
             ? `direct replies to Brigham's texts, emails and calls${unreadCount > 0 ? ` — ${unreadCount} new` : ""}`
             : scope === "new"
-              ? `first-contact inquiries nobody has answered yet${unreadCount > 0 ? ` — ${unreadCount} waiting` : ""}`
+              ? folder
+                ? `new inquiries filed under ${folder}${unreadCount > 0 ? ` — ${unreadCount} waiting` : ""}`
+                : `first-contact inquiries nobody has answered yet${unreadCount > 0 ? ` — ${unreadCount} waiting` : ""}`
               : inboxOnly
                 ? `replies to the rest of the team's outreach${unreadCount > 0 ? ` — ${unreadCount} new` : ""}`
                 : "everything the team and Arnold have done, newest first"}
@@ -668,7 +677,8 @@ export function ActivityView({
 
       {filter === "inbound" && (
         <>
-          <div className="inbox-tabs">
+          {/* A pinned folder page is General-only by definition — no Sales/General switch. */}
+          <div className="inbox-tabs" hidden={Boolean(folder)}>
             <button
               className={`inbox-tab sales${inboxTab === "sales" ? " active" : ""}`}
               onClick={() => {
@@ -696,11 +706,15 @@ export function ActivityView({
             </span>
           </div>
           <div className="folder-row">
-            {[
-              ...(inboxTab === "general" ? [{ key: "inbox", label: "📥 Inbox" }] : []),
-              { key: "all", label: "All" },
-              ...folders.filter((f) => f.tab === inboxTab).map((f) => ({ key: f.name, label: `📁 ${f.name}` })),
-            ].map((f) => (
+            {/* On New Inquiries the folders live in the sidebar (Tuning, Moving), so no chips here. */}
+            {(scope === "new"
+              ? []
+              : [
+                  ...(inboxTab === "general" ? [{ key: "inbox", label: "📥 Inbox" }] : []),
+                  { key: "all", label: "All" },
+                  ...folders.filter((f) => f.tab === inboxTab).map((f) => ({ key: f.name, label: `📁 ${f.name}` })),
+                ]
+            ).map((f) => (
               <button
                 key={f.key}
                 className={`folder-chip${folderFilter.toLowerCase() === f.key.toLowerCase() ? " active" : ""}`}
@@ -726,7 +740,7 @@ export function ActivityView({
                 <button className="btn small ghost" onClick={() => setAddingFolder(false)}>✕</button>
               </span>
             ) : (
-              <button className="folder-chip" onClick={() => setAddingFolder(true)}>＋ New folder</button>
+              scope !== "new" && <button className="folder-chip" onClick={() => setAddingFolder(true)}>＋ New folder</button>
             )}
             <span style={{ flex: 1 }} />
             <button

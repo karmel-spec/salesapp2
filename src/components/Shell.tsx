@@ -5,13 +5,15 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useRoster, api } from "@/lib/client";
 
-const NAV = [
+const NAV: { href: string; label: string; sub?: boolean }[] = [
+  { href: "/bl-inbox", label: "BL Client Responses" },
   { href: "/bl-leads", label: "BL Leads" },
   { href: "/leads", label: "Leads" },
-  { href: "/customer-service", label: "Customer Service" },
-  { href: "/new-inquiries", label: "New Inquiries" },
-  { href: "/bl-inbox", label: "BL Client Responses" },
   { href: "/inbox", label: "Client Responses" },
+  { href: "/new-inquiries", label: "New Inquiries" },
+  { href: "/new-inquiries/tuning", label: "Tuning", sub: true },
+  { href: "/new-inquiries/moving", label: "Moving", sub: true },
+  { href: "/customer-service", label: "Customer Service" },
   { href: "/", label: "Dashboard" },
   { href: "/settings", label: "Settings" },
 ];
@@ -156,16 +158,18 @@ function WhoAmI() {
  * acknowledging in an inbox updates the nav bubbles right away. Split into
  * the two inboxes: direct replies to Brigham's outreach vs everything else.
  */
-function useInboxUnread(pathname: string): { brigham: number; fresh: number; others: number } {
-  const [counts, setCounts] = useState({ brigham: 0, fresh: 0, others: 0 });
+function useInboxUnread(pathname: string): { brigham: number; fresh: number; others: number; newFolders: Record<string, number> } {
+  const [counts, setCounts] = useState<{ brigham: number; fresh: number; others: number; newFolders: Record<string, number> }>({
+    brigham: 0, fresh: 0, others: 0, newFolders: {},
+  });
   useEffect(() => {
     let dead = false;
     const tick = () =>
-      api<{ unread: number; brighamUnread?: number; newUnread?: number }>("/api/inbox?count=1")
+      api<{ unread: number; brighamUnread?: number; newUnread?: number; newFolders?: Record<string, number> }>("/api/inbox?count=1")
         .then((r) => {
           const brigham = r.brighamUnread ?? 0;
           const fresh = r.newUnread ?? 0;
-          if (!dead) setCounts({ brigham, fresh, others: Math.max(0, r.unread - brigham - fresh) });
+          if (!dead) setCounts({ brigham, fresh, others: Math.max(0, r.unread - brigham - fresh), newFolders: r.newFolders || {} });
         })
         .catch(() => {}); // quiet — the bubbles just stay as-is until next poll
     tick();
@@ -232,6 +236,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
     switch (href) {
       case "/bl-inbox": return { n: unread.brigham, alert: true };
       case "/new-inquiries": return { n: unread.fresh, alert: true };
+      case "/new-inquiries/tuning": return { n: unread.newFolders.tuning || 0, alert: true };
+      case "/new-inquiries/moving": return { n: unread.newFolders.moving || 0, alert: true };
       case "/inbox": return { n: unread.others, alert: true };
       case "/bl-leads": return { n: leadCounts.brigham, alert: false };
       case "/leads": return { n: leadCounts.others, alert: false };
@@ -281,7 +287,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             const active =
               item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(item.href + "/");
             return (
-              <Link key={item.href} href={item.href} className={active ? "active" : ""}>
+              <Link key={item.href} href={item.href} className={`${active ? "active" : ""}${item.sub ? " sub" : ""}`}>
                 {item.label}
                 {badgeFor(item.href).n > 0 && (
                   <span className={badgeFor(item.href).alert ? "count alert" : "count"}>
