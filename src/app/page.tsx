@@ -91,7 +91,7 @@ export default function Dashboard() {
               ? "Plaud calls that didn't match a lead — pick who it was, hit Attach"
               : tab === "activity"
                 ? "everything the team and Arnold have done, newest first"
-                : "Leads Log · live from Google Sheets"}
+                : ""}
         </span>
         <span className="spacer" />
         <button className="btn ghost small" onClick={() => load()}>↻ Refresh</button>
