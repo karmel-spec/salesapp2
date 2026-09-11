@@ -54,15 +54,28 @@ async function appendRules(rules: string[], by: string) {
     { method: "POST", headers: { Authorization: `Bearer ${t}`, "Content-Type": "application/json" },
       body: JSON.stringify({ values: rules.map(r => [denverStamp(), r, by]) }) });
 }
-async function bridge(body: Record<string, unknown>) {
+async function bridgeOnce(body: Record<string, unknown>) {
   const r = await fetch(BRIDGE, { method: "POST", redirect: "follow",
     headers: { "content-type": "text/plain;charset=utf-8" },
     // The bridge accepts the team PIN, the app key, or a verified Google
     // sign-in. STOREMAP_TEAM_PIN was missing/stale in the Netlify env, so
     // every executed action came back "unauthorized" for everyone (Mark
     // 9/11) — the app key is always accepted, so send both.
-    body: JSON.stringify({ pin: process.env.STOREMAP_TEAM_PIN || APP_KEY, key: APP_KEY, ...body }) });
-  return r.json();
+    body: JSON.stringify({ pin: APP_KEY, key: APP_KEY, ...body }) });
+  let j: any = null;
+  try { j = await r.json(); } catch { j = { error: "bridge answered with a non-JSON page (deploying?)" }; }
+  return j;
+}
+// the bridge serves its generic ping ({ok:true, service}) for a few minutes
+// after each deploy WITHOUT running the action — that read as ✓ before
+// (12:20 run today). Retry through it; never count it as success.
+async function bridge(body: Record<string, unknown>) {
+  for (let a = 0; a < 3; a++) {
+    const j = await bridgeOnce(body);
+    if (!(j && j.service && !j.error)) return j;
+    await new Promise(r => setTimeout(r, 2000 * (a + 1)));
+  }
+  return { error: "the Google bridge is mid-deploy — try again in a minute" };
 }
 
 const ALLOWED = new Set(["move", "setphase", "setdone", "settrack", "setcabinetry", "queue",

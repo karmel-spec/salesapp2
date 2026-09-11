@@ -139,7 +139,7 @@ export default async (req: Request) => {
   try {
     const sv = await fetch(BRIDGE, { method: "POST", redirect: "follow",
       headers: { "content-type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ pin: process.env.STOREMAP_TEAM_PIN || APP_KEY, key: APP_KEY, action: "saveproposal",
+      body: JSON.stringify({ pin: APP_KEY, key: APP_KEY, action: "saveproposal",
         week: out.plan.week, weekStart: out.plan.weekStart, plan: JSON.stringify(out.plan),
         user: { name: String(body.by || "Brigham") + " (Planner notes)" } }) });
     const sj = await sv.json();
