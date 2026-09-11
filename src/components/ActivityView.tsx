@@ -94,6 +94,34 @@ function parseSnoozeDate(input: string): string | null {
   return `${m}/${d}/${y}`;
 }
 
+/**
+ * The 📁 menu mirrors the sidebar: Customer Service (= no folder, the
+ * sorting queue), Tuning, Moving. A legacy folder on the message (e.g.
+ * "Leads") stays selectable so the menu never shows blank.
+ */
+const FILE_TARGETS = [
+  { value: "", label: "Customer Service" },
+  { value: "Tuning", label: "Tuning" },
+  { value: "Moving", label: "Moving" },
+];
+const isSidebarFolder = (f: string) => FILE_TARGETS.some((o) => o.value && o.value.toLowerCase() === f.toLowerCase());
+/** On the New Inquiries pages any non-sidebar folder (legacy "Leads") reads as Customer Service. */
+function fileValue(current: string, collapseOthers: boolean) {
+  return collapseOthers && !isSidebarFolder(current) ? "" : current;
+}
+function fileOptions(current: string, collapseOthers: boolean) {
+  const shown = fileValue(current, collapseOthers);
+  const known = !shown || isSidebarFolder(shown);
+  return (
+    <>
+      {FILE_TARGETS.map((o) => (
+        <option key={o.value || "cs"} value={o.value}>📁 {o.label}</option>
+      ))}
+      {!known && <option value={shown}>📁 {shown}</option>}
+    </>
+  );
+}
+
 /** Inbound replies arrive as "Customer texted…" or "Customer emailed…". */
 function isEmailReply(r: Row): boolean {
   return /email/i.test(r.text.slice(0, 30));
@@ -858,7 +886,7 @@ export function ActivityView({
                         </span>
                         <select
                           className="file-select"
-                          value={latest.folder || ""}
+                          value={fileValue(latest.folder || "", scope === "new")}
                           title="File this client's messages into a folder"
                           onClick={(e) => e.stopPropagation()}
                           onChange={(e) => {
@@ -866,17 +894,7 @@ export function ActivityView({
                             fileGroup(group, e.target.value);
                           }}
                         >
-                          <option value="">📥 Inbox</option>
-                          <optgroup label="Sales">
-                            {folders.filter((f) => f.tab === "sales").map((f) => (
-                              <option key={f.name} value={f.name}>📁 {f.name}</option>
-                            ))}
-                          </optgroup>
-                          <optgroup label="General">
-                            {folders.filter((f) => f.tab === "general").map((f) => (
-                              <option key={f.name} value={f.name}>📁 {f.name}</option>
-                            ))}
-                          </optgroup>
+                          {fileOptions(latest.folder || "", scope === "new")}
                         </select>
                         <select
                           className="file-select status-select"
@@ -978,7 +996,7 @@ export function ActivityView({
                       {r.kind === "inbound" && (
                         <select
                           className="file-select"
-                          value={r.folder || ""}
+                          value={fileValue(r.folder || "", scope === "new")}
                           title="File this response into a folder"
                           onClick={(e) => e.stopPropagation()}
                           onChange={(e) => {
@@ -986,10 +1004,7 @@ export function ActivityView({
                             fileTo(r, e.target.value);
                           }}
                         >
-                          <option value="">📥 Inbox</option>
-                          {folders.map((f) => (
-                            <option key={f.name} value={f.name}>📁 {f.name}</option>
-                          ))}
+                          {fileOptions(r.folder || "", scope === "new")}
                         </select>
                       )}
                       {isUnread && <span className="new-chip">NEW</span>}
