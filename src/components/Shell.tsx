@@ -15,6 +15,7 @@ const NAV: { href: string; label: string; sub?: boolean }[] = [
   { href: "/new-inquiries/tuning", label: "Tuning", sub: true },
   { href: "/new-inquiries/moving", label: "Moving", sub: true },
   { href: "/customer-service", label: "Customer Service", sub: true },
+  { href: "/board", label: "Team Inbox Board" },
   { href: "/", label: "Dashboard" },
   { href: "/settings", label: "Settings" },
 ];
@@ -162,22 +163,20 @@ function WhoAmI() {
 type InboxCounts = {
   brigham: number; fresh: number; others: number;
   newFolders: Record<string, number>;
-  brighamAwaiting: number; othersAwaiting: number; // read, but no reply from us yet
+  readClients: Record<string, number>; // clients in each page's "Read" section
 };
 function useInboxUnread(pathname: string): InboxCounts {
-  const [counts, setCounts] = useState<InboxCounts>({
-    brigham: 0, fresh: 0, others: 0, newFolders: {}, brighamAwaiting: 0, othersAwaiting: 0,
-  });
+  const [counts, setCounts] = useState<InboxCounts>({ brigham: 0, fresh: 0, others: 0, newFolders: {}, readClients: {} });
   useEffect(() => {
     let dead = false;
     const tick = () =>
-      api<{ unread: number; brighamUnread?: number; newUnread?: number; newFolders?: Record<string, number>; brighamAwaiting?: number; othersAwaiting?: number }>("/api/inbox?count=1")
+      api<{ unread: number; brighamUnread?: number; newUnread?: number; newFolders?: Record<string, number>; readClients?: Record<string, number> }>("/api/inbox?count=1")
         .then((r) => {
           const brigham = r.brighamUnread ?? 0;
           const fresh = r.newUnread ?? 0;
           if (!dead) setCounts({
             brigham, fresh, others: Math.max(0, r.unread - brigham - fresh), newFolders: r.newFolders || {},
-            brighamAwaiting: r.brighamAwaiting ?? 0, othersAwaiting: r.othersAwaiting ?? 0,
+            readClients: r.readClients || {},
           });
         })
         .catch(() => {}); // quiet — the bubbles just stay as-is until next poll
@@ -212,6 +211,27 @@ function useLeadCounts(pathname: string): { brigham: number; others: number; sup
   return counts;
 }
 
+/** Unread email across the team's connected inboxes (Team Inbox Board bubble). */
+function useBoardTotals(pathname: string): number {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    let dead = false;
+    const tick = () =>
+      api<{ emailUnread: number }>("/api/board?count=1")
+        .then((r) => {
+          if (!dead) setN(r.emailUnread);
+        })
+        .catch(() => {});
+    tick();
+    const iv = setInterval(tick, 120_000);
+    return () => {
+      dead = true;
+      clearInterval(iv);
+    };
+  }, [pathname]);
+  return n;
+}
+
 /** Plaud call recordings still waiting to be filed to a lead (Dashboard bubble). */
 function useUnfiledCalls(pathname: string): number {
   const [n, setN] = useState(0);
@@ -239,22 +259,26 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const unread = useInboxUnread(pathname);
   const leadCounts = useLeadCounts(pathname);
   const unfiledCalls = useUnfiledCalls(pathname);
+  const boardEmail = useBoardTotals(pathname);
   const inboxUnread = unread.brigham + unread.fresh + unread.others; // mobile burger total
   // Crimson "alert" bubbles = messages awaiting a reply; plain bubbles = lead counts.
-  // Response inboxes read "unread/awaiting": new messages / read ones still waiting on a reply.
+  // Inbox bubbles read "unread/read": unread messages / clients in that page's Read
+  // section (awaiting a reply, or history).
+  const rc = unread.readClients;
   const badgeFor = (href: string): { n: number; alert: boolean; awaiting?: number } => {
     switch (href) {
-      case "/bl-inbox": return { n: unread.brigham, alert: true, awaiting: unread.brighamAwaiting };
-      case "/new-inquiries": return { n: unread.fresh, alert: true };
-      case "/new-inquiries/tuning": return { n: unread.newFolders.tuning || 0, alert: true };
-      case "/new-inquiries/moving": return { n: unread.newFolders.moving || 0, alert: true };
-      case "/inbox": return { n: unread.others, alert: true, awaiting: unread.othersAwaiting };
+      case "/bl-inbox": return { n: unread.brigham, alert: true, awaiting: rc.brigham ?? 0 };
+      case "/new-inquiries": return { n: unread.fresh, alert: true, awaiting: rc.new ?? 0 };
+      case "/new-inquiries/tuning": return { n: unread.newFolders.tuning || 0, alert: true, awaiting: rc["new:tuning"] ?? 0 };
+      case "/new-inquiries/moving": return { n: unread.newFolders.moving || 0, alert: true, awaiting: rc["new:moving"] ?? 0 };
+      case "/inbox": return { n: unread.others, alert: true, awaiting: rc.others ?? 0 };
       case "/bl-leads": return { n: leadCounts.brigham, alert: false };
       case "/leads": return { n: leadCounts.others, alert: false };
       // Everything in New Inquiries that isn't Tuning or Moving — the sorting queue.
       case "/customer-service":
-        return { n: Math.max(0, unread.fresh - (unread.newFolders.tuning || 0) - (unread.newFolders.moving || 0)), alert: true };
+        return { n: Math.max(0, unread.fresh - (unread.newFolders.tuning || 0) - (unread.newFolders.moving || 0)), alert: true, awaiting: rc["new:other"] ?? 0 };
       case "/": return { n: unfiledCalls, alert: true }; // unfiled call recordings
+      case "/board": return { n: boardEmail, alert: false }; // unread email, all inboxes
       default: return { n: 0, alert: false };
     }
   };
@@ -302,13 +326,19 @@ export function Shell({ children }: { children: React.ReactNode }) {
               <Link key={item.href} href={item.href} className={`${active ? "active" : ""}${item.sub ? " sub" : ""}`}>
                 {/* Sub-items show the count on the LEFT so the three add up visibly to the parent. */}
                 {item.sub && (
-                  <span className={`count left${badgeFor(item.href).alert ? " alert" : ""}`}>{badgeFor(item.href).n}</span>
+                  <span
+                    className={`count left${badgeFor(item.href).alert ? " alert" : ""}`}
+                    title={badgeFor(item.href).awaiting !== undefined ? `${badgeFor(item.href).n} unread messages / ${badgeFor(item.href).awaiting} clients read — awaiting a reply, or history` : undefined}
+                  >
+                    {badgeFor(item.href).n}
+                    {badgeFor(item.href).awaiting !== undefined && <span className="awaiting">/{badgeFor(item.href).awaiting}</span>}
+                  </span>
                 )}
                 {item.label}
                 {!item.sub && (badgeFor(item.href).n > 0 || (badgeFor(item.href).awaiting ?? 0) > 0) && (
                   <span
                     className={badgeFor(item.href).alert ? "count alert" : "count"}
-                    title={badgeFor(item.href).awaiting !== undefined ? `${badgeFor(item.href).n} unread / ${badgeFor(item.href).awaiting} read but still awaiting our reply` : undefined}
+                    title={badgeFor(item.href).awaiting !== undefined ? `${badgeFor(item.href).n} unread messages / ${badgeFor(item.href).awaiting} clients read — awaiting a reply, or history` : undefined}
                   >
                     {badgeFor(item.href).n}
                     {badgeFor(item.href).awaiting !== undefined && <span className="awaiting">/{badgeFor(item.href).awaiting}</span>}

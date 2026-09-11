@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getLeads, getLead, markInboundRead, markAllInboundRead, setInboundFolder, archiveInbound } from "@/lib/leads";
+import { getLeads, getLead, markInboundRead, markAllInboundRead, setInboundFolder, archiveInbound, type Lead, type TimelineEvent } from "@/lib/leads";
 import { listFolders } from "@/lib/folders";
 import { requireSession, jsonError } from "@/lib/api";
 import { scopeOf } from "@/lib/inbox-split";
@@ -36,11 +36,21 @@ export async function GET(req: NextRequest) {
     let brighamUnread = 0; // direct replies to Brigham's outreach
     let newUnread = 0; // cold first-contact inquiries, nobody has answered yet
     const newFolders: Record<string, number> = {}; // unread new inquiries by folder (tuning, moving…)
-    // Read but still waiting on us: no text/email/call to that client since the message.
-    let brighamAwaiting = 0;
-    let othersAwaiting = 0;
-    const OUTREACH = new Set(["sms_out", "email_out", "call", "call_attempt"]);
-    const when = (s: string) => new Date(s).getTime() || 0;
+    // Second bubble number = clients in each page's "Read" section: leads whose
+    // messages in that inbox are all read (awaiting a reply, or history).
+    const SCOPES = ["brigham", "others", "new", "new:tuning", "new:moving", "new:other"] as const;
+    const unreadLeads: Record<string, Set<string>> = {};
+    const readLeads: Record<string, Set<string>> = {};
+    for (const s of SCOPES) {
+      unreadLeads[s] = new Set();
+      readLeads[s] = new Set();
+    }
+    const scopeKeys = (l: Lead, e: TimelineEvent): string[] => {
+      const s = scopeOf(l, e);
+      if (s !== "new") return [s];
+      const f = (e.folder || "").trim().toLowerCase();
+      return ["new", f === "tuning" ? "new:tuning" : f === "moving" ? "new:moving" : "new:other"];
+    };
     const items: InboxItem[] = [];
     // Closed-out clients (won/closed/lost/inactive/unqualified) drop out of
     // the inbox and its unread counts — the quick status toggle files them.
@@ -64,16 +74,8 @@ export async function GET(req: NextRequest) {
             const f = (e.folder || "").trim().toLowerCase();
             if (f) newFolders[f] = (newFolders[f] || 0) + 1;
           }
-        } else {
-          const scope = scopeOf(l, e);
-          if (scope === "brigham" || scope === "others") {
-            const answered = l.timeline.some((x) => OUTREACH.has(x.kind) && when(x.at) > when(e.at));
-            if (!answered) {
-              if (scope === "brigham") brighamAwaiting++;
-              else othersAwaiting++;
-            }
-          }
         }
+        for (const k of scopeKeys(l, e)) (e.readAt ? readLeads[k] : unreadLeads[k]).add(l.id);
         items.push({
           leadId: l.id,
           leadName: l.name,
@@ -89,7 +91,9 @@ export async function GET(req: NextRequest) {
       }
     }
     if (req.nextUrl.searchParams.get("count") === "1") {
-      return NextResponse.json({ unread, salesUnread, generalUnread, brighamUnread, newUnread, newFolders, brighamAwaiting, othersAwaiting });
+      const readClients: Record<string, number> = {};
+      for (const s of SCOPES) readClients[s] = [...readLeads[s]].filter((id) => !unreadLeads[s].has(id)).length;
+      return NextResponse.json({ unread, salesUnread, generalUnread, brighamUnread, newUnread, newFolders, readClients });
     }
     const t = (s: string) => {
       const d = new Date(s);

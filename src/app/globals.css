@@ -105,7 +105,7 @@ a { color: inherit; text-decoration: none; }
 .nav a.sub::before { content: ""; position: absolute; left: 14px; top: 50%; width: 6px; height: 1px; background: rgba(243, 239, 233, 0.35); }
 .nav a.sub.active::before { background: rgba(255, 255, 255, 0.7); }
 /* Left-hand counts on sub-items: fixed width so the numbers line up in a column. */
-.nav .count.left { margin-left: 0; min-width: 30px; text-align: center; font-variant-numeric: tabular-nums; }
+.nav .count.left { margin-left: 0; min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
 .nav a.sub .count.left:not(.alert) { background: rgba(255, 255, 255, 0.1); }
 .nav .count {
   margin-left: auto;
@@ -1128,6 +1128,68 @@ tbody tr:hover { background: #faf7f2; }
 /* ── Two-inbox tabs (Sales vs General) ── */
 .inbox-tabs { display: flex; gap: 8px; margin: 0 0 10px; flex-wrap: wrap; }
 .inbox-tabs[hidden] { display: none; }
+/* ── Team Inbox Board (heatmap) ── */
+.board-tiles { margin-bottom: 18px; }
+.board-wrap { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.9fr); gap: 18px; align-items: start; }
+.board-matrix { padding: 16px 16px 12px; }
+.board-grid { display: grid; grid-template-columns: 170px repeat(3, minmax(0, 1fr)); gap: 6px; align-items: stretch; }
+.board-colh { font-size: 11px; letter-spacing: 1.3px; text-transform: uppercase; color: var(--ink-3); font-weight: 700; padding: 0 6px 6px; }
+.board-colh.center { text-align: center; }
+.board-person { display: flex; align-items: center; gap: 10px; padding: 4px 8px 4px 4px; border: 0; background: transparent; text-align: left; border-radius: 8px; cursor: pointer; color: var(--ink); }
+.board-person.on, .board-person:hover { background: var(--crimson-soft); }
+.board-person b { font-family: var(--serif); font-weight: 600; font-size: 14.5px; display: block; line-height: 1.1; }
+.board-person small { color: var(--ink-3); font-size: 11px; }
+.board-av { width: 32px; height: 32px; border-radius: 50%; background: var(--ink); color: #f3ead9; display: grid; place-items: center; font-family: var(--serif); font-size: 11.5px; font-weight: 600; border: 2px solid var(--crimson); flex-shrink: 0; }
+.board-av.shared { border-style: dashed; border-color: var(--gold); }
+.board-av.big { width: 52px; height: 52px; font-size: 18px; }
+.board-key { border: 0; border-radius: 8px; min-height: 58px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; cursor: pointer; transition: transform .12s ease; color: var(--ink); background: var(--paper); }
+.board-key:hover { transform: scale(1.03); z-index: 1; }
+.board-key[aria-pressed="true"] { outline: 2px solid var(--gold); outline-offset: 1px; }
+.board-key .num { font-family: var(--serif); font-size: 22px; line-height: 1; font-weight: 600; font-variant-numeric: tabular-nums; }
+.board-key small { font-size: 10.5px; letter-spacing: 0.3px; opacity: 0.85; }
+.board-key.behind { background: #a8281f; color: #fff; }
+.board-key.watch { background: #f3e2c6; color: #7a4a0c; }
+.board-key.current { background: #e2eddf; color: #2f6a33; }
+.board-key.none { background: repeating-linear-gradient(135deg, var(--paper) 0 6px, #fff 6px 12px); color: var(--ink-3); }
+.board-scale { display: flex; align-items: center; gap: 8px; margin-top: 14px; color: var(--ink-3); font-size: 12px; }
+.board-ramp { flex: 1; max-width: 260px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #e2eddf, #3b7a3c 22%, #b9741a 55%, #a8281f 100%); }
+.board-focus { padding: 0; overflow: hidden; }
+.board-focus-head { background: #2c2620; color: #f3ead9; padding: 16px 18px; display: flex; align-items: center; gap: 14px; }
+.board-focus-head h2 { color: #fff; margin: 0; font-size: 21px; }
+.board-focus-head small { color: rgba(243, 234, 217, 0.7); font-size: 12.5px; display: block; }
+.board-status { margin-left: auto; font-size: 11.5px; font-weight: 700; letter-spacing: 0.3px; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.board-status.behind { background: #f6e1de; color: #a8281f; }
+.board-status.watch { background: #f7ead3; color: #b9741a; }
+.board-status.current { background: #e1eddf; color: #3b7a3c; }
+.board-status.none { background: rgba(255, 255, 255, 0.12); color: #f3ead9; }
+.board-stats { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid var(--line); }
+.board-stats > div { padding: 12px 14px; border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+.board-stats > div:last-child { border-right: 0; }
+.board-stats .kicker { font-size: 10.5px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--ink-3); font-weight: 700; margin-bottom: 4px; }
+.board-stats .num { font-family: var(--serif); font-size: 24px; line-height: 1; font-weight: 600; }
+.board-stats small { color: var(--ink-3); font-size: 11.5px; margin-top: 4px; }
+.board-items { padding: 4px 0; }
+.board-item { display: grid; grid-template-columns: 52px 1fr auto; gap: 12px; align-items: center; padding: 10px 18px; border-bottom: 1px solid var(--line); text-decoration: none; color: var(--ink); }
+.board-item:hover { background: var(--crimson-soft); }
+.board-item:last-child { border-bottom: 0; }
+.board-item .when { font-family: var(--serif); font-size: 15px; font-weight: 600; }
+.board-item .when.behind { color: #a8281f; }
+.board-item .when.watch { color: #b9741a; }
+.board-item .when.current { color: #3b7a3c; }
+.board-item .what { min-width: 0; }
+.board-item .what b { display: block; font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-item .what span { color: var(--ink-3); font-size: 12px; }
+.board-item .src { font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); font-weight: 700; white-space: nowrap; }
+.board-actions { display: flex; gap: 8px; padding: 14px 18px 18px; flex-wrap: wrap; }
+@media (max-width: 1080px) { .board-wrap { grid-template-columns: 1fr; } }
+@media (max-width: 760px) {
+  .board-grid { grid-template-columns: 1fr; }
+  .board-colh { display: none; }
+  .board-person { padding-top: 12px; }
+  .board-key { flex-direction: row; justify-content: space-between; padding: 8px 14px; min-height: 44px; }
+  .board-key::before { content: attr(data-q); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; font-weight: 700; opacity: 0.85; }
+}
+
 /* Section dividers inside the inbox list (Unread / Read) */
 .inbox-section {
   font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase; font-weight: 700;
