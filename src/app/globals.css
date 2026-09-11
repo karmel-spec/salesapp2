@@ -1240,6 +1240,40 @@ tbody tr:hover { background: #faf7f2; }
 .mail-reply textarea { width: 100%; box-sizing: border-box; font: inherit; padding: 10px; border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
 @media (max-width: 1080px) { .mail-split { grid-template-columns: 1fr; } }
 
+
+/* ── Global search (sidebar) ── */
+.gsearch { position: relative; margin: 12px 0 0; text-align: left; }
+.gsearch input[type="search"] {
+  width: 100%; box-sizing: border-box; min-width: 0;
+  background: rgba(255, 255, 255, 0.08); color: #f3efe9;
+  border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 8px;
+  padding: 7px 10px; font-size: 13px;
+}
+.gsearch input[type="search"]::placeholder { color: rgba(243, 239, 233, 0.5); }
+.gsearch input[type="search"]:focus { outline: none; border-color: var(--gold); background: rgba(255, 255, 255, 0.12); }
+.gsearch-panel {
+  position: fixed; left: 244px; top: 12px; z-index: 46;
+  width: min(460px, calc(100vw - 260px)); max-height: calc(100vh - 24px); overflow-y: auto;
+  background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 18px 50px -20px rgba(0, 0, 0, 0.45); padding: 6px;
+}
+.gsearch-row { padding: 9px 10px; border-radius: 8px; cursor: pointer; }
+.gsearch-row.hi { background: var(--crimson-soft); }
+.gsearch-top { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.gsearch-top b { font-weight: 700; }
+.gsearch-chip { font-size: 10.5px; letter-spacing: 0.4px; text-transform: uppercase; color: var(--ink-3); border: 1px solid var(--line); border-radius: 99px; padding: 1px 7px; }
+.gsearch-chip.rep { color: var(--crimson); border-color: var(--crimson-soft); background: var(--crimson-soft); }
+.gsearch-sub { font-size: 12.5px; color: var(--ink-3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gsearch-field { font-size: 10.5px; letter-spacing: 0.6px; text-transform: uppercase; font-weight: 700; color: var(--gold); margin-right: 4px; }
+.gsearch-note { font-size: 12px; color: var(--ink-3); padding: 8px 10px; }
+.gsearch-note .muted-light { color: var(--ink-3); opacity: 0.7; }
+.gsearch.drawer-only { display: none; }
+@media (max-width: 760px) {
+  .brand .gsearch { display: none; }
+  .nav .gsearch.drawer-only { display: block; margin: 0 0 10px; }
+  .gsearch-panel { position: static; width: auto; max-height: 50vh; margin-top: 6px; box-shadow: none; }
+}
+
 /* Section dividers inside the inbox list (Unread / Read) */
 .inbox-section {
   font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase; font-weight: 700;

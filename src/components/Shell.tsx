@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useRoster, api } from "@/lib/client";
+import { GlobalSearch } from "@/components/GlobalSearch";
 
 const NAV: { href: string; label: string; sub?: boolean; boardKey?: string }[] = [
   { href: "/bl-inbox", label: "BL Client Responses" },
@@ -315,6 +316,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <img src="/blp-logo.png" alt="Brigham Larson Pianos" className="brand-logo" />
           <div className="brand-sub">Sales Console</div>
           <NewLeadButton className="btn new-lead-btn" />
+          {/* Global search: every lead, every field, as you type. */}
+          <GlobalSearch className="brand-search" />
         </div>
         <button
           className="nav-burger"
@@ -328,6 +331,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <nav className={`nav${drawerOpen ? " open" : ""}`}>
           {/* Phones: the brand area is a slim top bar, so the button lives in the drawer instead. */}
           <NewLeadButton className="btn new-lead-btn drawer-only" />
+          <GlobalSearch className="drawer-only" />
           {NAV.map((item) => {
             const active =
               item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(item.href + "/");

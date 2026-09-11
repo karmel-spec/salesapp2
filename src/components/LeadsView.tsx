@@ -59,7 +59,8 @@ export function LeadsView({ scope: tabScope }: { scope?: LeadsScope }) {
   );
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [error, setError] = useState("");
-  const [q, setQ] = useState("");
+  // ?q= arrives from the sidebar's global search when nothing matched directly.
+  const [q, setQ] = useState(() => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("q") || "" : ""));
   const [bucket, setBucket] = useState<(typeof BUCKETS)[number]>(() => initialParams(scope).bucket);
   const [rep, setRep] = useState(() => initialParams(scope).rep);
   const [typeFilter, setTypeFilter] = useState(() => initialParams(scope).typeFilter);
