@@ -105,7 +105,16 @@ export default async (req: Request) => {
   } catch { return finish({ error: "Store Map unreachable" }, 502); }
   const roster = pianos.map(p => `${p.serial} | ${String(p.summary).slice(0, 36)} | map ${p.location} | ${p.phase || "-"}`).join("\n");
   let plan: any = null;
-  try { const j = await (await fetch(BRIDGE + "?fn=proposal", { redirect: "follow" })).json(); if (j.ok) plan = j.plan; } catch {}
+  // bridge only, with retries (see schedule-adjust-background 9/11); a plan
+  // for a week that is already over is not touched
+  for (let a = 0; a < 3 && !plan; a++) {
+    try {
+      const j = await (await fetch(BRIDGE + "?fn=proposal&_=" + Date.now(), { redirect: "follow", signal: AbortSignal.timeout(45000) })).json();
+      if (j.ok) plan = typeof j.plan === "string" ? JSON.parse(j.plan) : j.plan;
+    } catch {}
+    if (!plan && a < 2) await new Promise(r => setTimeout(r, 3000));
+  }
+  if (plan && plan.weekStart && new Date(plan.weekStart + "T00:00:00-06:00").getTime() < Date.now() - 6 * 86400000) plan = null;
 
   const tools = [{
     name: "resolution",

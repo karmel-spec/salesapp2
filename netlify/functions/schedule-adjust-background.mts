@@ -76,20 +76,25 @@ export default async (req: Request) => {
   if ((body.key || "") !== APP_KEY) return finish({ error: "unauthorized" }, 403);
   if (!process.env.ANTHROPIC_API_KEY) return finish({ error: "AI key not configured yet (Netlify env ANTHROPIC_API_KEY)" }, 500);
 
-  // current proposal
-  let plan: any = null;
-  try {
-    const r = await fetch(BRIDGE + "?fn=proposal", { redirect: "follow" });
-    const j = await r.json();
-    if (j.ok) plan = j.plan;
-  } catch { /* fall through */ }
-  if (!plan) {
+  // current proposal — from the bridge ONLY, with retries. Never fall back to
+  // the static snapshot on a write path: on 9/11 a slow bridge sent this job
+  // to the Aug 10 snapshot, Claude applied Mark's notes to it, and the result
+  // was SAVED over the live Sep 14–18 proposal (and a day of adjustments).
+  let plan: any = null, planErr = "";
+  for (let a = 0; a < 3 && !plan; a++) {
     try {
-      const r2 = await fetch("https://blpshop.netlify.app/data/schedule-proposal.json");
-      if (r2.ok) plan = await r2.json();
-    } catch { /* none */ }
+      const r = await fetch(BRIDGE + "?fn=proposal&_=" + Date.now(), { redirect: "follow", signal: AbortSignal.timeout(45000) });
+      const j = await r.json();
+      if (j.ok) plan = typeof j.plan === "string" ? JSON.parse(j.plan) : j.plan;
+      else planErr = String(j.error || "bridge returned no plan");
+    } catch (e: any) { planErr = String(e?.message || e); }
+    if (!plan && a < 2) await new Promise(r => setTimeout(r, 3000));
   }
-  if (!plan) return finish({ error: "no proposal found to adjust" }, 404);
+  if (!plan) return finish({ error: "Couldn't load the CURRENT proposal from the Google bridge (" + planErr.slice(0, 80) + ") — nothing was changed. Try again in a minute." }, 503);
+  // a plan whose week is already over is stale by definition — refuse to edit it
+  if (plan.weekStart && new Date(plan.weekStart + "T00:00:00-06:00").getTime() < Date.now() - 6 * 86400000) {
+    return finish({ error: "The stored proposal is for " + (plan.week || plan.weekStart) + " — that week is over, so this would edit a stale plan. Restore or regenerate the current week first; nothing was changed." }, 409);
+  }
 
   const rules = await readRules().catch(() => [] as string[]);
   const notesTxt = Object.entries(body.notes || {})
