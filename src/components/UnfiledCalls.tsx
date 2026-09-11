@@ -20,7 +20,17 @@ interface UnfiledItem {
   audioUrl?: string;
 }
 
-export function UnfiledCalls({ leads }: { leads: Lead[] }) {
+export function UnfiledCalls({
+  leads,
+  onCount,
+  showEmpty,
+}: {
+  leads: Lead[];
+  /** Reports how many recordings still need attention (drives the tab badge). */
+  onCount?: (n: number) => void;
+  /** Render an "all filed" card instead of nothing when the list is empty. */
+  showEmpty?: boolean;
+}) {
   const [items, setItems] = useState<UnfiledItem[] | null>(null);
   const [picks, setPicks] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string>("");
@@ -31,6 +41,11 @@ export function UnfiledCalls({ leads }: { leads: Lead[] }) {
       .then((r) => setItems(r.items))
       .catch(() => setItems([])); // quiet — the card just doesn't render
   }, []);
+
+  useEffect(() => {
+    if (items) onCount?.(items.length);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items]);
 
   const options = useMemo(() => {
     const open = leads.filter((l) => l.statusBucket === "new" || l.statusBucket === "active");
@@ -59,7 +74,15 @@ export function UnfiledCalls({ leads }: { leads: Lead[] }) {
     }
   }
 
-  if (!items || items.length === 0) return null;
+  if (!items) return null;
+  if (items.length === 0) {
+    return showEmpty ? (
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h2>📼 Unfiled call recordings</h2>
+        <div className="muted">All caught up — every Plaud call is filed to a lead.</div>
+      </div>
+    ) : null;
+  }
 
   return (
     <div className="card" style={{ marginBottom: 16, borderColor: "var(--gold)" }}>

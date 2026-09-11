@@ -6,22 +6,24 @@ import type { Lead } from "@/lib/leads";
 import { api, fetchLeads } from "@/lib/client";
 import { RepBadge, StaleBadge, StatusBadge, fmtDays, pendingDrafts } from "@/components/ui";
 import { UnfiledCalls } from "@/components/UnfiledCalls";
-import { TrainingCard } from "@/components/TrainingCard";
 import { ReportsView } from "@/components/ReportsView";
 
-/** Dashboard & Reports — one feature, two tabs, one shared leads fetch.
- * Deep link: /?tab=reports (old /reports links redirect here). */
+type Tab = "dashboard" | "reports" | "calls";
+
+/** Dashboard & Reports — one feature, three tabs (Dashboard / Reports /
+ * Unfiled calls), one shared leads fetch. Deep links: /?tab=reports (old
+ * /reports links redirect here) and /?tab=calls. */
 export default function Dashboard() {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [writeEnabled, setWriteEnabled] = useState(true);
   const [error, setError] = useState("");
   const [sweeping, setSweeping] = useState(false);
   const [sweepResult, setSweepResult] = useState("");
-  const [tab, setTab] = useState<"dashboard" | "reports">(() =>
-    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "reports"
-      ? "reports"
-      : "dashboard"
-  );
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tab") : null;
+    return t === "reports" || t === "calls" ? t : "dashboard";
+  });
+  const [unfiledCount, setUnfiledCount] = useState(0);
 
   const load = () =>
     fetchLeads()
@@ -69,20 +71,22 @@ export default function Dashboard() {
 
   const maxBucket = Math.max(...stats.byBucket.map(([, n]) => n), 1);
 
-  const switchTab = (t: "dashboard" | "reports") => {
+  const switchTab = (t: Tab) => {
     setTab(t);
     // Keep the URL shareable without a navigation.
-    window.history.replaceState(null, "", t === "reports" ? "/?tab=reports" : "/");
+    window.history.replaceState(null, "", t === "dashboard" ? "/" : `/?tab=${t}`);
   };
 
   return (
     <>
       <div className="page-head">
-        <h1>{tab === "reports" ? "Reports" : "Dashboard"}</h1>
+        <h1>{tab === "reports" ? "Reports" : tab === "calls" ? "Unfiled call recordings" : "Dashboard"}</h1>
         <span className="sub">
           {tab === "reports"
             ? `computed live from the Leads Log — ${leads.length} leads all-time`
-            : "Leads Log · live from Google Sheets"}
+            : tab === "calls"
+              ? "Plaud calls that didn't match a lead — pick who it was, hit Attach"
+              : "Leads Log · live from Google Sheets"}
         </span>
         <span className="spacer" />
         <button className="btn ghost small" onClick={() => load()}>↻ Refresh</button>
@@ -100,11 +104,19 @@ export default function Dashboard() {
         <button className={`inbox-tab sales${tab === "reports" ? " active" : ""}`} onClick={() => switchTab("reports")}>
           📈 Reports
         </button>
+        <button className={`inbox-tab sales${tab === "calls" ? " active" : ""}`} onClick={() => switchTab("calls")}>
+          📼 Unfiled calls
+          {unfiledCount > 0 && <span className="unread-count">{unfiledCount}</span>}
+        </button>
       </div>
 
-      {tab === "reports" ? (
-        <ReportsView leads={leads} />
-      ) : (
+      {/* Always mounted so the tab badge knows the count; shown only on its tab. */}
+      <div hidden={tab !== "calls"}>
+        <UnfiledCalls leads={leads} onCount={setUnfiledCount} showEmpty />
+      </div>
+
+      {tab === "reports" && <ReportsView leads={leads} />}
+      {tab === "dashboard" && (
         <>
       {!writeEnabled && (
         <div className="banner warn">
@@ -113,8 +125,6 @@ export default function Dashboard() {
         </div>
       )}
       {sweepResult && <div className="banner info">{sweepResult}</div>}
-
-      <UnfiledCalls leads={leads} />
 
       <div className="grid tiles" style={{ marginBottom: 18 }}>
         <Link href="/leads?bucket=open" className="card tile linky">
@@ -127,10 +137,10 @@ export default function Dashboard() {
           <div className="value">{stats.stale.length}</div>
           <div className="hint">auto-assigned to Arnold →</div>
         </Link>
-        <Link href="/approvals" className={`card tile linky ${stats.approvals ? "alert" : ""}`}>
+        <Link href="/leads?drafts=1" className={`card tile linky ${stats.approvals ? "alert" : ""}`}>
           <div className="label">Awaiting approval</div>
           <div className="value">{stats.approvals}</div>
-          <div className="hint">Arnold drafts to review →</div>
+          <div className="hint">Arnold drafts to review on their leads →</div>
         </Link>
         <Link href="/leads?bucket=won" className="card tile linky">
           <div className="label">Won</div>
@@ -186,9 +196,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div style={{ marginTop: 18 }}>
-        <TrainingCard />
-      </div>
         </>
       )}
     </>

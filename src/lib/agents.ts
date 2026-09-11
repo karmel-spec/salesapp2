@@ -101,7 +101,7 @@ const OVERRIDES: Record<string, Partial<AgentConfig>> = {
     links: [
       { name: "Chat with Arnold (Telegram)", href: "https://t.me/arnoldlarsonbot", note: "ask him anything, assign work conversationally" },
       { name: "Brain health check", href: "https://arnold.brighamlarsonpianos.com/health", note: "should say status: ok — if not, his Mac is asleep" },
-      { name: "His approval queue", href: "/approvals", note: "every draft he writes waits here for a human" },
+      { name: "His approval queue", href: "/leads?drafts=1", note: "leads with a draft of his waiting — approve from the lead page, with context" },
       { name: "His lead queue", href: "/leads?stale=1", note: "stale leads currently assigned to him" },
     ],
     onMacFiles: [

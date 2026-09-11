@@ -7,7 +7,6 @@ import { useRoster, api } from "@/lib/client";
 
 const NAV = [
   { href: "/leads", label: "Leads" },
-  { href: "/approvals", label: "Approvals" },
   { href: "/activity", label: "Activity" },
   { href: "/", label: "Dashboard & Reports" },
   { href: "/settings", label: "Settings" },

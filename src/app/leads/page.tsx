@@ -15,18 +15,22 @@ const SORT_MODES = ["priority", "newest", "contact-newest", "contact-oldest"] as
 type SortMode = (typeof SORT_MODES)[number];
 
 /** Initial filters, the same every visit: the signed-in rep's own Active
- *  Sales leads, newest first. A URL deep link (?bucket=…&stale=1 from the
- *  dashboard tiles) overrides the status filter. */
+ *  Sales leads, newest first. A URL deep link (?bucket=…, ?stale=1 or
+ *  ?drafts=1 from the dashboard tiles) overrides the status filter; the
+ *  flag links also widen the type filter so their counts match the tiles. */
 function initialParams() {
-  const defaults = { bucket: "active" as (typeof BUCKETS)[number], stale: false, rep: "all", typeFilter: "Sales", sortMode: "newest" as SortMode };
+  const defaults = { bucket: "active" as (typeof BUCKETS)[number], stale: false, drafts: false, rep: "all", typeFilter: "Sales", sortMode: "newest" as SortMode };
   if (typeof window === "undefined") return defaults;
   const q = new URLSearchParams(window.location.search);
   const who = localStorage.getItem("blp_rep_name") || "";
-  const b = q.get("bucket") || (q.get("stale") ? "all" : defaults.bucket);
+  const flagged = q.get("stale") === "1" || q.get("drafts") === "1";
+  const b = q.get("bucket") || (flagged ? "all" : defaults.bucket);
   return {
     ...defaults,
     bucket: (BUCKETS as readonly string[]).includes(b) ? (b as (typeof BUCKETS)[number]) : defaults.bucket,
     stale: q.get("stale") === "1",
+    drafts: q.get("drafts") === "1",
+    typeFilter: flagged ? "all" : defaults.typeFilter,
     rep: who || "all",
   };
 }
@@ -40,6 +44,7 @@ export default function LeadsPage() {
   const [rep, setRep] = useState(() => initialParams().rep);
   const [typeFilter, setTypeFilter] = useState(() => initialParams().typeFilter);
   const [staleOnly, setStaleOnly] = useState(() => initialParams().stale);
+  const [draftsOnly, setDraftsOnly] = useState(() => initialParams().drafts);
   const [showNew, setShowNew] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>(() => initialParams().sortMode);
 
@@ -85,6 +90,7 @@ export default function LeadsPage() {
       if (rep !== "all" && l.effectiveRep !== rep && l.effectiveSubRep !== rep) return false;
       if (typeFilter !== "all" && l.leadType.trim().toLowerCase() !== typeFilter.toLowerCase()) return false;
       if (staleOnly && !l.isStale) return false;
+      if (draftsOnly && pendingDrafts(l).length === 0) return false;
       if (!needle) return true;
       // Forgiving match: any word order, punctuation/case ignored, phones
       // compared digits-to-digits (see lib/search.ts).
@@ -106,7 +112,7 @@ export default function LeadsPage() {
       });
     }
     return visible;
-  }, [leads, q, bucket, rep, typeFilter, staleOnly, sortMode]);
+  }, [leads, q, bucket, rep, typeFilter, staleOnly, draftsOnly, sortMode]);
 
   if (error) return <div className="banner bad">⚠ {error}</div>;
   if (!leads) return <div className="spin">Loading leads…</div>;
@@ -156,6 +162,11 @@ export default function LeadsPage() {
         {staleOnly && (
           <span className="badge stale" style={{ cursor: "pointer" }} title="Showing stale leads only — click to clear" onClick={() => setStaleOnly(false)}>
             stale only ✕
+          </span>
+        )}
+        {draftsOnly && (
+          <span className="badge" style={{ cursor: "pointer" }} title="Showing leads with Arnold drafts awaiting approval — click to clear" onClick={() => setDraftsOnly(false)}>
+            awaiting approval ✕
           </span>
         )}
       </div>
