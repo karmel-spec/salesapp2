@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getLeads, getLead, markInboundRead, markAllInboundRead, setInboundFolder, archiveInbound } from "@/lib/leads";
 import { listFolders } from "@/lib/folders";
 import { requireSession, jsonError } from "@/lib/api";
-import { isBrighamReply } from "@/lib/inbox-split";
+import { scopeOf } from "@/lib/inbox-split";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +32,9 @@ export async function GET(req: NextRequest) {
     let unread = 0;
     let salesUnread = 0;
     let generalUnread = 0;
-    let brighamUnread = 0; // subset of `unread`: direct replies to Brigham's outreach
+    // Subsets of `unread`, one per nav inbox (the remainder = "Client Responses").
+    let brighamUnread = 0; // direct replies to Brigham's outreach
+    let newUnread = 0; // cold first-contact inquiries, nobody has answered yet
     const items: InboxItem[] = [];
     // Closed-out clients (won/closed/lost/inactive/unqualified) drop out of
     // the inbox and its unread counts — the quick status toggle files them.
@@ -49,7 +51,9 @@ export async function GET(req: NextRequest) {
           unread++;
           if (salesFolders.has((e.folder || "").toLowerCase())) salesUnread++;
           else generalUnread++;
-          if (isBrighamReply(l, e)) brighamUnread++;
+          const scope = scopeOf(l, e);
+          if (scope === "brigham") brighamUnread++;
+          else if (scope === "new") newUnread++;
         }
         items.push({
           leadId: l.id,
@@ -66,14 +70,14 @@ export async function GET(req: NextRequest) {
       }
     }
     if (req.nextUrl.searchParams.get("count") === "1") {
-      return NextResponse.json({ unread, salesUnread, generalUnread, brighamUnread });
+      return NextResponse.json({ unread, salesUnread, generalUnread, brighamUnread, newUnread });
     }
     const t = (s: string) => {
       const d = new Date(s);
       return isNaN(d.getTime()) ? 0 : d.getTime();
     };
     items.sort((a, b) => t(b.at) - t(a.at));
-    return NextResponse.json({ unread, salesUnread, generalUnread, brighamUnread, items: items.slice(0, 200) });
+    return NextResponse.json({ unread, salesUnread, generalUnread, brighamUnread, newUnread, items: items.slice(0, 200) });
   } catch (err) {
     return jsonError(err);
   }

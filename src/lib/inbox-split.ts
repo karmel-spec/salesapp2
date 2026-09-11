@@ -46,10 +46,27 @@ export function isBrighamReply(lead: Lead, reply: TimelineEvent): boolean {
   return replyTarget(lead, reply).toLowerCase() === BRIGHAM.toLowerCase();
 }
 
-export type InboxScope = "brigham" | "others";
+/**
+ * Three inboxes, every inbound message lands in exactly one:
+ *  brigham — direct replies to Brigham's outreach
+ *  new     — cold first-contact inquiries nobody has answered yet
+ *  others  — replies to the rest of the team's outreach
+ */
+export type InboxScope = "brigham" | "new" | "others";
+
+/** True when nobody at BLP had reached out before this message arrived. */
+export function isNewInquiry(lead: Lead, reply: TimelineEvent): boolean {
+  return replyTarget(lead, reply) === "";
+}
+
+export function scopeOf(lead: Lead, reply: TimelineEvent): InboxScope {
+  const target = replyTarget(lead, reply);
+  if (!target) return "new";
+  return target.toLowerCase() === BRIGHAM.toLowerCase() ? "brigham" : "others";
+}
 
 /** Does this reply belong in the given inbox? */
 export function inScope(lead: Lead, reply: TimelineEvent, scope: InboxScope | undefined): boolean {
   if (!scope) return true;
-  return isBrighamReply(lead, reply) === (scope === "brigham");
+  return scopeOf(lead, reply) === scope;
 }

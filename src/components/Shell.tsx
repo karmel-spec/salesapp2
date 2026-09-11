@@ -7,6 +7,7 @@ import { useRoster, api } from "@/lib/client";
 
 const NAV = [
   { href: "/leads", label: "Leads" },
+  { href: "/new-inquiries", label: "New Inquiries" },
   { href: "/bl-inbox", label: "BL Client Responses" },
   { href: "/inbox", label: "Client Responses" },
   { href: "/activity", label: "Activity" },
@@ -91,15 +92,16 @@ function WhoAmI() {
  * acknowledging in an inbox updates the nav bubbles right away. Split into
  * the two inboxes: direct replies to Brigham's outreach vs everything else.
  */
-function useInboxUnread(pathname: string): { brigham: number; others: number } {
-  const [counts, setCounts] = useState({ brigham: 0, others: 0 });
+function useInboxUnread(pathname: string): { brigham: number; fresh: number; others: number } {
+  const [counts, setCounts] = useState({ brigham: 0, fresh: 0, others: 0 });
   useEffect(() => {
     let dead = false;
     const tick = () =>
-      api<{ unread: number; brighamUnread?: number }>("/api/inbox?count=1")
+      api<{ unread: number; brighamUnread?: number; newUnread?: number }>("/api/inbox?count=1")
         .then((r) => {
           const brigham = r.brighamUnread ?? 0;
-          if (!dead) setCounts({ brigham, others: Math.max(0, r.unread - brigham) });
+          const fresh = r.newUnread ?? 0;
+          if (!dead) setCounts({ brigham, fresh, others: Math.max(0, r.unread - brigham - fresh) });
         })
         .catch(() => {}); // quiet — the bubbles just stay as-is until next poll
     tick();
@@ -116,9 +118,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const unread = useInboxUnread(pathname);
-  const inboxUnread = unread.brigham + unread.others; // mobile burger total
+  const inboxUnread = unread.brigham + unread.fresh + unread.others; // mobile burger total
   const badgeFor = (href: string) =>
-    href === "/bl-inbox" ? unread.brigham : href === "/inbox" ? unread.others : 0;
+    href === "/bl-inbox" ? unread.brigham : href === "/new-inquiries" ? unread.fresh : href === "/inbox" ? unread.others : 0;
 
   // Navigating (or Esc) closes the mobile drawer.
   useEffect(() => {

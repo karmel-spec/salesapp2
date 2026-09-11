@@ -608,13 +608,23 @@ export function ActivityView({
   return (
     <>
       <div className="page-head">
-        <h1>{scope === "brigham" ? "BL Client Responses" : inboxOnly ? "Client Responses" : "Activity"}</h1>
+        <h1>
+          {scope === "brigham"
+            ? "BL Client Responses"
+            : scope === "new"
+              ? "New Inquiries"
+              : inboxOnly
+                ? "Client Responses"
+                : "Activity"}
+        </h1>
         <span className="sub">
           {scope === "brigham"
             ? `direct replies to Brigham's texts, emails and calls${unreadCount > 0 ? ` — ${unreadCount} new` : ""}`
-            : inboxOnly
-              ? `new inquiries and replies to the rest of the team${unreadCount > 0 ? ` — ${unreadCount} new` : ""}`
-              : "everything the team and Arnold have done, newest first"}
+            : scope === "new"
+              ? `first-contact inquiries nobody has answered yet${unreadCount > 0 ? ` — ${unreadCount} waiting` : ""}`
+              : inboxOnly
+                ? `replies to the rest of the team's outreach${unreadCount > 0 ? ` — ${unreadCount} new` : ""}`
+                : "everything the team and Arnold have done, newest first"}
         </span>
       </div>
 
