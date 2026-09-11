@@ -180,6 +180,7 @@ export function ActivityView({
   const [search, setSearch] = useState("");
   const [folderFilter, setFolderFilter] = useState<string>(() => {
     if (folder) return folder;
+    if (inboxOnly) return "all"; // sidebar inbox pages: one list, no folder chips
     if (typeof window === "undefined") return "all";
     return new URLSearchParams(window.location.search).get("tab") === "general" ? "inbox" : "all";
   }); // "inbox" | "all" | folder name
@@ -286,6 +287,12 @@ export function ActivityView({
     () => rows.filter((r) => r.kind === "inbound" && !r.read && !r.archived && !CLOSED_BUCKETS.has(r.leadBucket)).length,
     [rows]
   );
+  // The list groups one row per client, so "10 new" can be 9 rows.
+  const unreadClients = useMemo(
+    () => new Set(rows.filter((r) => r.kind === "inbound" && !r.read && !r.archived && !CLOSED_BUCKETS.has(r.leadBucket)).map((r) => r.leadId)).size,
+    [rows]
+  );
+  const newLabel = unreadCount > 0 ? ` — ${unreadCount} new${unreadClients < unreadCount ? ` from ${unreadClients} clients` : ""}` : "";
 
   const salesFolderSet = useMemo(
     () => new Set(folders.filter((f) => f.tab === "sales").map((f) => f.name.toLowerCase())),
@@ -334,7 +341,9 @@ export function ActivityView({
           (doneFilter === "closed" ? r.archived : !r.archived) &&
           // Unread-only by default on inbox pages (matches the nav bubble); Closed shows all.
           (showRead || doneFilter === "closed" || !r.read) &&
-          (inboxTab === "sales" ? inSales(r) : !inSales(r))
+          // The Sales/General split only applies to the Activity log's "Customer
+          // replies" view; the sidebar inbox pages show everything in one list.
+          (inboxOnly ? true : inboxTab === "sales" ? inSales(r) : !inSales(r))
       );
       out.length = 0;
       out.push(...kept);
@@ -669,7 +678,7 @@ export function ActivityView({
         </h1>
         <span className="sub">
           {scope === "brigham"
-            ? `direct replies to Brigham's texts, emails and calls${unreadCount > 0 ? ` — ${unreadCount} new` : ""}`
+            ? `direct replies to Brigham's texts, emails and calls${newLabel}`
             : scope === "new"
               ? folder
                 ? `new inquiries filed under ${folder}${unreadCount > 0 ? ` — ${unreadCount} waiting` : ""}`
@@ -677,7 +686,7 @@ export function ActivityView({
                   ? `new inquiries to sort — file to Tuning or Moving (📁), make it a lead (status → Active), or keep it here${unreadCount > 0 ? ` — ${unreadCount} waiting` : ""}`
                   : `first-contact inquiries nobody has answered yet${unreadCount > 0 ? ` — ${unreadCount} waiting` : ""}`
               : inboxOnly
-                ? `replies to the rest of the team's outreach${unreadCount > 0 ? ` — ${unreadCount} new` : ""}`
+                ? `replies to the rest of the team's outreach${newLabel}`
                 : "everything the team and Arnold have done, newest first"}
         </span>
       </div>
@@ -718,7 +727,7 @@ export function ActivityView({
       {filter === "inbound" && (
         <>
           {/* A pinned folder page is General-only by definition — no Sales/General switch. */}
-          <div className="inbox-tabs" hidden={Boolean(folder) || Boolean(excludeFolders)}>
+          <div className="inbox-tabs" hidden={inboxOnly}>
             <button
               className={`inbox-tab sales${inboxTab === "sales" ? " active" : ""}`}
               onClick={() => {
@@ -747,7 +756,7 @@ export function ActivityView({
           </div>
           <div className="folder-row">
             {/* On New Inquiries the folders live in the sidebar (Tuning, Moving), so no chips here. */}
-            {(scope === "new"
+            {(inboxOnly
               ? []
               : [
                   ...(inboxTab === "general" ? [{ key: "inbox", label: "📥 Inbox" }] : []),
@@ -780,7 +789,7 @@ export function ActivityView({
                 <button className="btn small ghost" onClick={() => setAddingFolder(false)}>✕</button>
               </span>
             ) : (
-              scope !== "new" && <button className="folder-chip" onClick={() => setAddingFolder(true)}>＋ New folder</button>
+              !inboxOnly && <button className="folder-chip" onClick={() => setAddingFolder(true)}>＋ New folder</button>
             )}
             <span style={{ flex: 1 }} />
             {doneFilter === "open" && (
