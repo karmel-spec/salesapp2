@@ -22,7 +22,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
         {/* AI assistants (Clara/Arnold/Chris) — docked first, then the 💡 */}
-        <script src="https://blpagents.netlify.app/assistant.js" defer data-app="Sales App" data-user-key="blp_rep_name" data-agents="clara,arnold,chris" data-dock="#blp-dock" />
+        <script
+          src="https://blpagents.netlify.app/assistant.js"
+          defer
+          data-app="Sales App"
+          data-user-key="blp_rep_name"
+          data-agents="clara,arnold,chris"
+          data-agents-by-user="brigham:clara,arnold,chris|lisa:ivory,arnold,chris|melissa:melody,arnold,chris|alisa:marcus|karmel:lindsay,chris,arnold"
+          data-dock="#blp-dock"
+        />
         {/* Shared 💡 suggestion box (same widget every BLP app embeds). */}
         <script src="/suggest.js" defer data-app="Sales App" data-who-key="blp_rep_name" data-dock="#blp-dock" />
       </body>
