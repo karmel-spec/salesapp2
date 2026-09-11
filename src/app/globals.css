@@ -95,6 +95,18 @@ a { color: inherit; text-decoration: none; }
   font-size: 11px;
   padding: 1px 8px;
 }
+/* Notification bubble: new client responses awaiting review. */
+.nav .count.alert {
+  background: var(--crimson);
+  color: #fff;
+  font-weight: 700;
+  min-width: 20px;
+  text-align: center;
+  padding: 2px 7px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.12);
+}
+.nav a.active .count.alert { background: #fff; color: var(--crimson); box-shadow: none; }
+.nav-burger .unread-count { margin-left: 6px; vertical-align: middle; }
 .who-wrap { margin-top: auto; padding: 8px 2px 2px; }
 .nav-burger { display: none; }
 

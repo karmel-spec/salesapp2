@@ -7,6 +7,7 @@ import { useRoster, api } from "@/lib/client";
 
 const NAV = [
   { href: "/leads", label: "Leads" },
+  { href: "/inbox", label: "Client Responses" },
   { href: "/activity", label: "Activity" },
   { href: "/", label: "Dashboard & Reports" },
   { href: "/settings", label: "Settings" },
@@ -15,16 +16,16 @@ const NAV = [
 /** The rest of the BLP app family — a collapsible group. Internal routes
  * (href starting with "/") open in-app; the rest open in a new tab. */
 const BLP_APPS = [
-  { href: "/map", label: "US Sales Map" },
-  { href: "https://brighamlarsonpianos.tech", label: "Shop App" },
+  { href: "https://blpadmintraining.netlify.app", label: "Admin Training" },
+  { href: "https://blpagents.netlify.app", label: "Agent App" },
   { href: "https://blpcrm.netlify.app", label: "CRM" },
+  { href: "https://pianologapp.netlify.app", label: "Piano Log App" },
+  { href: "https://pianotechnologylibrary.com", label: "PTL" },
+  { href: "https://brighamlarsonpianos.tech", label: "Shop App" },
   { href: "https://blpstoremap.netlify.app", label: "Store Map" },
   { href: "https://blpmap.netlify.app", label: "US Marketing Map" },
-  { href: "https://pianologapp.netlify.app", label: "Piano Log App" },
-  { href: "https://blpadmintraining.netlify.app", label: "Admin Training" },
-  { href: "https://pianotechnologylibrary.com", label: "PTL" },
-  { href: "https://blpagents.netlify.app", label: "Agent App" },
-];
+  { href: "/map", label: "US Sales Map" },
+].sort((a, b) => a.label.localeCompare(b.label));
 
 function BlpAppsMenu() {
   const [open, setOpen] = useState(false);
@@ -85,48 +86,34 @@ function WhoAmI() {
 }
 
 /**
- * Always-visible "New Client Responses" alert. Sits fixed in the top-right
- * corner on every page, polls the inbox, and deep-links to the Activity
- * inbox. Hidden when everything has been acknowledged.
+ * Unread client responses (sales + general inboxes), polled every 45s and
+ * re-checked on navigation so acknowledging in the inbox updates the nav
+ * bubble right away. Drives the "Client Responses" badge.
  */
-function InboxAlert() {
-  const pathname = usePathname();
-  const [counts, setCounts] = useState({ salesUnread: 0, generalUnread: 0 });
-
+function useInboxUnread(pathname: string): number {
+  const [unread, setUnread] = useState(0);
   useEffect(() => {
     let dead = false;
     const tick = () =>
       api<{ unread: number; salesUnread?: number; generalUnread?: number }>("/api/inbox?count=1")
         .then((r) => {
-          if (!dead) setCounts({ salesUnread: r.salesUnread ?? r.unread, generalUnread: r.generalUnread ?? 0 });
+          if (!dead) setUnread((r.salesUnread ?? r.unread) + (r.generalUnread ?? 0));
         })
-        .catch(() => {}); // quiet — the pill just stays as-is until next poll
+        .catch(() => {}); // quiet — the bubble just stays as-is until next poll
     tick();
     const iv = setInterval(tick, 45_000);
     return () => {
       dead = true;
       clearInterval(iv);
     };
-    // Re-check on navigation so acknowledging in Activity updates the pill fast.
   }, [pathname]);
-
-  const { salesUnread, generalUnread } = counts;
-  if (!salesUnread && !generalUnread) return null;
-  const tab = salesUnread ? "sales" : "general";
-  return (
-    <Link href={`/activity?filter=inbound&tab=${tab}`} className="inbox-alert" aria-live="polite">
-      📥{" "}
-      {salesUnread > 0 && <span>{salesUnread} sales</span>}
-      {salesUnread > 0 && generalUnread > 0 && <span> · </span>}
-      {generalUnread > 0 && <span>{generalUnread} general</span>}
-      <span> — new client responses</span>
-    </Link>
-  );
+  return unread;
 }
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const inboxUnread = useInboxUnread(pathname);
 
   // Navigating (or Esc) closes the mobile drawer.
   useEffect(() => {
@@ -157,7 +144,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           aria-expanded={drawerOpen}
           onClick={() => setDrawerOpen((v) => !v)}
         >
-          ☰
+          ☰{inboxUnread > 0 && <span className="unread-count">{inboxUnread}</span>}
         </button>
         {drawerOpen && <div className="nav-backdrop" onClick={() => setDrawerOpen(false)} />}
         <nav className={`nav${drawerOpen ? " open" : ""}`}>
@@ -167,6 +154,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
             return (
               <Link key={item.href} href={item.href} className={active ? "active" : ""}>
                 {item.label}
+                {item.href === "/inbox" && inboxUnread > 0 && (
+                  <span className="count alert" aria-label={`${inboxUnread} new client responses`}>
+                    {inboxUnread}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -193,7 +185,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
       <main className="main">{children}</main>
-      <InboxAlert />
     </div>
   );
 }
