@@ -133,6 +133,17 @@ export function Mailbox({ person }: { person: string }) {
         <span className="spacer" />
         <Link href="/board" className="btn ghost small">Inbox Board</Link>
         <button className="btn ghost small" onClick={() => load()} disabled={busy}>↻ Refresh</button>
+        {user && (
+          <a
+            className="btn small"
+            href={`https://mail.google.com/mail/b/${encodeURIComponent(user)}/#inbox`}
+            target="_blank"
+            rel="noreferrer"
+            title={`Opens ${name}'s full Gmail as a delegate — requires ${name} to have granted you access (Gmail → Settings → Accounts → Grant access)`}
+          >
+            Open in Gmail as delegate ↗
+          </a>
+        )}
       </div>
 
       {flash && <div className="banner info">{flash}</div>}
