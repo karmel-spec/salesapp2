@@ -174,9 +174,8 @@ export function ActivityView({
     { name: "Moving", tab: "general" },
   ]);
   const [doneFilter, setDoneFilter] = useState<"open" | "closed">("open");
-  // Inbox pages open on the unread items only — the same set the nav bubble
-  // counts. "Show read" reveals the handled history.
-  const [showRead, setShowRead] = useState(!inboxOnly);
+  // Inbox pages show unread and read together, as two sections (unread on top).
+  const [showRead] = useState(true);
   const [search, setSearch] = useState("");
   const [folderFilter, setFolderFilter] = useState<string>(() => {
     if (folder) return folder;
@@ -703,13 +702,16 @@ export function ActivityView({
             {f.key === "inbound" && unreadCount > 0 && <span className="unread-count">{unreadCount}</span>}
           </button>
         ))}
-        <TypeAhead
-          value={who === "all" ? "" : who}
-          options={whoOptions}
-          onChange={(v) => setWho(v || "all")}
-          placeholder="Everyone — type a name or number…"
-          ariaLabel="Filter by person"
-        />
+        {/* Inbox pages have their own search box below; the person filter is for the Activity log. */}
+        {!inboxOnly && (
+          <TypeAhead
+            value={who === "all" ? "" : who}
+            options={whoOptions}
+            onChange={(v) => setWho(v || "all")}
+            placeholder="Everyone — type a name or number…"
+            ariaLabel="Filter by person"
+          />
+        )}
         {filter === "inbound" && (
           <select value={sortMode} onChange={(e) => setSortMode(e.target.value)} aria-label="Sort replies">
             {SORTS.map((s) => (
@@ -792,25 +794,6 @@ export function ActivityView({
               !inboxOnly && <button className="folder-chip" onClick={() => setAddingFolder(true)}>＋ New folder</button>
             )}
             <span style={{ flex: 1 }} />
-            {doneFilter === "open" && (
-              <>
-                <button
-                  className={`folder-chip${!showRead ? " active" : ""}`}
-                  onClick={() => setShowRead(false)}
-                  title="Only messages nobody has read yet — the number on the sidebar"
-                >
-                  Unread{unreadCount > 0 ? ` (${unreadCount})` : ""}
-                </button>
-                <button
-                  className={`folder-chip${showRead ? " active" : ""}`}
-                  onClick={() => setShowRead(true)}
-                  title="Include messages already read — the full history"
-                >
-                  Show read
-                </button>
-                <span style={{ width: 10 }} />
-              </>
-            )}
             <button
               className={`folder-chip${doneFilter === "open" ? " active" : ""}`}
               onClick={() => setDoneFilter("open")}
@@ -865,7 +848,7 @@ export function ActivityView({
                     }
                     byLead.get(r.leadId)!.push(r);
                   }
-                  return order.map((leadId) => {
+                  const renderGroup = (leadId: string) => {
                     const group = byLead.get(leadId)!;
                     const latest = group[0];
                     const unread = group.filter((x) => !x.read).length;
@@ -974,7 +957,27 @@ export function ActivityView({
                         <span className="ib-time">{stamp}</span>
                       </div>
                     );
-                  });
+                  };
+                  if (!inboxOnly) return order.map(renderGroup);
+                  // Sidebar inbox pages: unread clients on top, then the read ones
+                  // (still awaiting a reply, or plain history) — both always visible.
+                  const unreadIds = order.filter((id) => byLead.get(id)!.some((x) => !x.read));
+                  const readIds = order.filter((id) => !byLead.get(id)!.some((x) => !x.read));
+                  return (
+                    <>
+                      <div className="inbox-section">
+                        Unread · {unreadCount} {unreadCount === 1 ? "message" : "messages"} from {unreadIds.length}{" "}
+                        {unreadIds.length === 1 ? "client" : "clients"}
+                      </div>
+                      {unreadIds.length === 0 && <div className="muted inbox-section-empty">Nothing unread — all caught up.</div>}
+                      {unreadIds.map(renderGroup)}
+                      <div className="inbox-section">
+                        Read · {readIds.length} {readIds.length === 1 ? "client" : "clients"} — awaiting a reply, or history
+                      </div>
+                      {readIds.length === 0 && <div className="muted inbox-section-empty">No read messages here.</div>}
+                      {readIds.map(renderGroup)}
+                    </>
+                  );
                 })()}
               </div>
             ) : (

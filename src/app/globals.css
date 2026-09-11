@@ -1128,6 +1128,13 @@ tbody tr:hover { background: #faf7f2; }
 /* ── Two-inbox tabs (Sales vs General) ── */
 .inbox-tabs { display: flex; gap: 8px; margin: 0 0 10px; flex-wrap: wrap; }
 .inbox-tabs[hidden] { display: none; }
+/* Section dividers inside the inbox list (Unread / Read) */
+.inbox-section {
+  font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase; font-weight: 700;
+  color: var(--ink-3); padding: 12px 8px 6px; margin-top: 6px; border-bottom: 1px solid var(--line);
+}
+.inbox-section:first-child { margin-top: 0; }
+.inbox-section-empty { padding: 8px; font-size: 13px; }
 .inbox-tab {
   display: inline-flex;
   align-items: center;
