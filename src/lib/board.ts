@@ -1,5 +1,6 @@
 import { getLeads, type Lead, type TimelineEvent } from "./leads";
 import { mailboxSummary, type MailboxSummary } from "./gmail";
+import { imapSummary, imapConfigured } from "./imapmail";
 import { taskSummaries, type TaskSummary } from "./taskboard";
 import { replyTarget } from "./inbox-split";
 
@@ -174,7 +175,11 @@ export async function getBoard(force = false): Promise<Board> {
   const [{ leads }, tasks, mail] = await Promise.all([
     getLeads(false),
     taskSummaries().catch((): Map<string, TaskSummary> => new Map()),
-    Promise.all(BOARD_PEOPLE.filter((p) => p.mailbox && !p.personalGmail).map((p) => mailboxSummary(p.mailbox!))),
+    Promise.all(
+      BOARD_PEOPLE.filter((p) => p.mailbox && (!p.personalGmail || imapConfigured())).map((p) =>
+        p.personalGmail ? imapSummary() : mailboxSummary(p.mailbox!)
+      )
+    ),
   ]);
   const mailByUser = new Map(mail.map((m) => [m.user, m]));
 
@@ -184,7 +189,7 @@ export async function getBoard(force = false): Promise<Board> {
       const m = mailByUser.get(p.mailbox);
       row.email = m
         ? emailCell(m, p)
-        : { kind: "email", new: 0, total: 0, oldestDays: null, status: "none", label: "—", items: [], note: p.personalGmail ? "connect this mailbox" : "not read" };
+        : { kind: "email", new: 0, total: 0, oldestDays: null, status: "none", label: "—", items: [], note: p.personalGmail ? "connect this mailbox (app password)" : "not read" };
     }
     if (p.taskOwner) {
       const t = tasks.get(p.taskOwner.toLowerCase());

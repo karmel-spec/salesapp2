@@ -11,6 +11,6 @@ export default async function BoardPersonPage({ params }: { params: Promise<{ pe
   const { person } = await params;
   const key = person.toLowerCase();
   const p = BOARD_PEOPLE.find((x) => x.key === key);
-  if (p?.mailbox) return <Mailbox person={key} />;
+  if (p?.mailbox) return <Mailbox person={key} displayName={p.name} />;
   return <TeamBoard initialPerson={key} />;
 }

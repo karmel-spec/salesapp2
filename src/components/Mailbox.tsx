@@ -10,8 +10,8 @@ import type { ThreadSummary, ThreadDetail } from "@/lib/gmail";
  * on the left, the open conversation and a reply box on the right. Replies
  * go out as the mailbox owner; read/unread/archive change the real inbox.
  */
-export function Mailbox({ person }: { person: string }) {
-  const [name, setName] = useState("");
+export function Mailbox({ person, displayName }: { person: string; displayName?: string }) {
+  const [name, setName] = useState(displayName || "");
   const [user, setUser] = useState("");
   const [threads, setThreads] = useState<ThreadSummary[] | null>(null);
   const [next, setNext] = useState<string | undefined>();
@@ -110,7 +110,7 @@ export function Mailbox({ person }: { person: string }) {
     return (
       <>
         <div className="page-head">
-          <h1>{person.charAt(0).toUpperCase() + person.slice(1)}&apos;s email</h1>
+          <h1>{displayName || person.charAt(0).toUpperCase() + person.slice(1)}{displayName?.endsWith("Email") ? "" : "'s email"}</h1>
           <span className="spacer" />
           <Link href={`/board/${person}`} className="btn ghost small">← Inbox Board</Link>
         </div>
@@ -125,7 +125,7 @@ export function Mailbox({ person }: { person: string }) {
   return (
     <>
       <div className="page-head">
-        <h1>{name || "…"}&apos;s email</h1>
+        <h1>{name || "…"}{name.endsWith("Email") ? "" : "'s email"}</h1>
         <span className="sub">
           {user}
           {threads ? ` · ${unread} unread in the newest ${threads.length}` : ""} — anyone on the team can work this inbox; replies go out as {name || "them"}
