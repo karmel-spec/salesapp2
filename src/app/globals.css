@@ -295,6 +295,25 @@ tbody tr:hover { background: #faf7f2; }
 .toolbar { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
 .toolbar input[type="search"] { min-width: 240px; }
 
+/* Type-ahead picker (replaces long scrolling dropdowns) */
+.typeahead { position: relative; min-width: 260px; }
+.typeahead input { width: 100%; padding-right: 30px; }
+.typeahead.has-value input { border-color: var(--crimson); background: var(--crimson-soft); font-weight: 600; }
+.typeahead-clear {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  border: 0; background: transparent; color: var(--ink-3); cursor: pointer; font-size: 13px; padding: 4px 6px; line-height: 1;
+}
+.typeahead-clear:hover { color: var(--crimson); }
+.typeahead-list {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 60;
+  margin: 0; padding: 4px; list-style: none;
+  background: #fff; border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.3); max-height: 320px; overflow-y: auto;
+}
+.typeahead-list li { padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+.typeahead-list li.hi { background: var(--crimson-soft); color: var(--crimson); font-weight: 600; }
+.typeahead-empty { padding: 10px 12px; color: var(--ink-3); font-size: 13px; }
+
 /* ── Timeline ── */
 .timeline { list-style: none; margin: 0; padding: 0; }
 .timeline li { padding: 10px 0 10px 18px; border-left: 2px solid var(--line); position: relative; }

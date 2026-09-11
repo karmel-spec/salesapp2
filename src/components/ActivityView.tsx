@@ -11,6 +11,7 @@ import { messageSource, SOURCE_META } from "@/lib/source";
 import { SourceIcon } from "@/components/SourceIcon";
 import { looseIncludes } from "@/lib/search";
 import { inScope, type InboxScope } from "@/lib/inbox-split";
+import { TypeAhead } from "@/components/TypeAhead";
 
 type Row = {
   at: string;
@@ -644,12 +645,13 @@ export function ActivityView({
             {f.key === "inbound" && unreadCount > 0 && <span className="unread-count">{unreadCount}</span>}
           </button>
         ))}
-        <select value={who} onChange={(e) => setWho(e.target.value)}>
-          <option value="all">Everyone</option>
-          {whoOptions.map((w) => (
-            <option key={w} value={w}>{w}</option>
-          ))}
-        </select>
+        <TypeAhead
+          value={who === "all" ? "" : who}
+          options={whoOptions}
+          onChange={(v) => setWho(v || "all")}
+          placeholder="Everyone — type a name or number…"
+          ariaLabel="Filter by person"
+        />
         {filter === "inbound" && (
           <select value={sortMode} onChange={(e) => setSortMode(e.target.value)} aria-label="Sort replies">
             {SORTS.map((s) => (
