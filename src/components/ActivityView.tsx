@@ -174,6 +174,9 @@ export function ActivityView({
     { name: "Moving", tab: "general" },
   ]);
   const [doneFilter, setDoneFilter] = useState<"open" | "closed">("open");
+  // Inbox pages open on the unread items only — the same set the nav bubble
+  // counts. "Show read" reveals the handled history.
+  const [showRead, setShowRead] = useState(!inboxOnly);
   const [search, setSearch] = useState("");
   const [folderFilter, setFolderFilter] = useState<string>(() => {
     if (folder) return folder;
@@ -329,6 +332,8 @@ export function ActivityView({
         (r) =>
           !CLOSED_BUCKETS.has(r.leadBucket) &&
           (doneFilter === "closed" ? r.archived : !r.archived) &&
+          // Unread-only by default on inbox pages (matches the nav bubble); Closed shows all.
+          (showRead || doneFilter === "closed" || !r.read) &&
           (inboxTab === "sales" ? inSales(r) : !inSales(r))
       );
       out.length = 0;
@@ -377,7 +382,7 @@ export function ActivityView({
       }
     }
     return out.slice(0, 250);
-  }, [rows, filter, who, sortMode, folderFilter, inboxTab, doneFilter, salesFolderSet, search]);
+  }, [rows, filter, who, sortMode, folderFilter, inboxTab, doneFilter, showRead, salesFolderSet, search]);
 
   /** Flip events read in local state so the UI reacts instantly. */
   function applyRead(leadId: string | null, ats: string[] | null) {
@@ -778,6 +783,25 @@ export function ActivityView({
               scope !== "new" && <button className="folder-chip" onClick={() => setAddingFolder(true)}>＋ New folder</button>
             )}
             <span style={{ flex: 1 }} />
+            {doneFilter === "open" && (
+              <>
+                <button
+                  className={`folder-chip${!showRead ? " active" : ""}`}
+                  onClick={() => setShowRead(false)}
+                  title="Only messages nobody has read yet — the number on the sidebar"
+                >
+                  Unread{unreadCount > 0 ? ` (${unreadCount})` : ""}
+                </button>
+                <button
+                  className={`folder-chip${showRead ? " active" : ""}`}
+                  onClick={() => setShowRead(true)}
+                  title="Include messages already read — the full history"
+                >
+                  Show read
+                </button>
+                <span style={{ width: 10 }} />
+              </>
+            )}
             <button
               className={`folder-chip${doneFilter === "open" ? " active" : ""}`}
               onClick={() => setDoneFilter("open")}
