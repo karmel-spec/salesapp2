@@ -118,6 +118,7 @@ export function ActivityView({
   scope,
   embedded = false,
   folder,
+  excludeFolders,
 }: {
   inboxOnly?: boolean;
   /** "brigham" = only replies to Brigham's outreach; "others" = the rest. */
@@ -126,6 +127,8 @@ export function ActivityView({
   embedded?: boolean;
   /** Pin the view to one folder (the sidebar's Tuning / Moving pages). */
   folder?: string;
+  /** Hide messages filed in these folders (Customer Service = everything but Tuning/Moving). */
+  excludeFolders?: string[];
 }) {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [error, setError] = useState("");
@@ -223,6 +226,7 @@ export function ActivityView({
         if (e.kind === "inbound" && !inScope(l, e, scope)) continue;
         // Pinned folder page: only that folder's messages count, show, or get marked read.
         if (e.kind === "inbound" && folder && (e.folder || "").trim().toLowerCase() !== folder.toLowerCase()) continue;
+        if (e.kind === "inbound" && excludeFolders?.includes((e.folder || "").trim().toLowerCase())) continue;
         all.push({
           ...e,
           leadId: l.id,
@@ -244,7 +248,8 @@ export function ActivityView({
       return isNaN(d.getTime()) ? 0 : d.getTime();
     };
     return all.sort((a, b) => t(b) - t(a));
-  }, [leads, scope, folder]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leads, scope, folder, excludeFolders?.join(",")]);
 
   const unreadCount = useMemo(
     () => rows.filter((r) => r.kind === "inbound" && !r.read && !r.archived && !CLOSED_BUCKETS.has(r.leadBucket)).length,
@@ -624,7 +629,7 @@ export function ActivityView({
           {scope === "brigham"
             ? "BL Client Responses"
             : scope === "new"
-              ? folder ? `${folder} inquiries` : "New Inquiries"
+              ? folder ? `${folder} inquiries` : excludeFolders ? "Customer Service" : "New Inquiries"
               : inboxOnly
                 ? "Client Responses"
                 : "Activity"}
@@ -635,7 +640,9 @@ export function ActivityView({
             : scope === "new"
               ? folder
                 ? `new inquiries filed under ${folder}${unreadCount > 0 ? ` — ${unreadCount} waiting` : ""}`
-                : `first-contact inquiries nobody has answered yet${unreadCount > 0 ? ` — ${unreadCount} waiting` : ""}`
+                : excludeFolders
+                  ? `new inquiries to sort — file to Tuning or Moving (📁), make it a lead (status → Active), or keep it here${unreadCount > 0 ? ` — ${unreadCount} waiting` : ""}`
+                  : `first-contact inquiries nobody has answered yet${unreadCount > 0 ? ` — ${unreadCount} waiting` : ""}`
               : inboxOnly
                 ? `replies to the rest of the team's outreach${unreadCount > 0 ? ` — ${unreadCount} new` : ""}`
                 : "everything the team and Arnold have done, newest first"}
@@ -678,7 +685,7 @@ export function ActivityView({
       {filter === "inbound" && (
         <>
           {/* A pinned folder page is General-only by definition — no Sales/General switch. */}
-          <div className="inbox-tabs" hidden={Boolean(folder)}>
+          <div className="inbox-tabs" hidden={Boolean(folder) || Boolean(excludeFolders)}>
             <button
               className={`inbox-tab sales${inboxTab === "sales" ? " active" : ""}`}
               onClick={() => {

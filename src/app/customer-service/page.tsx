@@ -1,8 +1,9 @@
-import { LeadsView } from "@/components/LeadsView";
+import { ActivityView } from "@/components/ActivityView";
 
-/** Customer Service — contacts in the Support status (walk-up questions,
- * tuning, moving, "do you buy pianos?"). Kept apart from the lead tabs so
- * service traffic never inflates the sales pipeline. */
+/** Customer Service — the sorting queue: every new inquiry that isn't Tuning
+ * or Moving. From here a message is filed to a folder (📁), turned into a
+ * lead by changing its status (→ Leads / BL Leads), or left as service.
+ * Counts: Tuning + Moving + Customer Service = New Inquiries. */
 export default function CustomerServicePage() {
-  return <LeadsView scope="support" />;
+  return <ActivityView inboxOnly scope="new" excludeFolders={["tuning", "moving"]} />;
 }

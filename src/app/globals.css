@@ -101,9 +101,12 @@ a { color: inherit; text-decoration: none; }
 .nav a:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
 .nav a.active { background: var(--crimson); color: #fff; }
 /* Folder sub-items under New Inquiries (Tuning, Moving) */
-.nav a.sub { padding-left: 26px; font-size: 13px; color: rgba(243, 239, 233, 0.66); position: relative; }
+.nav a.sub { padding-left: 26px; font-size: 13px; color: rgba(243, 239, 233, 0.66); position: relative; gap: 8px; }
 .nav a.sub::before { content: ""; position: absolute; left: 14px; top: 50%; width: 6px; height: 1px; background: rgba(243, 239, 233, 0.35); }
 .nav a.sub.active::before { background: rgba(255, 255, 255, 0.7); }
+/* Left-hand counts on sub-items: fixed width so the numbers line up in a column. */
+.nav .count.left { margin-left: 0; min-width: 30px; text-align: center; font-variant-numeric: tabular-nums; }
+.nav a.sub .count.left:not(.alert) { background: rgba(255, 255, 255, 0.1); }
 .nav .count {
   margin-left: auto;
   background: rgba(255, 255, 255, 0.16);

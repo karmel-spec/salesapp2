@@ -10,10 +10,11 @@ const NAV: { href: string; label: string; sub?: boolean }[] = [
   { href: "/bl-leads", label: "BL Leads" },
   { href: "/leads", label: "Leads" },
   { href: "/inbox", label: "Client Responses" },
+  // New Inquiries splits into three sub-inboxes whose counts add up to it.
   { href: "/new-inquiries", label: "New Inquiries" },
   { href: "/new-inquiries/tuning", label: "Tuning", sub: true },
   { href: "/new-inquiries/moving", label: "Moving", sub: true },
-  { href: "/customer-service", label: "Customer Service" },
+  { href: "/customer-service", label: "Customer Service", sub: true },
   { href: "/", label: "Dashboard" },
   { href: "/settings", label: "Settings" },
 ];
@@ -241,7 +242,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
       case "/inbox": return { n: unread.others, alert: true };
       case "/bl-leads": return { n: leadCounts.brigham, alert: false };
       case "/leads": return { n: leadCounts.others, alert: false };
-      case "/customer-service": return { n: leadCounts.support, alert: true };
+      // Everything in New Inquiries that isn't Tuning or Moving — the sorting queue.
+      case "/customer-service":
+        return { n: Math.max(0, unread.fresh - (unread.newFolders.tuning || 0) - (unread.newFolders.moving || 0)), alert: true };
       case "/": return { n: unfiledCalls, alert: true }; // unfiled call recordings
       default: return { n: 0, alert: false };
     }
@@ -288,8 +291,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
               item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(item.href + "/");
             return (
               <Link key={item.href} href={item.href} className={`${active ? "active" : ""}${item.sub ? " sub" : ""}`}>
+                {/* Sub-items show the count on the LEFT so the three add up visibly to the parent. */}
+                {item.sub && (
+                  <span className={`count left${badgeFor(item.href).alert ? " alert" : ""}`}>{badgeFor(item.href).n}</span>
+                )}
                 {item.label}
-                {badgeFor(item.href).n > 0 && (
+                {!item.sub && badgeFor(item.href).n > 0 && (
                   <span className={badgeFor(item.href).alert ? "count alert" : "count"}>
                     {badgeFor(item.href).n}
                   </span>
