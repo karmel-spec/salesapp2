@@ -77,13 +77,12 @@ a { color: inherit; text-decoration: none; }
   text-align: center;
 }
 /* "+ New lead" under the Sales Console heading, same width as the logo. */
+.brand { text-align: center; } /* centers the inline "+ New lead" button under the logo/sub-heading */
 .new-lead-btn {
-  display: block;
-  width: 100%;
-  max-width: 190px;
-  box-sizing: border-box;
-  margin: 12px auto 0;
-  text-align: center;
+  /* Hugs its text; the .brand text-align centers it beneath "Sales Console". */
+  display: inline-block;
+  width: auto;
+  margin: 12px 0 0;
   text-decoration: none;
   font-weight: 700;
 }
