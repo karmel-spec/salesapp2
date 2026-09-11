@@ -137,11 +137,33 @@ function useLeadCounts(pathname: string): { brigham: number; others: number; sup
   return counts;
 }
 
+/** Plaud call recordings still waiting to be filed to a lead (Dashboard bubble). */
+function useUnfiledCalls(pathname: string): number {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    let dead = false;
+    const tick = () =>
+      api<{ items: unknown[] }>("/api/plaud/unfiled")
+        .then((r) => {
+          if (!dead) setN(r.items.length);
+        })
+        .catch(() => {});
+    tick();
+    const iv = setInterval(tick, 90_000);
+    return () => {
+      dead = true;
+      clearInterval(iv);
+    };
+  }, [pathname]);
+  return n;
+}
+
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const unread = useInboxUnread(pathname);
   const leadCounts = useLeadCounts(pathname);
+  const unfiledCalls = useUnfiledCalls(pathname);
   const inboxUnread = unread.brigham + unread.fresh + unread.others; // mobile burger total
   // Crimson "alert" bubbles = messages awaiting a reply; plain bubbles = lead counts.
   const badgeFor = (href: string): { n: number; alert: boolean } => {
@@ -152,6 +174,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       case "/bl-leads": return { n: leadCounts.brigham, alert: false };
       case "/leads": return { n: leadCounts.others, alert: false };
       case "/customer-service": return { n: leadCounts.support, alert: true };
+      case "/": return { n: unfiledCalls, alert: true }; // unfiled call recordings
       default: return { n: 0, alert: false };
     }
   };

@@ -159,12 +159,18 @@ export function LeadsView({ scope: tabScope }: { scope?: LeadsScope }) {
     <>
       <div className="page-head">
         <h1>{scope === "brigham" ? "BL Leads" : scope === "support" ? "Customer Service" : "Leads"}</h1>
-        <span className="sub" title="Shown = after the filters below · Active = status New or Active (the nav bubble) · Total = every lead on this tab in any status">
+        <span className="sub" title="First number = leads matching the filters below · 'active' = status New or Active (the nav bubble)">
           {scope === "support" ? (
             <>{filtered.length} of {pool.length} support inquiries — walk-up questions, tuning, moving; not sales leads</>
           ) : (
             <>
-              {filtered.length} shown · {activeInPool} active · {pool.length} total
+              {filtered.length}
+              {typeFilter === NO_TYPE ? " untyped" : typeFilter !== "all" ? ` ${typeFilter.toLowerCase()}` : ""}
+              {bucket === "active" || bucket === "open" || bucket === "new"
+                ? ` of ${activeInPool} active`
+                : bucket === "all"
+                  ? " in any status"
+                  : ` · ${bucket}`}
               {scope === "brigham" ? " assigned to Brigham" : scope === "others" ? " (everyone but Brigham)" : " company-wide"}
             </>
           )}
