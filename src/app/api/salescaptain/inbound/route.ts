@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { getLeads, getLead, createLead, appendTimeline, type Lead } from "@/lib/leads";
+import { getLeads, getLead, createLead, appendTimeline, updateLeadFields, updateTimelineEvent, markInboundRead, type Lead } from "@/lib/leads";
 import { notifyTelegram, notifyArnoldWebhook } from "@/lib/arnold";
 import { isValidArnoldKey } from "@/lib/auth";
 import { jsonError } from "@/lib/api";
@@ -33,6 +33,15 @@ export async function POST(req: NextRequest) {
       account?: string; // which mailbox the alert was read from (debugging only)
       photo?: boolean; // the alert says a photo/MMS was sent but carries no image
       backfill?: boolean; // historical import: log it, but no Telegram/Arnold and no last-contact bump
+      // --- SalesCaptain REST sync fields ---
+      direction?: "inbound" | "outbound"; // outbound = a BLP rep (or the auto-reply) sent it from SalesCaptain
+      who?: string; // outbound sender's first name
+      media?: string[]; // attachment URLs (photos, MMS)
+      senderEmail?: string;
+      salesCaptainMessageId?: string; // dedupe key when the message came via the API
+      salesCaptainContactId?: string;
+      salesCaptainConversationId?: string;
+      noCreate?: boolean; // replay mode: never create a new contact
     };
     const quiet = input.backfill === true;
     const name = (input.senderName || "").trim();
@@ -67,18 +76,76 @@ export async function POST(req: NextRequest) {
     // One alert can land in karmel@, brigham@, melissa@ and info@ at once, and the
     // Mac watcher may see it too. The RFC Message-ID is identical in every copy,
     // so it's the dedupe key; without one, hash the content.
-    const fingerprint = input.sourceMessageId
-      ? `salescaptain:${input.sourceMessageId.trim()}`
-      : `salescaptain:${crypto.createHash("sha1").update(`${input.at || ""}|${name}|${phone}|${body}`).digest("hex")}`;
+    const fingerprint = input.salesCaptainMessageId
+      ? `salescaptain:msg:${input.salesCaptainMessageId.trim()}`
+      : input.sourceMessageId
+        ? `salescaptain:${input.sourceMessageId.trim()}`
+        : `salescaptain:${crypto.createHash("sha1").update(`${input.at || ""}|${name}|${phone}|${body}`).digest("hex")}`;
     if (lead && lead.timeline.some((e) => e.fingerprint === fingerprint)) {
       return NextResponse.json({ matched: true, duplicate: true, leadId: lead.id, leadName: lead.name, how });
     }
+    const direction = input.direction === "outbound" ? "outbound" : "inbound";
+    const media = (Array.isArray(input.media) ? input.media : []).filter((u) => typeof u === "string" && /^https?:\/\//.test(u)).slice(0, 10);
+    const mediaLines = media.length ? `\n📎 ${media.join("\n📎 ")}` : "";
+    const at = input.at || new Date().toISOString();
+    const atMs = Date.parse(at) || Date.now();
+    const norm = (x: string) => x.replace(/\s+/g, " ").trim().toLowerCase();
+
+    // Cross-path dedupe: the same customer text may already be on the timeline
+    // from an email alert (different fingerprint). Same lead, within 3 minutes,
+    // same words → duplicate. A real photo link upgrades an email-alert
+    // "a photo was sent" placeholder instead of adding a second event.
+    if (lead && direction === "inbound") {
+      const near = lead.timeline.filter((e) => e.kind === "inbound" && Math.abs(Date.parse(e.at) - atMs) <= 3 * 60_000);
+      const key = norm(body).slice(0, 60);
+      const twin = key.length >= 3 ? near.find((e) => norm(e.text || "").includes(key)) : undefined;
+      if (twin) return NextResponse.json({ matched: true, duplicate: true, contentMatch: true, leadId: lead.id, leadName: lead.name, how });
+      if (media.length) {
+        const ph = near.find((e) => /photo was sent/i.test(e.text || ""));
+        if (ph) {
+          await updateTimelineEvent(lead, shape, lead.timeline.indexOf(ph), `📥 SalesCaptain message from ${lead.name}: 📷 photo${body ? ` "${body.slice(0, 200)}"` : ""}${mediaLines}`, "SalesCaptain sync");
+          return NextResponse.json({ matched: true, duplicate: true, upgradedPhoto: true, leadId: lead.id, leadName: lead.name, how });
+        }
+      }
+    }
+
+    // The API knows the phone even when the alert email didn't: fill it in.
+    if (lead && !lead.phoneDialable && phone.length === 10) {
+      try {
+        await updateLeadFields(lead, shape, { phone: `(${phone.slice(0, 3)}) ${phone.slice(3, 6)}-${phone.slice(6)}` });
+        how += " · phone added";
+      } catch {}
+    }
+
+    // Outbound: a rep answered from SalesCaptain. Log it as outreach and mark
+    // the customer's earlier unread messages read — the reply already happened.
+    if (direction === "outbound") {
+      if (!lead) return NextResponse.json({ matched: false, skipped: "outbound to a contact not in the Leads Log" });
+      const who = (input.who || "SalesCaptain").trim();
+      const isRep = !/salescaptain|captain ai|auto-reply/i.test(who);
+      const isCall = input.channel === "call";
+      const kind = input.channel === "email" ? "email_out" : isCall ? "call_attempt" : "sms_out";
+      const via = input.channel && input.channel !== "text" && !isCall ? ` (${input.channel})` : "";
+      const text = isCall
+        ? `${body || "📞 Outgoing call"} — via SalesCaptain by ${who}`
+        : `${kind === "email_out" ? "📧" : "💬"} ${who} replied via SalesCaptain${via}: "${body.slice(0, 4000)}"${mediaLines}`;
+      await appendTimeline(lead, shape, { at, who, kind, source: input.channel || "salescaptain", text, fingerprint }, { touchLastContact: isRep && !quiet });
+      let markedRead = 0;
+      if (isRep) {
+        const ats = lead.timeline.filter((e) => e.kind === "inbound" && !e.readAt && Date.parse(e.at) <= atMs).map((e) => e.at);
+        if (ats.length) markedRead = await markInboundRead(lead, shape, ats, who).catch(() => 0);
+      }
+      return NextResponse.json({ matched: true, outbound: true, leadId: lead.id, leadName: lead.name, how, markedRead });
+    }
+    if (!lead && input.noCreate) return NextResponse.json({ matched: false, skipped: "unknown contact (noCreate)" });
     // Service signals (tuning, moves, scheduling) — customer-service traffic,
     // not sales. Don't wake Arnold for these even on a matched lead.
     const looksService = /\b(tun(e|ing)|reschedul|re-?schedule|appointment|move(r|d|ing)?|moving|pick ?up|deliver|invoice|receipt|warrant|repair visit)\b/i.test(body);
     // Photo alerts carry only a marker ("🏞️ Photo"), never the image. Say
     // exactly that — never that BLP received or reviewed a photo.
-    const detail = input.photo
+    const detail = media.length
+      ? `📥 SalesCaptain message from ${name || phone}: 📷 photo${body ? ` "${body.slice(0, 4000)}"` : ""}${mediaLines}`
+      : input.photo
       ? `📥 SalesCaptain message from ${name || phone}: 📷 a photo was sent (SalesCaptain notification marker${body ? ` "${body.slice(0, 200)}"` : ""}; the image isn't available in the Sales App — view it in SalesCaptain).`
       : body
         ? `📥 SalesCaptain message from ${name || phone}: "${body.slice(0, 4000)}"`
@@ -96,6 +163,7 @@ export async function POST(req: NextRequest) {
           firstName: parts[0] || prettyPhone || "Unknown caller",
           lastName: parts.slice(1).join(" "),
           phone: input.senderPhone || "",
+          email: input.senderEmail || "",
           headline: body.slice(0, 90) || "Messaged the main BLP line",
           source: "Main line (SalesCaptain)",
           inquiryMethod: "Text",

@@ -26,6 +26,13 @@ export async function runSalesCaptainPoll(opts: { since?: number } = {}) {
   const store = getStore("salescaptain-poll");
   const cursor = ((await store.get("cursor", { type: "json" })) as Cursor | null) || {};
   const sinceOverride = opts.since || 0;
+  // The REST API sync is the primary path now; email alerts are the fallback.
+  if (!sinceOverride) {
+    const health = (await getStore("salescaptain-api").get("health", { type: "json" })) as { at?: string } | null;
+    if (health?.at && Date.now() - Date.parse(health.at) < 20 * 60_000) {
+      return { ok: true, total: 0, posted: 0, duplicates: 0, skipped: 0, report: { skipped: `API sync healthy at ${health.at}` }, cursor };
+    }
+  }
   const report: Record<string, unknown> = {};
   let total = 0, posted = 0, dupes = 0, skipped = 0;
 
