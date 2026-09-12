@@ -133,7 +133,12 @@ export async function POST(req: NextRequest) {
       let markedRead = 0;
       if (isRep) {
         const ats = lead.timeline.filter((e) => e.kind === "inbound" && !e.readAt && Date.parse(e.at) <= atMs).map((e) => e.at);
-        if (ats.length) markedRead = await markInboundRead(lead, shape, ats, who).catch(() => 0);
+        if (ats.length) {
+          // Re-read first: marking read rewrites timelineJson, and the copy in
+          // `lead` predates the event we just appended (it would be lost).
+          const fresh = await getLead(lead.id, true);
+          if (fresh) markedRead = await markInboundRead(fresh.lead, fresh.shape, ats, who).catch(() => 0);
+        }
       }
       return NextResponse.json({ matched: true, outbound: true, leadId: lead.id, leadName: lead.name, how, markedRead });
     }
