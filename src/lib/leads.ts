@@ -84,6 +84,9 @@ export interface TimelineEvent {
    *  the inbox but stays on the lead's timeline/conversation. */
   archivedAt?: string;
   archivedBy?: string;
+  /** Dedupe key for imported messages (SalesCaptain alerts can reach several
+   *  mailboxes): "salescaptain:<RFC Message-ID>" or a content hash. */
+  fingerprint?: string;
 }
 
 /** Cached AI briefing for the Summary Bar (regenerated when the timeline moves). */
@@ -310,6 +313,7 @@ function normalizeTimeline(raw: unknown[]): TimelineEvent[] {
           ...(typeof e.emailSubject === "string" ? { emailSubject: e.emailSubject } : {}),
           ...(typeof e.archivedAt === "string" ? { archivedAt: e.archivedAt } : {}),
           ...(typeof e.archivedBy === "string" ? { archivedBy: e.archivedBy } : {}),
+          ...(typeof e.fingerprint === "string" ? { fingerprint: e.fingerprint } : {}),
         };
       }
       const at = typeof e.at === "string" ? e.at : typeof e.date === "string" ? e.date : "";

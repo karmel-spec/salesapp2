@@ -216,6 +216,10 @@ def poll_account(USER: str, password: str, key: str, per_account: dict, internal
                 "senderPhone": phone,
                 "messageText": text,
                 "at": received.isoformat() if received else None,
+                # Same alert can reach several mailboxes (and the cloud poller);
+                # the console dedupes on this RFC Message-ID.
+                "sourceMessageId": (msg.get("Message-ID") or "").strip(),
+                "account": USER,
             }).encode()
             req = urllib.request.Request(
                 f"{APP_URL}/api/salescaptain/inbound",

@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getLeads, getLead, createLead, appendTimeline, type Lead } from "@/lib/leads";
 import { notifyTelegram, notifyArnoldWebhook } from "@/lib/arnold";
@@ -28,7 +29,12 @@ export async function POST(req: NextRequest) {
       messageText?: string;
       at?: string;
       channel?: string; // "text" | "webchat" | "facebook" | "instagram" when the alert says
+      sourceMessageId?: string; // RFC Message-ID of the alert email (identical in every mailbox it reached)
+      account?: string; // which mailbox the alert was read from (debugging only)
+      photo?: boolean; // the alert says a photo/MMS was sent but carries no image
+      backfill?: boolean; // historical import: log it, but no Telegram/Arnold and no last-contact bump
     };
+    const quiet = input.backfill === true;
     const name = (input.senderName || "").trim();
     const phone = (input.senderPhone || "").replace(/\D/g, "").slice(-10);
     if (!name && !phone) {
@@ -58,12 +64,25 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (input.messageText || "").trim();
+    // One alert can land in karmel@, brigham@, melissa@ and info@ at once, and the
+    // Mac watcher may see it too. The RFC Message-ID is identical in every copy,
+    // so it's the dedupe key; without one, hash the content.
+    const fingerprint = input.sourceMessageId
+      ? `salescaptain:${input.sourceMessageId.trim()}`
+      : `salescaptain:${crypto.createHash("sha1").update(`${input.at || ""}|${name}|${phone}|${body}`).digest("hex")}`;
+    if (lead && lead.timeline.some((e) => e.fingerprint === fingerprint)) {
+      return NextResponse.json({ matched: true, duplicate: true, leadId: lead.id, leadName: lead.name, how });
+    }
     // Service signals (tuning, moves, scheduling) — customer-service traffic,
     // not sales. Don't wake Arnold for these even on a matched lead.
     const looksService = /\b(tun(e|ing)|reschedul|re-?schedule|appointment|move(r|d|ing)?|moving|pick ?up|deliver|invoice|receipt|warrant|repair visit)\b/i.test(body);
-    const detail = body
-      ? `📥 SalesCaptain message from ${name || phone}: "${body.slice(0, 4000)}"`
-      : `📥 SalesCaptain message from ${name || phone} — they're waiting for a reply (full text in SalesCaptain).`;
+    // Photo alerts carry only a marker ("🏞️ Photo"), never the image. Say
+    // exactly that — never that BLP received or reviewed a photo.
+    const detail = input.photo
+      ? `📥 SalesCaptain message from ${name || phone}: 📷 a photo was sent (SalesCaptain notification marker${body ? ` "${body.slice(0, 200)}"` : ""}; the image isn't available in the Sales App — view it in SalesCaptain).`
+      : body
+        ? `📥 SalesCaptain message from ${name || phone}: "${body.slice(0, 4000)}"`
+        : `📥 SalesCaptain message from ${name || phone} — they're waiting for a reply (full text in SalesCaptain).`;
 
     if (!lead) {
       // Not in the Leads Log yet — auto-create a Support contact so the
@@ -92,12 +111,14 @@ export async function POST(req: NextRequest) {
             source: input.channel || "salescaptain",
             folder: autoFolder("", "", body),
             text: detail,
+            fingerprint,
           });
         }
-        notifyTelegram(
-          `💬 <b>New contact on the main line</b> — ${name || prettyPhone} filed to the General Inbox.` +
-            `${body ? `\n"${body.slice(0, 300)}"` : ""}`
-        ).catch(() => {});
+        if (!quiet)
+          notifyTelegram(
+            `💬 <b>New contact on the main line</b> — ${name || prettyPhone} filed to the General Inbox.` +
+              `${body ? `\n"${body.slice(0, 300)}"` : ""}`
+          ).catch(() => {});
         return NextResponse.json({ matched: false, created: true, leadId: id });
       } catch {
         // Duplicate guard or a sheet hiccup — fall back to the old quiet FYI.
@@ -122,9 +143,11 @@ export async function POST(req: NextRequest) {
         source: input.channel || "salescaptain",
         folder: autoFolder(lead.leadType, lead.headline, `${detail}`),
         text: looksService ? `${detail} [service — tuning/move, not a sales reply]` : detail,
+        fingerprint,
       },
-      { touchLastContact: !looksService }
+      { touchLastContact: !looksService && !quiet }
     );
+    if (quiet) return NextResponse.json({ matched: true, backfill: true, service: looksService, leadId: lead.id, leadName: lead.name, how });
 
     if (looksService) {
       notifyTelegram(
