@@ -39,7 +39,7 @@ const BLP_APPS = [
   { href: "https://pianotechnologylibrary.com", label: "PTL" },
   { href: "https://brighamlarsonpianos.tech", label: "Shop App" },
   { href: "https://blpstoremap.netlify.app", label: "Store Map" },
-  { href: "https://blpmap.netlify.app", label: "US Marketing Map" },
+  { href: "https://blp-nationwide-map.netlify.app", label: "Nationwide Marketing Map" },
   { href: "/map", label: "US Sales Map" },
 ].sort((a, b) => a.label.localeCompare(b.label));
 
