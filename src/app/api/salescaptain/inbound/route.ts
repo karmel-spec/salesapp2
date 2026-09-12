@@ -148,7 +148,11 @@ export async function POST(req: NextRequest) {
     const looksService = /\b(tun(e|ing)|reschedul|re-?schedule|appointment|move(r|d|ing)?|moving|pick ?up|deliver|invoice|receipt|warrant|repair visit)\b/i.test(body);
     // Photo alerts carry only a marker ("🏞️ Photo"), never the image. Say
     // exactly that — never that BLP received or reviewed a photo.
-    const detail = media.length
+    const isInboundCall = input.channel === "call";
+    const callHandled = isInboundCall && /completed|answered/i.test(body);
+    const detail = isInboundCall
+      ? `${body.replace(/^📞\s*Incoming call/i, `📞 Incoming call from ${name || phone}`)} — via SalesCaptain`
+      : media.length
       ? `📥 SalesCaptain message from ${name || phone}: 📷 photo${body ? ` "${body.slice(0, 4000)}"` : ""}${mediaLines}`
       : input.photo
       ? `📥 SalesCaptain message from ${name || phone}: 📷 a photo was sent (SalesCaptain notification marker${body ? ` "${body.slice(0, 200)}"` : ""}; the image isn't available in the Sales App — view it in SalesCaptain).`
@@ -185,6 +189,7 @@ export async function POST(req: NextRequest) {
             folder: autoFolder("", "", body),
             text: detail,
             fingerprint,
+            ...(callHandled ? { readBy: "call answered", readAt: new Date().toISOString() } : {}),
           });
         }
         if (!quiet)
@@ -217,10 +222,11 @@ export async function POST(req: NextRequest) {
         folder: autoFolder(lead.leadType, lead.headline, `${detail}`),
         text: looksService ? `${detail} [service — tuning/move, not a sales reply]` : detail,
         fingerprint,
+        ...(callHandled ? { readBy: "call answered", readAt: new Date().toISOString() } : {}),
       },
       { touchLastContact: !looksService && !quiet }
     );
-    if (quiet) return NextResponse.json({ matched: true, backfill: true, service: looksService, leadId: lead.id, leadName: lead.name, how });
+    if (quiet || callHandled) return NextResponse.json({ matched: true, backfill: quiet || undefined, call: isInboundCall || undefined, service: looksService, leadId: lead.id, leadName: lead.name, how });
 
     if (looksService) {
       notifyTelegram(
