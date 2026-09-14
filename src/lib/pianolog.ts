@@ -92,7 +92,8 @@ export function parseWatchText(text: string): { alts: { tokens: string[]; decade
         const dec = /^(1[89]\d)0'?s?$/.exec(w) || /^(1[89]\d)0s?-(1[89]\d)0s?$/.exec(w);
         if (dec) { if (dec[2]) { for (let d = Number(dec[1]); d <= Number(dec[2]); d++) decades.push(String(d)); } else decades.push(dec[1]); continue; }
         const clean = w.replace(/'s$/, "").replace(/-/g, "");
-        if (clean.length < 3 || STOP.has(clean)) continue;
+        // Short model codes matter: "B1", "U1", "C7", "P22" — keep anything with a digit.
+        if ((clean.length < 3 && !/\d/.test(clean)) || clean.length < 2 || STOP.has(clean)) continue;
         tokens.push(clean);
       }
       return { tokens, decades };
