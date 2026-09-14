@@ -10,6 +10,12 @@ const TZ = "America/Denver";
 const WORK = new Set(["sms_out", "email_out", "call", "call_attempt", "note", "edit", "coaching", "file", "followup"]);
 
 export interface DayCount { date: string; count: number; leads: string[] }
+export interface WeekStat { weekStart: string; leadsWorked: number; perfectTens: number; daysWorked: number }
+export interface SpeedStat {
+  today: { inbound: number; fast: number; fastestMin: number | null }; // customer messages on this rep's leads today, answered by this rep within 60 min
+  streak: number; // consecutive business days (with at least one customer message) where every one got a reply within the hour
+  weekFast: number; weekInbound: number;
+}
 export interface Streak {
   who: string;
   today: DayCount;
@@ -19,8 +25,22 @@ export interface Streak {
   best: { count: number; date: string } | null; // all-time best day (before today if today is the new best, see bestBeforeToday)
   bestBeforeToday: { count: number; date: string } | null;
   history: DayCount[]; // newest first, last 30 days with any work
+  thisWeek: WeekStat;
+  bestWeek: WeekStat | null; // best Mon–Fri week before this one
+  perfectTensAllTime: number;
+  speed: SpeedStat;
   generatedAt: string;
 }
+const OUT = new Set(["sms_out", "email_out", "call"]);
+/** Monday (YYYY-MM-DD) of the week containing `date`; weekend work counts toward the week that just ended. */
+export function weekStartOf(date: string): string {
+  const dt = new Date(date + "T12:00:00Z");
+  const dow = dt.getUTCDay();
+  const shift = dow === 0 ? -6 : -(dow - 1);
+  dt.setUTCDate(dt.getUTCDate() + shift);
+  return dt.toISOString().slice(0, 10);
+}
+const hourDenver = (iso: string) => Number(new Date(iso).toLocaleString("en-US", { timeZone: TZ, hour: "2-digit", hour12: false }));
 
 export const dayKey = (d: Date | string) => new Date(d).toLocaleDateString("en-CA", { timeZone: TZ }); // YYYY-MM-DD
 
@@ -74,6 +94,59 @@ export function computeStreak(leads: Lead[], who: string, now = new Date()): Str
 
   const days = [...per.keys()].sort();
   const bestOf = (ds: string[]) => ds.reduce<{ count: number; date: string } | null>((b, d) => (count(d) > (b?.count || 0) ? { count: count(d), date: d } : b), null);
+
+  // Weeks: distinct leads worked Mon–Fri, Perfect Tens, days worked.
+  const weeks = new Map<string, { leads: Set<string>; tens: number; days: number }>();
+  for (const [d, m] of per) {
+    const ws = weekStartOf(d);
+    if (!weeks.has(ws)) weeks.set(ws, { leads: new Set(), tens: 0, days: 0 });
+    const w2 = weeks.get(ws)!;
+    for (const id of m.keys()) w2.leads.add(id);
+    if (m.size >= 10) w2.tens++;
+    w2.days++;
+  }
+  const thisWs = weekStartOf(today);
+  const wk = (ws: string): WeekStat => { const w2 = weeks.get(ws); return { weekStart: ws, leadsWorked: w2?.leads.size || 0, perfectTens: w2?.tens || 0, daysWorked: w2?.days || 0 }; };
+  const bestWeek = [...weeks.keys()].filter((ws) => ws < thisWs).map(wk).reduce<WeekStat | null>((b, x) => (x.leadsWorked > (b?.leadsWorked || 0) ? x : b), null);
+  const perfectTensAllTime = [...per.values()].filter((m) => m.size >= 10).length;
+
+  // Speed: customer texts/emails/webchats (business hours) on this rep's leads,
+  // answered by a person within 60 min. Calls are already "handled"; auto-replies don't count.
+  const AUTO = /auto|salescaptain|^app$|^phone$/i;
+  const speedDays = new Map<string, { inbound: number; fast: number; fastest: number | null }>();
+  for (const l of leads) {
+    if ((l.effectiveRep || "").toLowerCase() !== w) continue;
+    const tl = [...l.timeline].sort((a, b) => a.at.localeCompare(b.at));
+    for (let i = 0; i < tl.length; i++) {
+      const e = tl[i];
+      if (e.kind !== "inbound" || e.source === "call" || /📞|^Liked |^Loved |^Reacted /.test(e.text || "")) continue;
+      const h = hourDenver(e.at);
+      if (h < 9 || h >= 18 || !isBusinessDay(dayKey(e.at))) continue;
+      const d = dayKey(e.at);
+      const reply = tl.slice(i + 1).find((x) => OUT.has(x.kind) && x.who && !AUTO.test(x.who));
+      const mins = reply ? (Date.parse(reply.at) - Date.parse(e.at)) / 60_000 : null;
+      const s = speedDays.get(d) || { inbound: 0, fast: 0, fastest: null };
+      s.inbound++;
+      if (mins !== null && mins <= 60) { s.fast++; s.fastest = s.fastest === null ? mins : Math.min(s.fastest, mins); }
+      speedDays.set(d, s);
+    }
+  }
+  const sToday = speedDays.get(today) || { inbound: 0, fast: 0, fastest: null };
+  let speedStreak = 0;
+  {
+    // Walk back over business days; days with no customer message are neutral (skipped); today only counts if perfect so far.
+    let c3 = isBusinessDay(today) ? today : prevBusinessDay(today);
+    if (c3 === today && sToday.inbound > 0 && sToday.fast < sToday.inbound) c3 = prevBusinessDay(c3);
+    let guard = 0;
+    while (guard++ < 120) {
+      const s = speedDays.get(c3);
+      if (s && s.inbound > 0) { if (s.fast === s.inbound) speedStreak++; else break; }
+      if (c3 < days[0]) break;
+      c3 = prevBusinessDay(c3);
+    }
+  }
+  let weekFast = 0, weekInbound = 0;
+  for (const [d, s] of speedDays) if (weekStartOf(d) === thisWs) { weekFast += s.fast; weekInbound += s.inbound; }
   return {
     who,
     today: mk(today),
@@ -83,6 +156,10 @@ export function computeStreak(leads: Lead[], who: string, now = new Date()): Str
     best: bestOf(days),
     bestBeforeToday: bestOf(days.filter((d) => d < today)),
     history: days.filter((d) => d >= dayKey(new Date(now.getTime() - 30 * 86400_000))).sort().reverse().map(mk),
+    thisWeek: wk(thisWs),
+    bestWeek,
+    perfectTensAllTime,
+    speed: { today: { inbound: sToday.inbound, fast: sToday.fast, fastestMin: sToday.fastest === null ? null : Math.round(sToday.fastest) }, streak: speedStreak, weekFast, weekInbound },
     generatedAt: now.toISOString(),
   };
 }

@@ -1392,8 +1392,9 @@ tbody tr:hover { background: #faf7f2; }
 .celebrate canvas{position:absolute;inset:0;pointer-events:none}
 .celebrate-card{position:relative;background:#fff;color:var(--ink,#121212);border-radius:18px;padding:26px 30px;max-width:520px;width:calc(100% - 40px);text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:10px;animation:celebrate-pop .45s cubic-bezier(.2,1.4,.4,1)}
 .celebrate-title{font-family:Georgia,serif;font-size:30px;font-weight:800;color:var(--crimson,#9E2020)}
-.celebrate.m10 .celebrate-title,.celebrate.record .celebrate-title{font-size:40px;letter-spacing:.5px}
-.celebrate.m10 .celebrate-card,.celebrate.record .celebrate-card{border:3px solid #E8B54D;padding:34px 36px}
+.celebrate.m10 .celebrate-title,.celebrate.record .celebrate-title,.celebrate.week .celebrate-title{font-size:40px;letter-spacing:.5px}
+.celebrate.m10 .celebrate-card,.celebrate.record .celebrate-card,.celebrate.week .celebrate-card{border:3px solid #E8B54D;padding:34px 36px}
+.celebrate.speed .celebrate-title{color:#3D6FB6}
 .celebrate-line{font-size:15px;line-height:1.4}
 .celebrate .btn{align-self:center;margin-top:6px}
 @keyframes celebrate-pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
