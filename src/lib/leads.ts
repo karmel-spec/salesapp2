@@ -1052,3 +1052,44 @@ export async function updateTimelineEvent(
   invalidateCache();
   return ev;
 }
+
+/**
+ * Daily rule (Brigham, 2026-09-14): a lead that has had 3+ outreach attempts
+ * from the team, never a single reply, and nothing new for 2 days after the
+ * latest attempt goes to "Non-Responsive" automatically. Same self-wake as
+ * Dormant — any inbound flips it back to Active. Arnold's leads only.
+ */
+export async function sweepNonResponsive(opts: { rep?: string; minTouches?: number; quietDays?: number; dryRun?: boolean } = {}): Promise<{ id: string; name: string; touches: number; lastTouch: string }[]> {
+  const rep = (opts.rep || "Arnold").toLowerCase();
+  const minTouches = opts.minTouches ?? 3;
+  const quietMs = (opts.quietDays ?? 2) * 86400_000;
+  const OUT = new Set(["sms_out", "email_out", "call", "call_attempt"]);
+  const AUTO = /auto|salescaptain|^app$|^phone$|^twilio$/i;
+  const { leads, shape: raw } = await getLeads(true);
+  const hits: { lead: Lead; touches: number; lastTouch: string }[] = [];
+  for (const l of leads) {
+    if (!(l.statusBucket === "new" || l.statusBucket === "active")) continue;
+    if ((l.effectiveRep || "").toLowerCase() !== rep) continue;
+    if (l.watch?.active) continue;
+    if (l.timeline.some((e) => e.kind === "inbound")) continue;
+    const outs = l.timeline.filter((e) => OUT.has(e.kind) && !(e.who && AUTO.test(e.who) && !/written by|approved/.test(e.text || "")));
+    if (outs.length < minTouches) continue;
+    const last = outs.map((e) => e.at).sort().pop()!;
+    if (Date.now() - Date.parse(last) < quietMs) continue;
+    hits.push({ lead: l, touches: outs.length, lastTouch: last });
+  }
+  if (!opts.dryRun && hits.length) {
+    const shape = await ensureAppColumns(raw);
+    for (const h of hits) {
+      const fresh = (await getLead(h.lead.id, true))?.lead || h.lead;
+      await updateLeadFields(fresh, shape, { status: "Non-Responsive" });
+      await appendTimeline(fresh, shape, {
+        at: new Date().toISOString(),
+        who: "app",
+        kind: "note",
+        text: `🔇 Auto-marked Non-Responsive: ${h.touches} outreach attempts, never a reply, last attempt ${new Date(h.lastTouch).toLocaleDateString("en-US")}. No more outreach — wakes to Active automatically if they ever respond.`,
+      });
+    }
+  }
+  return hits.map((h) => ({ id: h.lead.id, name: h.lead.name, touches: h.touches, lastTouch: h.lastTouch }));
+}
