@@ -192,10 +192,30 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
           onClose={() => setCompose(null)}
         />
       )}
-      {lead.statusBucket === "snoozed" && (
+      {lead.statusBucket === "snoozed" && lead.watch?.active && (
+        <div className="banner info">
+          💤🎹 Watching the Piano Log — wakes to Active the morning {lead.watch.mode === "finished" ? `#${lead.watch.serial} shows finished or for sale` : `a piano matching “${lead.watch.text}” comes in`}
+          {" · "}
+          <button
+            className="btn ghost small"
+            onClick={async () => {
+              await api(`/api/leads/${encodeURIComponent(lead.id)}/watch?who=${encodeURIComponent(getWho())}`, { method: "DELETE" });
+              loadSoon();
+            }}
+          >
+            Stop watching
+          </button>
+        </div>
+      )}
+      {lead.statusBucket === "snoozed" && !lead.watch?.active && (
         <div className="banner info">
           💤 Snoozed{lead.snoozeUntil ? ` until ${lead.snoozeUntil}` : ""} — this lead sleeps (no stale rule)
           and wakes to Active automatically when the date arrives.
+        </div>
+      )}
+      {lead.statusBucket !== "snoozed" && lead.watch && !lead.watch.active && lead.watch.matchedAt && /watch matched/i.test(lead.status) && (
+        <div className="banner good">
+          🎹 {lead.watch.matchedSummary?.split("\n")[0]} — they asked to be contacted when this happened.
         </div>
       )}
       {lead.snoozeWoke && (
@@ -597,10 +617,14 @@ function SubRepSelect({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: stri
 
 function SnoozeButton({ leadId, onFlash, onDone }: { leadId: string; onFlash: (s: string) => void; onDone: () => void }) {
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"date" | "arrival" | "finished">("date");
   const [until, setUntil] = useState("");
+  const [text, setText] = useState("");
+  const [serial, setSerial] = useState("");
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState<{ count: number; matches: string[]; serialFound?: boolean; serialSold?: boolean } | null>(null);
 
-  async function snooze() {
+  async function snoozeDate() {
     setBusy(true);
     try {
       const [y, m, d] = until.split("-").map(Number);
@@ -623,19 +647,98 @@ function SnoozeButton({ leadId, onFlash, onDone }: { leadId: string; onFlash: (s
     }
   }
 
+  async function check() {
+    setBusy(true);
+    try {
+      const r = await api<{ count: number; matches: string[]; serialFound: boolean; serialSold: boolean }>(`/api/leads/${encodeURIComponent(leadId)}/watch`, {
+        method: "POST",
+        body: JSON.stringify({ text, serial, mode, who: getWho(), preview: true }),
+      });
+      setPreview(r);
+    } catch (e) {
+      onFlash(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function snoozeWatch() {
+    setBusy(true);
+    try {
+      const r = await api<{ inStockNow: string[] }>(`/api/leads/${encodeURIComponent(leadId)}/watch`, {
+        method: "POST",
+        body: JSON.stringify({ text, serial, mode, who: getWho(), baseline: true }),
+      });
+      onFlash(
+        mode === "finished"
+          ? `Watching #${serial}. The lead wakes the morning it shows finished or for sale.`
+          : `Watching the Piano Log for "${text}". ${r.inStockNow.length ? `${r.inStockNow.length} in stock today (offer those now) — the lead wakes when a NEW one comes in.` : "The lead wakes the morning one comes in."}`
+      );
+      setOpen(false);
+      onDone();
+    } catch (e) {
+      onFlash(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!open) {
     return (
       <button className="btn ghost" onClick={() => setOpen(true)}>💤 Snooze</button>
     );
   }
   return (
-    <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-      <input type="date" value={until} onChange={(e) => setUntil(e.target.value)} autoFocus />
-      <button className="btn small" onClick={snooze} disabled={busy || !until}>
-        {busy ? "Snoozing…" : "Snooze until"}
-      </button>
-      <button className="btn ghost small" onClick={() => setOpen(false)}>✕</button>
-    </span>
+    <div className="card snooze-card">
+      <div className="snooze-modes">
+        <label><input type="radio" checked={mode === "date"} onChange={() => setMode("date")} /> Until a date</label>
+        <label><input type="radio" checked={mode === "arrival"} onChange={() => { setMode("arrival"); setPreview(null); }} /> Until a piano like this comes in</label>
+        <label><input type="radio" checked={mode === "finished"} onChange={() => { setMode("finished"); setPreview(null); }} /> Until a specific piano is finished</label>
+        <span className="spacer" />
+        <button className="btn ghost small" onClick={() => setOpen(false)}>✕</button>
+      </div>
+      {mode === "date" && (
+        <div className="snooze-row">
+          <input type="date" value={until} onChange={(e) => setUntil(e.target.value)} autoFocus />
+          <button className="btn small" onClick={snoozeDate} disabled={busy || !until}>{busy ? "Snoozing…" : "Snooze until"}</button>
+        </div>
+      )}
+      {mode !== "date" && (
+        <div className="snooze-row">
+          {mode === "arrival" ? (
+            <input
+              type="text"
+              value={text}
+              onChange={(e) => { setText(e.target.value); setPreview(null); }}
+              placeholder='What are they waiting for? e.g. "Acrosonic spinet", "Yamaha U1", "Wurlitzer spinet 1930s-1940s, Kimball"'
+              autoFocus
+              style={{ flex: 1, minWidth: 260 }}
+            />
+          ) : (
+            <input type="text" value={serial} onChange={(e) => { setSerial(e.target.value); setPreview(null); }} placeholder="Serial number, e.g. 7912" autoFocus style={{ width: 200 }} />
+          )}
+          <button className="btn ghost small" onClick={check} disabled={busy || (mode === "arrival" ? text.trim().length < 3 : !serial.trim())}>
+            {busy ? "Checking…" : "Check the Piano Log"}
+          </button>
+          <button className="btn small" onClick={snoozeWatch} disabled={busy || (mode === "arrival" ? text.trim().length < 3 : !serial.trim())}>
+            {busy ? "Saving…" : "🎹 Snooze & watch"}
+          </button>
+        </div>
+      )}
+      {preview && mode === "arrival" && (
+        <div className="muted snooze-preview">
+          {preview.count === 0
+            ? "Nothing sellable matches today — the lead will wake the morning one comes in."
+            : <>In stock today ({preview.count}) — offer these now; the watch wakes the lead when a <b>new</b> one arrives:<ul>{preview.matches.map((m) => <li key={m}>{m}</li>)}</ul></>}
+        </div>
+      )}
+      {preview && mode === "finished" && (
+        <div className="muted snooze-preview">
+          {!preview.serialFound ? `#${serial} isn't in the Piano Log — check the number.` : preview.serialSold ? `#${serial} is marked SOLD.` : `Found: ${preview.matches[0]}`}
+        </div>
+      )}
+      <div className="muted" style={{ fontSize: 12 }}>Commas or "or" separate alternatives; every word in an alternative must match (make, model, size, category, decade like 1940s). The Piano Log is checked once a day at 9 AM.</div>
+    </div>
   );
 }
 

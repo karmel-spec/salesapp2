@@ -41,6 +41,7 @@ export const COLS = {
   timelineJson: "timeline_data_json",
   arnoldDraftJson: "arnold_draft_json",
   briefJson: "brief_json",
+  watchJson: "watch_json",
 } as const;
 
 export type StatusBucket = "new" | "active" | "snoozed" | "won" | "lost" | "inactive" | "support" | "unqualified" | "closed";
@@ -87,6 +88,23 @@ export interface TimelineEvent {
   /** Dedupe key for imported messages (SalesCaptain alerts can reach several
    *  mailboxes): "salescaptain:<RFC Message-ID>" or a content hash. */
   fingerprint?: string;
+}
+
+/**
+ * A watch snooze: the lead sleeps until the Piano Log shows what the customer
+ * asked for. `mode` "arrival" = a piano matching `text` shows up (not sold);
+ * "finished" = the specific `serial` reaches For Sale / completion.
+ */
+export interface LeadWatch {
+  text: string; // plain words: "Acrosonic spinet", "Mason & Hamlin #7912 finished"
+  serial?: string; // specific piano (Piano Log SERIAL NUMBER)
+  mode: "arrival" | "finished";
+  createdAt: string;
+  createdBy: string;
+  seenSerials: string[]; // matches already shown/alerted — don't alert twice
+  active: boolean;
+  matchedAt?: string;
+  matchedSummary?: string;
 }
 
 /** Cached AI briefing for the Summary Bar (regenerated when the timeline moves). */
@@ -146,6 +164,8 @@ export interface Lead {
   timeline: TimelineEvent[];
   drafts: DraftMessage[];
   brief: LeadBrief | null;
+  /** "Snooze until a piano is available" — what the customer is waiting for. */
+  watch: LeadWatch | null;
 }
 
 export interface SheetShape {
@@ -460,6 +480,7 @@ function rowToLead(row: string[], rowNumber: number, shape: SheetShape, now: Dat
     timeline,
     drafts: safeJson<DraftMessage[]>(get("arnoldDraftJson"), []),
     brief: safeJson<LeadBrief | null>(get("briefJson"), null),
+    watch: safeJson<LeadWatch | null>(get("watchJson"), null),
   };
 }
 
@@ -544,7 +565,7 @@ export async function updateLeadFields(
   invalidateCache();
 }
 
-const AUTO_COLS: (keyof typeof COLS)[] = ["blpId", "appActivity", "timelineJson", "arnoldDraftJson", "subRep", "openedBy", "closedBy", "address", "briefJson"];
+const AUTO_COLS: (keyof typeof COLS)[] = ["blpId", "appActivity", "timelineJson", "arnoldDraftJson", "subRep", "openedBy", "closedBy", "address", "briefJson", "watchJson"];
 
 /**
  * The hidden app columns may not exist yet in a fresh sheet; add any missing

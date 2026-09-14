@@ -11,15 +11,20 @@ export function rankLeads(leads: Lead[], rep: "Brigham" | "Arnold", exclude: Set
   const pool = leads.filter((l) => l.effectiveRep === rep && (l.statusBucket === "active" || l.statusBucket === "new") && !exclude.has(l.id));
   const money = (v: string) => { const n = Number((v || "").replace(/[^\d.]/g, "")); return isFinite(n) ? n : 0; };
   const scored = pool.map((l) => {
-    const heat = Number(l.score) || 0;
+    const heat = Math.min(10, Math.max(0, Number(l.score) || 0)); // "20" typed in a 1-10 column is still a 10
     const value = money(l.value);
     const awaiting = l.timeline.some((e) => e.kind === "inbound" && !e.readAt);
     const lastIn = l.timeline.filter((e) => e.kind === "inbound").map((e) => e.at).sort().pop();
     const inDays = lastIn ? Math.floor((Date.now() - Date.parse(lastIn)) / 86400_000) : null;
     const drafts = l.drafts.filter((d) => d.status === "pending").length;
     const quiet = l.daysSinceContact;
+    const everReplied = l.timeline.some((e) => e.kind === "inbound");
+    const attempts = l.timeline.filter((e) => ["sms_out", "email_out", "call", "call_attempt"].includes(e.kind)).length;
+    const ghosting = !everReplied && attempts >= 3; // lots of outreach, never a word back
     let pts = 0;
     if (awaiting) pts += 40;
+    if (everReplied) pts += 12;
+    if (ghosting) pts -= 30;
     pts += heat * 4;
     pts += value >= 20000 ? 20 : value >= 10000 ? 15 : value >= 5000 ? 10 : value > 0 ? 5 : 0;
     pts += Math.min(drafts, 3) * 5;
@@ -27,6 +32,7 @@ export function rankLeads(leads: Lead[], rep: "Brigham" | "Arnold", exclude: Set
     if (quiet !== null) pts += quiet >= 14 && quiet <= 60 ? 6 : quiet > 60 ? -5 : 0;
     if (l.statusBucket === "new") pts += 8;
     const why: string[] = [];
+    if (ghosting) why.push(`⚠️ never replied after ${attempts} attempts`);
     if (awaiting) why.push("customer replied — no answer yet");
     if (heat) why.push(`heat ${heat}/10`);
     if (value) why.push(`$${value.toLocaleString()}`);

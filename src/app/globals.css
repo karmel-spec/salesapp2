@@ -1361,3 +1361,11 @@ tbody tr:hover { background: #faf7f2; }
 .topten-progress{display:inline-flex;align-items:center;gap:10px;margin-left:auto}
 .topten-progress .btn{padding:6px 14px;border-radius:8px;cursor:pointer;font-weight:700;white-space:nowrap}
 .topten-progress .btn:disabled{opacity:.6;cursor:default}
+
+/* Snooze card: date, or watch the Piano Log */
+.snooze-card{width:100%;display:flex;flex-direction:column;gap:10px;padding:12px 14px;margin-top:8px}
+.snooze-modes{display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:14px}
+.snooze-modes label{display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+.snooze-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.snooze-preview ul{margin:6px 0 0 18px;padding:0}
+.snooze-preview li{margin:2px 0}
