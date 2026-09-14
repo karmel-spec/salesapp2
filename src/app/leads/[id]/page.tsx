@@ -209,7 +209,9 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
       )}
       {lead.statusBucket === "dormant" && (
         <div className="banner info">
-          🌙 Dormant — we&apos;re not reaching out (not worth the team&apos;s time right now). If they text, email, call, or message us, the lead flips back to Active on its own.
+          {/^non-?\s?responsive/i.test(lead.status || "")
+            ? <>🔇 Non-Responsive — we tried 3+ times and never heard back, so no more outreach. If they ever text, email, call, or message us, the lead flips back to Active on its own.</>
+            : <>🌙 Dormant — we&apos;re not reaching out (not worth the team&apos;s time right now). If they text, email, call, or message us, the lead flips back to Active on its own.</>}
         </div>
       )}
       {lead.statusBucket === "snoozed" && !lead.watch?.active && (
@@ -1224,6 +1226,7 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "Unqualified", label: "Unqualified — not actually a lead (leaves the funnel)" },
   { value: "Snoozed", label: "Snoozed — requires a wake-up date" },
   { value: "Dormant", label: "Dormant — not worth our outreach; wakes to Active by itself if they contact us" },
+  { value: "Non-Responsive", label: "Non-Responsive — 3+ tries, never replied; no more outreach, wakes to Active if they ever respond" },
   { value: "Closed", label: "Closed — all efforts completed, no response" },
   { value: "stale-info", label: "Stale — automatic (10d if never contacted, 30d if worked; not selectable)" },
 ];
@@ -1488,7 +1491,7 @@ function InlineSelect({
   );
 }
 
-const INLINE_STATUS_CHOICES = ["New", "Active", "Won", "LOST", "Unqualified", "Snoozed", "Dormant", "Closed"];
+const INLINE_STATUS_CHOICES = ["New", "Active", "Won", "LOST", "Unqualified", "Snoozed", "Dormant", "Non-Responsive", "Closed"];
 
 function InlineStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: string) => void; onDone: () => void }) {
   const [editing, setEditing] = useState(false);
@@ -1650,7 +1653,7 @@ function InlineStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: stri
       <option value="">{`Keep current: "${lead.status || "(blank = New)"}"`}</option>
       {INLINE_STATUS_CHOICES.map((s) => (
         <option key={s} value={s}>
-          {s === "LOST" ? "Lost — requires a reason" : s === "Snoozed" ? "Snoozed — requires a wake-up date" : s === "Dormant" ? "Dormant — no outreach; wakes if they contact us" : s}
+          {s === "LOST" ? "Lost — requires a reason" : s === "Snoozed" ? "Snoozed — requires a wake-up date" : s === "Dormant" ? "Dormant — no outreach; wakes if they contact us" : s === "Non-Responsive" ? "Non-Responsive — 3+ tries, no reply; wakes if they respond" : s}
         </option>
       ))}
     </select>

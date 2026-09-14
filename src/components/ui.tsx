@@ -15,7 +15,8 @@ export function StatusBadge({ lead }: { lead: Lead }) {
     unqualified: "Unqualified",
     closed: "Closed",
   };
-  return <span className={`badge ${lead.statusBucket}`}>{labels[lead.statusBucket]}</span>;
+  const label = lead.statusBucket === "dormant" && /^non-?\s?responsive/i.test(lead.status || "") ? "🔇 Non-Responsive" : labels[lead.statusBucket];
+  return <span className={`badge ${lead.statusBucket}`}>{label}</span>;
 }
 
 export function RepBadge({ rep, subRep }: { rep: string; subRep?: string }) {

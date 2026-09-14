@@ -182,6 +182,9 @@ function normStatus(raw: string): StatusBucket {
   // Dormant: not worth our outreach, but the moment THEY reach out the lead
   // wakes to Active on its own (appendTimeline handles the wake).
   if (s.startsWith("dormant") || s.includes("their move") || s.startsWith("parked")) return "dormant";
+  // Non-Responsive: 3+ tries, never a word back. Same treatment as Dormant —
+  // no outreach, wakes to Active by itself the moment they reach out.
+  if (s.startsWith("non-responsive") || s.startsWith("nonresponsive") || s.startsWith("non responsive")) return "dormant";
   if (s.startsWith("closed") || s === "resolved") return "closed";
   if (s.includes("support")) return "support";
   if (s.startsWith("new")) return "new";
@@ -622,8 +625,9 @@ export async function appendTimeline(
   const s = await ensureAppColumns(shape);
   // A dormant lead that contacts us (text, email, call, webchat) wakes itself.
   const wake = event.kind === "inbound" && lead.statusBucket === "dormant";
+  const wasNR = /^non-?\s?responsive/i.test(lead.status || "");
   const events: TimelineEvent[] = wake
-    ? [event, { at: new Date(Math.max(Date.now(), Date.parse(event.at) + 1)).toISOString(), who: "app", kind: "assign", text: "🔔 Dormant lead reached out — it's active again (no outreach was planned; they made the first move)." }]
+    ? [event, { at: new Date(Math.max(Date.now(), Date.parse(event.at) + 1)).toISOString(), who: "app", kind: "assign", text: wasNR ? "🔔 Non-Responsive lead finally responded — it's active again. Pick it up while they're warm." : "🔔 Dormant lead reached out — it's active again (no outreach was planned; they made the first move)." }]
     : [event];
   const timeline = fitTimeline([...lead.timeline, ...events]);
   const lines = events.map((e) => `[${new Date(e.at).toLocaleDateString("en-US")} ${e.who} · ${e.kind}] ${e.text}`).join("\n");
