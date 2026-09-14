@@ -9,7 +9,13 @@ import type { TopTenItem } from "./topten";
  */
 export function rankLeads(leads: Lead[], rep: "Brigham" | "Arnold", exclude: Set<string> = new Set()): TopTenItem[] {
   const pool = leads.filter((l) => l.effectiveRep === rep && (l.statusBucket === "active" || l.statusBucket === "new") && !exclude.has(l.id));
-  const money = (v: string) => { const n = Number((v || "").replace(/[^\d.]/g, "")); return isFinite(n) ? n : 0; };
+  // First dollar figure in the cell ("$12.5k for restoration, $1500 shipping" → 12500); never glue numbers together.
+  const money = (v: string) => {
+    const m = /\$?\s*(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(k)?/i.exec(v || "");
+    if (!m) return 0;
+    const n = Number(m[1].replace(/,/g, "")) * (m[2] ? 1000 : 1);
+    return isFinite(n) && n < 5_000_000 ? n : 0;
+  };
   const scored = pool.map((l) => {
     const heat = Math.min(10, Math.max(0, Number(l.score) || 0)); // "20" typed in a 1-10 column is still a 10
     const value = money(l.value);
