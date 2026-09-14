@@ -1370,3 +1370,31 @@ tbody tr:hover { background: #faf7f2; }
 .snooze-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .snooze-preview ul{margin:6px 0 0 18px;padding:0}
 .snooze-preview li{margin:2px 0}
+
+/* ---- Sales streaks ---- */
+.streak-chip{display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap;margin:8px 10px 4px;padding:7px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#f3ede2;font-size:12px;font-weight:600;cursor:pointer;width:calc(100% - 20px)}
+.streak-chip.alive{border-color:rgba(232,181,77,.55);background:rgba(232,181,77,.12)}
+.streak-chip .sep{opacity:.5}
+.streak-panel{margin:4px 10px 8px;padding:12px;border-radius:12px;background:#fff;color:var(--ink,#121212);box-shadow:0 8px 24px rgba(0,0,0,.25);font-size:13px;display:flex;flex-direction:column;gap:10px}
+.streak-head{display:flex;justify-content:space-between;align-items:center}
+.streak-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.streak-stats>div{display:flex;flex-direction:column;background:#f7f4ec;border-radius:8px;padding:8px}
+.streak-stats .big{font-size:22px;font-weight:800;line-height:1.1}
+.streak-stats .lbl{font-size:11px;color:#666}
+.streak-today{font-size:12px;line-height:1.35}
+.streak-hist{display:flex;gap:4px;align-items:flex-end;height:54px}
+.streak-day{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:2px}
+.streak-day i{display:block;width:100%;background:#ddd6c8;border-radius:3px 3px 0 0;min-height:2px}
+.streak-day.some i{background:#c9a24a}
+.streak-day.ten i{background:var(--crimson,#9E2020)}
+.streak-day small{font-size:9px;color:#888}
+.celebrate{position:fixed;inset:0;z-index:5000;display:flex;align-items:center;justify-content:center;background:rgba(18,18,18,.35);animation:celebrate-in .25s ease-out}
+.celebrate canvas{position:absolute;inset:0;pointer-events:none}
+.celebrate-card{position:relative;background:#fff;color:var(--ink,#121212);border-radius:18px;padding:26px 30px;max-width:520px;width:calc(100% - 40px);text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:10px;animation:celebrate-pop .45s cubic-bezier(.2,1.4,.4,1)}
+.celebrate-title{font-family:Georgia,serif;font-size:30px;font-weight:800;color:var(--crimson,#9E2020)}
+.celebrate.m10 .celebrate-title,.celebrate.record .celebrate-title{font-size:40px;letter-spacing:.5px}
+.celebrate.m10 .celebrate-card,.celebrate.record .celebrate-card{border:3px solid #E8B54D;padding:34px 36px}
+.celebrate-line{font-size:15px;line-height:1.4}
+.celebrate .btn{align-self:center;margin-top:6px}
+@keyframes celebrate-pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes celebrate-in{from{opacity:0}to{opacity:1}}

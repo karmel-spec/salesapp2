@@ -14,6 +14,10 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     window.location.href = "/login";
   }
   if (!res.ok) throw new Error((json as { error?: string }).error || `Request failed (${res.status})`);
+  // Writes may have changed today's worked-lead count — let the streak widget re-check.
+  if (typeof window !== "undefined" && init?.method && init.method.toUpperCase() !== "GET") {
+    setTimeout(() => window.dispatchEvent(new CustomEvent("blp:wrote", { detail: { path } })), 1500);
+  }
   return json as T;
 }
 

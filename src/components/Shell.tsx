@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useRoster, api } from "@/lib/client";
 import { GlobalSearch } from "@/components/GlobalSearch";
+import { StreakWidget } from "@/components/StreakWidget";
 
 const NAV: { href: string; label: string; sub?: boolean; boardKey?: string; group?: string; in?: string }[] = [
   { href: "/bl-inbox", label: "BL Client Responses" },
@@ -143,6 +144,7 @@ function WhoAmI() {
       onChange={(e) => {
         setWho(e.target.value);
         localStorage.setItem("blp_rep_name", e.target.value);
+        window.dispatchEvent(new CustomEvent("blp:who"));
       }}
       style={{
         background: "rgba(255,255,255,0.08)",
@@ -431,6 +433,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <div className="who-wrap">
             <WhoAmI />
           </div>
+          <StreakWidget />
         </nav>
         {/* The helper dock (#blp-dock: assistant faces + 💡) is created in
             layout.tsx outside React's tree and pinned over this footer area
