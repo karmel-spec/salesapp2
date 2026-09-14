@@ -1359,5 +1359,5 @@ tbody tr:hover { background: #faf7f2; }
 .topten-row.worked{opacity:.55;filter:saturate(.6)}
 .topten-row.worked .topten-go{visibility:hidden}
 .topten-progress{display:inline-flex;align-items:center;gap:10px;margin-left:auto}
-.topten-progress .btn{padding:6px 12px;border-radius:8px;border:1px solid var(--line,#ccc);background:var(--card,#fff);cursor:pointer;font-weight:600}
+.topten-progress .btn{padding:6px 14px;border-radius:8px;cursor:pointer;font-weight:700;white-space:nowrap}
 .topten-progress .btn:disabled{opacity:.6;cursor:default}
