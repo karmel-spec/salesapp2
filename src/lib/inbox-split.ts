@@ -11,7 +11,7 @@ import type { Lead, TimelineEvent } from "./leads";
  */
 const OUTREACH_KINDS = new Set(["sms_out", "email_out", "call", "call_attempt"]);
 /** Automated or anonymous actors — not a person the customer is replying to. */
-const NOT_A_REP = /^(app|phone|plaud|twilio|team|arnold(-api)?|)$/i;
+const NOT_A_REP = /^(app|phone|plaud|twilio|team|arnold(-api)?|salescaptain( auto-reply)?|)$/i;
 
 export const BRIGHAM = "Brigham";
 

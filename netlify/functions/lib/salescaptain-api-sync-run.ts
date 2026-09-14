@@ -44,15 +44,22 @@ export async function runSalesCaptainApiSync(opts: SyncOptions = {}): Promise<Sy
   // The message payload does not name the sender. Best available signals:
   // the auto-reply's fixed wording, "this is <Name>" in the text, then the
   // conversation's assigned account, then a generic "BLP team".
+  // Only an EXPLICIT personal sign-on counts as a named rep ("this is Melissa at
+  // the piano shop", "- Brigham"). "This is Brigham Larson Pianos…" is the
+  // company, not Brigham — those reminders/campaigns are "BLP team", which keeps
+  // BL Client Responses limited to replies to Brigham's own outreach.
   const REPS = "Brigham|Melissa|Lisa|Alisa|Karmel|Susie|Ezzy";
-  const whoOf = (text: string, assignedTo: string | null) => {
-    if (/our staff will be with you shortly|thank you for (texting|contacting) (us|brigham larson pianos)/i.test(text)) return "SalesCaptain auto-reply";
-    const m = new RegExp(`\\b(?:this is|it'?s|from|[—–-])\\s*(${REPS})\\b`, "i").exec(text);
+  const whoOf = (text: string, _assignedTo: string | null) => {
+    if (/our staff will be with you shortly|thank you for (texting|contacting) (us|brigham larson pianos)|outside of our (working|business) hours/i.test(text)) return "SalesCaptain auto-reply";
+    const t = text.replace(/Brigham Larson Pianos/gi, "BLP");
+    const m =
+      new RegExp(`\\b(?:this is|it'?s|hey,? it'?s)\\s+(${REPS})\\b(?!\\s+Larson\\s+Pianos)`, "i").exec(t) ||
+      new RegExp(`\\b(${REPS})\\s+(?:here|at the (piano )?shop|from (the )?(piano )?shop|with BLP)\\b`, "i").exec(t) ||
+      new RegExp(`(?:^|\\n|[—–-]\\s*)(${REPS})\\s*$`, "i").exec(t.trim());
     if (m) return m[1][0].toUpperCase() + m[1].slice(1).toLowerCase();
-    const a = assignedTo ? accounts.get(assignedTo) : undefined;
-    if (a?.first_name && !/captain/i.test(a.first_name)) return a.first_name;
     return "BLP team";
   };
+  void accounts;
   const { list, calls, boundaryPage } = await scConversationsSince(since, opts.cap || 400, cursor.boundaryPage); base.apiCalls += calls;
   if (!opts.dryRun) { cursor.boundaryPage = boundaryPage; if (!replay) await store.setJSON("cursor", cursor); }
   base.conversations = list.length;
