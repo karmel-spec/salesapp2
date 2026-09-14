@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Lead } from "@/lib/leads";
+import { TypeAhead } from "@/components/TypeAhead";
 import { api, getWho } from "@/lib/client";
 
 /**
@@ -52,7 +53,10 @@ export function UnfiledCalls({
     const rest = leads.filter((l) => !(l.statusBucket === "new" || l.statusBucket === "active"));
     const label = (l: Lead) => `${l.name}${l.headline ? ` — ${l.headline.slice(0, 40)}` : ""}`;
     const byName = (a: Lead, b: Lead) => a.name.localeCompare(b.name);
-    return { open: open.sort(byName).map((l) => ({ id: l.id, label: label(l) })), rest: rest.sort(byName).map((l) => ({ id: l.id, label: label(l) })) };
+    const all = [...open.sort(byName), ...rest.sort(byName)].map((l) => ({ id: l.id, label: label(l) }));
+    // Labels double as the type-ahead options; open leads list first so they surface first.
+    const byLabel = new Map(all.map((o) => [o.label, o.id]));
+    return { all, labels: all.map((o) => o.label), byLabel };
   }, [leads]);
 
   async function resolve(rec: UnfiledItem, action: "attach" | "dismiss") {
@@ -114,23 +118,14 @@ export function UnfiledCalls({
               </audio>
             )}
             <div className="unfiled-actions">
-              <select
-                value={picks[rec.recordingId] || ""}
-                onChange={(e) => setPicks((p) => ({ ...p, [rec.recordingId]: e.target.value }))}
-                aria-label="Attach to lead"
-              >
-                <option value="">— pick the lead this call was with</option>
-                <optgroup label="Open leads">
-                  {options.open.map((o) => (
-                    <option key={o.id} value={o.id}>{o.label}</option>
-                  ))}
-                </optgroup>
-                <optgroup label="Everyone else">
-                  {options.rest.map((o) => (
-                    <option key={o.id} value={o.id}>{o.label}</option>
-                  ))}
-                </optgroup>
-              </select>
+              <TypeAhead
+                value={options.all.find((o) => o.id === picks[rec.recordingId])?.label || ""}
+                options={options.labels}
+                onChange={(label) => setPicks((p) => ({ ...p, [rec.recordingId]: options.byLabel.get(label) || "" }))}
+                placeholder="Type the lead's name — matches fill in as you type"
+                ariaLabel="Attach to lead"
+                maxSuggestions={10}
+              />
               <button
                 className="btn small"
                 disabled={!picks[rec.recordingId] || busy === rec.recordingId}
