@@ -44,7 +44,7 @@ export const COLS = {
   watchJson: "watch_json",
 } as const;
 
-export type StatusBucket = "new" | "active" | "snoozed" | "won" | "lost" | "inactive" | "support" | "unqualified" | "closed";
+export type StatusBucket = "new" | "active" | "snoozed" | "dormant" | "won" | "lost" | "inactive" | "support" | "unqualified" | "closed";
 
 export interface DraftMessage {
   channel: "sms" | "email";
@@ -179,6 +179,9 @@ function normStatus(raw: string): StatusBucket {
   if (s.startsWith("won")) return "won";
   if (s.startsWith("lost")) return "lost";
   if (s.includes("unqualified") || s.includes("not a lead")) return "unqualified";
+  // Dormant: not worth our outreach, but the moment THEY reach out the lead
+  // wakes to Active on its own (appendTimeline handles the wake).
+  if (s.startsWith("dormant") || s.includes("their move") || s.startsWith("parked")) return "dormant";
   if (s.startsWith("closed") || s === "resolved") return "closed";
   if (s.includes("support")) return "support";
   if (s.startsWith("new")) return "new";
@@ -617,16 +620,22 @@ export async function appendTimeline(
   opts: { touchLastContact?: boolean } = {}
 ): Promise<void> {
   const s = await ensureAppColumns(shape);
-  const timeline = fitTimeline([...lead.timeline, event]);
+  // A dormant lead that contacts us (text, email, call, webchat) wakes itself.
+  const wake = event.kind === "inbound" && lead.statusBucket === "dormant";
+  const events: TimelineEvent[] = wake
+    ? [event, { at: new Date(Math.max(Date.now(), Date.parse(event.at) + 1)).toISOString(), who: "app", kind: "assign", text: "🔔 Dormant lead reached out — it's active again (no outreach was planned; they made the first move)." }]
+    : [event];
+  const timeline = fitTimeline([...lead.timeline, ...events]);
+  const lines = events.map((e) => `[${new Date(e.at).toLocaleDateString("en-US")} ${e.who} · ${e.kind}] ${e.text}`).join("\n");
   const stamp = new Date(event.at);
-  const line = `[${stamp.toLocaleDateString("en-US")} ${event.who} · ${event.kind}] ${event.text}`;
   const fields: Partial<Record<keyof typeof COLS, string>> = {
     timelineJson: JSON.stringify(timeline),
-    appActivity: fitAppActivity(lead.appActivity ? `${lead.appActivity}\n${line}` : line),
+    appActivity: fitAppActivity(lead.appActivity ? `${lead.appActivity}\n${lines}` : lines),
   };
-  if (opts.touchLastContact) {
+  if (opts.touchLastContact || wake) {
     fields.lastContact = stamp.toLocaleDateString("en-US");
   }
+  if (wake) fields.status = "Active (they reached out)";
   await updateLeadFields(lead, s, fields);
 }
 

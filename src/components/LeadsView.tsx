@@ -9,7 +9,7 @@ import { AddressInput } from "@/components/AddressInput";
 import { AttachButton, type PickedFile } from "@/components/AttachButton";
 import { looseIncludes } from "@/lib/search";
 
-const BUCKETS = ["all", "open", "new", "active", "snoozed", "won", "lost", "closed", "unqualified", "inactive", "support"] as const;
+const BUCKETS = ["all", "open", "new", "active", "snoozed", "dormant", "won", "lost", "closed", "unqualified", "inactive", "support"] as const;
 
 const SORT_MODES = ["priority", "newest", "contact-newest", "contact-oldest"] as const;
 type SortMode = (typeof SORT_MODES)[number];

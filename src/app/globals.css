@@ -271,6 +271,7 @@ h2 {
 .badge.inactive { background: #eeeae5; color: var(--ink-3); }
 .badge.support { background: var(--info-soft); color: var(--info); }
 .badge.snoozed { background: var(--info-soft); color: var(--info); }
+.badge.dormant { background: #ece9f5; color: #5b4b8a; }
 .badge.woke { background: var(--warn-soft); color: var(--warn); }
 .badge.unqualified { background: #eeeae5; color: var(--ink-3); }
 .badge.closed { background: #eeeae5; color: var(--ink-3); }

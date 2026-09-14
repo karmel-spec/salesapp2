@@ -13,7 +13,7 @@ import { LeadMap, Pin, heatColor, pinValue } from "@/components/LeadMap";
  * worth, then route the truck where the sales are.
  */
 
-const BUCKETS = ["open", "new", "active", "snoozed", "won", "lost", "all"] as const;
+const BUCKETS = ["open", "new", "active", "snoozed", "dormant", "won", "lost", "all"] as const;
 type Bucket = (typeof BUCKETS)[number];
 
 function inBucket(l: MapLead, bucket: Bucket): boolean {

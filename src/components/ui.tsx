@@ -7,6 +7,7 @@ export function StatusBadge({ lead }: { lead: Lead }) {
     new: "New",
     active: "Active",
     snoozed: "💤 Snoozed",
+    dormant: "🌙 Dormant",
     won: "Won",
     lost: "Lost",
     inactive: "Inactive",
