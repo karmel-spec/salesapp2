@@ -88,7 +88,9 @@ function TopTenInner() {
             ? data.auto
               ? "the ten leads assigned to Arnold he should work first — ranked live from the Leads Log (replies waiting, heat, value, drafts, quiet time)"
               : "Arnold's own picks among the leads assigned to him"
-            : "the ten most promising revenue leads from the morning brief"}
+            : data.auto
+              ? "the ten leads to work right now — waiting on you, next step in motion, revenue, heat; Arnold's morning picks get a boost"
+              : "the ten most promising revenue leads from the morning brief"}
           {saved && !data.auto ? ` · picked ${saved.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} ${saved.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}
         </span>
         <span className="spacer" />

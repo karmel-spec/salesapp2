@@ -51,7 +51,7 @@ export function StreakWidget() {
     const streakLine = `${d.streak}-business-day streak${d.streak >= 5 ? " 🔥" : ""} — weekends and holidays don't count against you.`;
     if (level === "m1") setParty({ level, title: "First lead worked today! 🎉", lines: [streakLine, "Don't break it — one worked lead a day keeps the streak alive."] });
     if (level === "m5") setParty({ level, title: "Five leads worked! 🔥", lines: ["Halfway to a Perfect Ten.", d.tenStreak > 0 ? `Your Perfect-Ten streak is ${d.tenStreak} day${d.tenStreak > 1 ? "s" : ""} — five more keeps it alive.` : "Five more today starts a Perfect-Ten streak.", streakLine] });
-    if (level === "m10") setParty({ level, title: "PERFECT TEN! 🏆", lines: [`10 leads worked today — that's a ${d.tenStreak}-day Perfect-Ten streak.`, best ? `Your best ever is ${best.count} in one day (${fmt(best.date)}). Think you can beat it today?` : "That's your best day yet — keep going.", "Keep up the great work."] });
+    if (level === "m10") setParty({ level, title: "PERFECT TEN! 🏆", lines: [`${n} leads worked today — that's a ${d.tenStreak}-day Perfect-Ten streak.`, best ? `Your best ever is ${best.count} in one day (${fmt(best.date)}). Think you can beat it today?` : "That's your best day yet — keep going.", "Keep up the great work."] });
     if (level === "record") setParty({ level, title: "NEW RECORD! 🚀", lines: [`${n} leads worked in one day — your old best was ${best!.count} (${fmt(best!.date)}).`, "Every one you add today raises the bar. Keep going!"] });
   }
 

@@ -35,6 +35,16 @@ export async function GET(req: NextRequest) {
       // scope "arnold" — then his picks win for the day.
       list = { savedAt: new Date().toISOString(), savedBy: "auto-ranked", items: rankLeads(leads, "Arnold") };
       auto = true;
+    } else if (scope === "brigham" && list && list.savedBy !== "next-ten") {
+      // Brigham's screen: live closing-focused ranking. Arnold's morning picks
+      // boost a lead (+15 and his reason) but can't carry a stale one alone.
+      const fresh = Date.now() - Date.parse(list.savedAt) < 36 * 3600_000;
+      const boosts = new Map(fresh ? list.items.map((x) => [x.leadId, x.reason] as [string, string]) : []);
+      list = { savedAt: list.savedAt, savedBy: fresh ? "ranked · Arnold's picks boosted" : "auto-ranked", items: rankLeads(leads, "Brigham", new Set(), boosts) };
+      auto = true;
+    } else if (scope === "brigham" && !list) {
+      list = { savedAt: new Date().toISOString(), savedBy: "auto-ranked", items: rankLeads(leads, "Brigham") };
+      auto = true;
     }
     if (!list) return NextResponse.json({ savedAt: null, scope, items: [] });
     const savedAt = list.savedAt;
