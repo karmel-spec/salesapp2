@@ -1399,3 +1399,11 @@ tbody tr:hover { background: #faf7f2; }
 .celebrate .btn{align-self:center;margin-top:6px}
 @keyframes celebrate-pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
 @keyframes celebrate-in{from{opacity:0}to{opacity:1}}
+
+/* Lead Details header: Status + Heat up top, eye-catching */
+.details-controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0 12px;flex:1}
+.details-control{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:12px;background:#fbf3e4;border:1.5px solid #E8B54D;box-shadow:0 2px 8px rgba(158,32,32,.08)}
+.details-control.status{min-width:260px}
+.details-control .lbl{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--crimson,#9E2020);white-space:nowrap}
+.details-control select,.details-control .inline-status{font-weight:600}
+@media (max-width:720px){.details-controls{margin:8px 0 0;width:100%}.details-control{flex:1;min-width:0}}

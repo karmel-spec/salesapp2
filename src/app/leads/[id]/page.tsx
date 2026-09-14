@@ -244,12 +244,21 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
           <div className="card" style={{ marginBottom: 18 }}>
             <div style={{ display: "flex", alignItems: "baseline" }}>
               <h2>Details</h2>
+              <div className="details-controls">
+                <label className="details-control status">
+                  <span className="lbl">Status</span>
+                  <InlineStatus lead={lead} onFlash={setFlash} onDone={loadSoon} />
+                </label>
+                <label className="details-control heat">
+                  <span className="lbl">🔥 Heat</span>
+                  <InlineSelect lead={lead} field="score" value={lead.score} options={["10", "9", "8", "7", "6", "5", "4", "3", "2", "1"]} emptyLabel="— 10 hot, 1 cold" onFlash={setFlash} onDone={loadSoon} />
+                </label>
+              </div>
               <span className="spacer" style={{ flex: 1 }} />
               <span className="muted" style={{ fontSize: 12 }}>click any value to edit</span>
             </div>
             <dl className="kv">
               <dt>Headline</dt><dd><InlineText lead={lead} field="headline" value={lead.headline} onFlash={setFlash} onDone={loadSoon} /></dd>
-              <dt>Status</dt><dd><InlineStatus lead={lead} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Rep (sheet)</dt><dd><InlineSelect lead={lead} field="rep" value={lead.repRaw} options={[...roster]} emptyLabel="— unassigned (defaults to Brigham)" onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Sub-rep</dt><dd><InlineSelect lead={lead} field="subRep" value={lead.subRep} options={[...roster]} emptyLabel="— none (add a helper, e.g. Arnold)" onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Opened by</dt><dd><InlineSelect lead={lead} field="openedBy" value={lead.openedBy} options={[...roster]} emptyLabel="— not recorded" onFlash={setFlash} onDone={loadSoon} /></dd>
@@ -284,7 +293,6 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
               <dt>Piano</dt><dd><InlineText lead={lead} field="pianoType" value={lead.pianoType} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Source of business</dt><dd><InlineSelect lead={lead} field="source" value={lead.source} options={LEAD_SOURCES} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Inquiry method</dt><dd><InlineSelect lead={lead} field="inquiryMethod" value={lead.inquiryMethod} options={INQUIRY_METHODS} onFlash={setFlash} onDone={loadSoon} /></dd>
-              <dt>Hot Lead?</dt><dd><InlineSelect lead={lead} field="score" value={lead.score} options={["10", "9", "8", "7", "6", "5", "4", "3", "2", "1"]} emptyLabel="— 10 hot, 1 cold" onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>$ Value / Estimate</dt><dd><InlineText lead={lead} field="value" value={lead.value} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Date added</dt><dd>{lead.dateAdded || "—"}</dd>
               <dt>Last contact</dt><dd>{lead.lastContact || "—"} <span className="muted">({fmtDays(lead)})</span></dd>
