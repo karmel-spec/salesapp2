@@ -200,8 +200,8 @@ export function LeadsView({ scope: tabScope }: { scope?: LeadsScope }) {
         {scope !== "support" && (
         <button
           className="topten-burst"
-          title="Arnold's Top Ten — today's ten most promising revenue leads"
-          onClick={() => router.push("/leads/top-ten")}
+          title={scope === "others" ? "Arnold's Top Ten — the ten leads assigned to Arnold he should work first" : "Arnold's Top Ten — today's ten most promising revenue leads"}
+          onClick={() => router.push(scope === "others" ? "/leads/top-ten?scope=arnold" : "/leads/top-ten")}
         >
           <span>TOP<br />TEN</span>
         </button>

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/client";
 
 /**
@@ -28,33 +29,77 @@ interface Item {
   hasPhone: boolean;
   hasEmail: boolean;
   gone: boolean;
+  worked: boolean;
 }
 
 export default function TopTenPage() {
-  const [data, setData] = useState<{ savedAt: string | null; items: Item[] } | null>(null);
+  return (
+    <Suspense fallback={<div className="spin">Pulling up Arnold&apos;s Top Ten…</div>}>
+      <TopTenInner />
+    </Suspense>
+  );
+}
+
+function TopTenInner() {
+  const params = useSearchParams();
+  const arnold = params.get("scope") === "arnold";
+  type Data = { savedAt: string | null; auto?: boolean; exhausted?: boolean; items: Item[] };
+  const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const scopeQ = arnold ? "scope=arnold" : "scope=brigham";
 
   useEffect(() => {
-    api<{ savedAt: string | null; items: Item[] }>("/api/top-ten")
+    api<Data>(`/api/top-ten?${scopeQ}`)
       .then(setData)
       .catch((e) => setError(e.message));
-  }, []);
+  }, [scopeQ]);
+
+  const nextTen = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const d = await api<Data>(`/api/top-ten?${scopeQ}&next=1`);
+      if (d.exhausted) setError("No more open leads to rank right now — every open lead has been offered today.");
+      else setData(d);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   if (error) return <div className="banner bad">⚠ {error}</div>;
   if (!data) return <div className="spin">Pulling up Arnold&apos;s Top Ten…</div>;
 
   const saved = data.savedAt ? new Date(data.savedAt) : null;
-  const stale = saved ? Date.now() - saved.getTime() > 36 * 3600_000 : false;
+  const stale = saved && !data.auto ? Date.now() - saved.getTime() > 36 * 3600_000 : false;
+  const open = data.items.filter((x) => !x.worked);
+  const worked = data.items.filter((x) => x.worked);
+  const ordered = [...open, ...worked];
 
   return (
     <>
       <div className="page-head">
-        <Link href="/leads" className="muted">← Leads</Link>
-        <h1>⭐ Arnold&apos;s Top Ten</h1>
+        <Link href={arnold ? "/leads" : "/bl-leads"} className="muted">← {arnold ? "Leads" : "BL Leads"}</Link>
+        <h1>⭐ {arnold ? "Arnold's Top Ten — his own leads" : "Arnold's Top Ten"}</h1>
         <span className="sub">
-          the ten most promising revenue leads from the morning brief
-          {saved ? ` · picked ${saved.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} ${saved.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}
+          {arnold
+            ? data.auto
+              ? "the ten leads assigned to Arnold he should work first — ranked live from the Leads Log (replies waiting, heat, value, drafts, quiet time)"
+              : "Arnold's own picks among the leads assigned to him"
+            : "the ten most promising revenue leads from the morning brief"}
+          {saved && !data.auto ? ` · picked ${saved.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} ${saved.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}
         </span>
+        <span className="spacer" />
+        {data.items.length > 0 && (
+          <span className="topten-progress">
+            <span className="muted">{worked.length} of {data.items.length} worked</span>
+            <button className="btn" onClick={nextTen} disabled={busy} title="Set these aside and rank the next ten leads that haven't been offered today">
+              {busy ? "Ranking…" : "🔄 Next ten"}
+            </button>
+          </span>
+        )}
       </div>
 
       {stale && (
@@ -72,11 +117,12 @@ export default function TopTenPage() {
         </div>
       ) : (
         <div className="topten-list">
-          {data.items.map((x) => (
-            <Link key={x.leadId} href={`/leads/${encodeURIComponent(x.leadId)}`} className="topten-row">
+          {ordered.map((x) => (
+            <Link key={x.leadId} href={`/leads/${encodeURIComponent(x.leadId)}`} className={`topten-row${x.worked ? " worked" : ""}`}>
               <span className="topten-rank">{x.rank}</span>
               <span className="topten-main">
                 <span className="topten-name">
+                  {x.worked && <span className="badge ok" style={{ marginRight: 8 }}>✓ worked</span>}
                   {x.leadName}
                   {x.gone && <span className="muted"> (no longer in the Leads Log)</span>}
                   {["won", "closed", "lost", "inactive", "unqualified"].includes(x.statusBucket) && (
@@ -84,7 +130,7 @@ export default function TopTenPage() {
                   )}
                 </span>
                 {x.headline && <span className="topten-headline">{x.headline}</span>}
-                <span className="topten-reason">💡 {x.reason || "On Arnold's list this morning."}</span>
+                <span className="topten-reason">💡 {x.reason || (arnold ? "Assigned to Arnold." : "On Arnold's list this morning.")}</span>
               </span>
               <span className="topten-facts">
                 {x.heat && <span className="chip hot">🔥 {x.heat}/10</span>}
