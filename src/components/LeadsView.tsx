@@ -53,6 +53,8 @@ function initialParams(scope?: LeadsScope) {
 
 export function LeadsView({ scope: tabScope }: { scope?: LeadsScope }) {
   const router = useRouter();
+  const [me, setMe] = useState("");
+  useEffect(() => { setMe(getWho()); const f = () => setMe(getWho()); window.addEventListener("blp:who", f); return () => window.removeEventListener("blp:who", f); }, []);
   // ?all=1 (dashboard tiles, old bookmarks) shows the whole company on either tab.
   const [scope] = useState<LeadsScope | undefined>(() =>
     typeof window !== "undefined" && new URLSearchParams(window.location.search).get("all") === "1" ? undefined : tabScope
@@ -197,6 +199,11 @@ export function LeadsView({ scope: tabScope }: { scope?: LeadsScope }) {
           )}
         </span>
         <span className="spacer" />
+        {scope === "others" && me === "Arnold" && (
+          <button className="topten-burst worst" title="Worst 50 — the open leads least worth the team's time: quick check-in text, then Dormant" onClick={() => router.push("/leads/worst-fifty")}>
+            <span>WORST<br />50</span>
+          </button>
+        )}
         {scope !== "support" && (
         <button
           className="topten-burst"

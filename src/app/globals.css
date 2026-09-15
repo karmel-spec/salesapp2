@@ -1416,3 +1416,9 @@ tbody tr:hover { background: #faf7f2; }
 .details-control .lbl{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--crimson,#9E2020);white-space:nowrap}
 .details-control select,.details-control .inline-status{font-weight:600}
 @media (max-width:720px){.details-controls{margin:8px 0 0;width:100%}.details-control{flex:1;min-width:0}}
+
+/* Worst 50 burst (Arnold's login) — grey-blue twin of the Top Ten starburst */
+.topten-burst.worst{background:#5b6b7a;color:#fff;margin-right:8px}
+.topten-row.worst{border-left:4px solid #5b6b7a}
+.topten-row.worst.worked{opacity:.55}
+.topten-facts .btn.small{padding:4px 10px;font-size:12px}

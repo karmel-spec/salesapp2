@@ -58,6 +58,10 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
   const [noteKind, setNoteKind] = useState("note");
   const [savingNote, setSavingNote] = useState(false);
   const [compose, setCompose] = useState<"sms" | "email" | null>(null);
+  // Deep link from the Worst 50 / Top Ten: /leads/<id>?compose=sms opens the text composer.
+  useEffect(() => {
+    try { if (new URLSearchParams(window.location.search).get("compose") === "sms") setCompose("sms"); } catch {}
+  }, []);
   const typeOptions = useLeadTypeOptions();
   const roster = useRoster();
   const router = useRouter();
