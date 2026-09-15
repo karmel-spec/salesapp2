@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getLeads, getLead, markInboundRead, markAllInboundRead, setInboundFolder, archiveInbound, type Lead, type TimelineEvent } from "@/lib/leads";
 import { listFolders } from "@/lib/folders";
 import { requireSession, jsonError } from "@/lib/api";
-import { scopeOf } from "@/lib/inbox-split";
+import { scopeOf, serviceFolderOf } from "@/lib/inbox-split";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     const scopeKeys = (l: Lead, e: TimelineEvent): string[] => {
       const s = scopeOf(l, e);
       if (s !== "new") return [s];
-      const f = (e.folder || "").trim().toLowerCase();
+      const f = serviceFolderOf(l, e);
       return ["new", f === "tuning" ? "new:tuning" : f === "moving" ? "new:moving" : "new:other"];
     };
     const items: InboxItem[] = [];

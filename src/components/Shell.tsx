@@ -11,7 +11,7 @@ const NAV: { href: string; label: string; sub?: boolean; boardKey?: string; grou
   { href: "/bl-inbox", label: "BL Client Responses" },
   { href: "/bl-leads", label: "BL Leads" },
   { href: "/leads", label: "Leads" },
-  { href: "/inbox", label: "Client Responses" },
+  { href: "/inbox", label: "Sales Responses" },
   // New Inquiries splits into three sub-inboxes whose counts add up to it.
   { href: "/new-inquiries", label: "New Inquiries", group: "inquiries" },
   { href: "/new-inquiries/tuning", label: "Tuning", sub: true, in: "inquiries" },

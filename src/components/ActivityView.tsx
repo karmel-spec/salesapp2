@@ -10,7 +10,7 @@ import { ThreadComposer } from "@/components/ThreadComposer";
 import { messageSource, SOURCE_META } from "@/lib/source";
 import { SourceIcon } from "@/components/SourceIcon";
 import { looseIncludes } from "@/lib/search";
-import { inScope, type InboxScope } from "@/lib/inbox-split";
+import { inScope, type InboxScope, serviceFolderOf } from "@/lib/inbox-split";
 import { TypeAhead } from "@/components/TypeAhead";
 
 type Row = {
@@ -256,8 +256,9 @@ export function ActivityView({
         // Split inboxes: a reply belongs to exactly one of them.
         if (e.kind === "inbound" && !inScope(l, e, scope)) continue;
         // Pinned folder page: only that folder's messages count, show, or get marked read.
-        if (e.kind === "inbound" && folder && (e.folder || "").trim().toLowerCase() !== folder.toLowerCase()) continue;
-        if (e.kind === "inbound" && excludeFolders?.includes((e.folder || "").trim().toLowerCase())) continue;
+        const effFolder = e.kind === "inbound" ? serviceFolderOf(l, e) || (e.folder || "").trim().toLowerCase() : "";
+        if (e.kind === "inbound" && folder && effFolder !== folder.toLowerCase()) continue;
+        if (e.kind === "inbound" && excludeFolders?.includes(effFolder)) continue;
         all.push({
           ...e,
           leadId: l.id,
@@ -672,7 +673,7 @@ export function ActivityView({
             : scope === "new"
               ? folder ? `${folder} inquiries` : excludeFolders ? "Customer Service" : "New Inquiries"
               : inboxOnly
-                ? "Client Responses"
+                ? "Sales Responses"
                 : "Activity"}
         </h1>
         <span className="sub">
