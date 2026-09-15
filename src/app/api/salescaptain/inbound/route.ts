@@ -84,6 +84,11 @@ export async function POST(req: NextRequest) {
     if (lead && lead.timeline.some((e) => e.fingerprint === fingerprint)) {
       return NextResponse.json({ matched: true, duplicate: true, leadId: lead.id, leadName: lead.name, how });
     }
+    // Vendors, contractors and staff text the same lines as customers. Once a
+    // contact is marked that way in its status, nothing gets logged on it.
+    if (lead && /vendor|contractor|employee|staff|supplier/i.test(lead.status || "")) {
+      return NextResponse.json({ matched: true, skipped: "vendor/staff contact — not logged", leadId: lead.id, leadName: lead.name });
+    }
     const direction = input.direction === "outbound" ? "outbound" : "inbound";
     const media = (Array.isArray(input.media) ? input.media : []).filter((u) => typeof u === "string" && /^https?:\/\//.test(u)).slice(0, 10);
     const mediaLines = media.length ? `\n📎 ${media.join("\n📎 ")}` : "";
