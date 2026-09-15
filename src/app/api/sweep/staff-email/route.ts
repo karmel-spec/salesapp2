@@ -13,7 +13,8 @@ export async function GET(req: NextRequest) {
     if (guard) return guard;
   }
   try {
-    const r = await runStaffEmailSweep({ dryRun: req.nextUrl.searchParams.get("dry") === "1", days: Number(req.nextUrl.searchParams.get("days") || 3) || 3 });
+    const q = req.nextUrl.searchParams;
+    const r = await runStaffEmailSweep({ dryRun: q.get("dry") === "1", days: Number(q.get("days") || 3) || 3, box: q.get("box") || undefined, offset: Number(q.get("offset") || 0) || 0, chunk: Number(q.get("chunk") || 40) || 40 });
     return NextResponse.json(r);
   } catch (err) {
     return jsonError(err);

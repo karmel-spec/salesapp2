@@ -43,19 +43,27 @@ export function staffEmailEvents(l: Lead, msgs: { rfcMessageId: string; subject:
   return out.sort((a, b) => a.at.localeCompare(b.at));
 }
 
-export async function runStaffEmailSweep(opts: { days?: number; dryRun?: boolean; limit?: number } = {}) {
+export async function runStaffEmailSweep(opts: { days?: number; dryRun?: boolean; limit?: number; box?: string; offset?: number; chunk?: number } = {}) {
   const days = opts.days ?? 3;
   const { leads, shape } = await getLeads(true);
   const pool = leads.filter((l) => OPEN.has(l.statusBucket) && l.emailClean);
   const byAddr = new Map<string, Lead[]>();
   for (const l of pool) { const a = l.emailClean.toLowerCase(); if (!byAddr.has(a)) byAddr.set(a, []); byAddr.get(a)!.push(l); }
-  // One search per mailbox for ALL recent mail, then match addresses locally — far fewer API calls than per-lead searches.
+  // One search per mailbox for ALL recent mail, then match addresses locally.
+  // Chunked (box + offset) so a call stays under Netlify's route time limit;
+  // the cron's background function walks the chunks.
+  const boxes = opts.box ? [opts.box] : SWEEP_MAILBOXES;
+  const offset = opts.offset ?? 0, chunk = opts.chunk ?? 40;
   const recent: Awaited<ReturnType<typeof getPlainMessage>>[] = [];
   const errors: string[] = [];
-  for (const box of SWEEP_MAILBOXES) {
+  let total = 0, done = true;
+  for (const box of boxes) {
     try {
       const ids = await searchMessageIds(box, `newer_than:${days}d -from:no-reply@salescaptain.com -category:promotions`, 600);
-      for (const id of ids) { try { recent.push(await getPlainMessage(box, id)); } catch { /* skip one */ } }
+      total += ids.length;
+      const slice = opts.box ? ids.slice(offset, offset + chunk) : ids;
+      if (opts.box && offset + chunk < ids.length) done = false;
+      for (const id of slice) { try { recent.push(await getPlainMessage(box, id)); } catch { /* skip one */ } }
     } catch (e) { errors.push(`${box}: ${String(e).slice(0, 80)}`); }
   }
   const results: { id: string; name: string; added: number; unread: number }[] = [];
@@ -79,5 +87,5 @@ export async function runStaffEmailSweep(opts: { days?: number; dryRun?: boolean
       if (opts.limit && written >= opts.limit) break;
     }
   }
-  return { days, mailboxes: SWEEP_MAILBOXES.length, recentMessages: recent.length, leadsWithEmail: pool.length, leadsTouched: results.length, eventsAdded: results.reduce((s, r) => s + r.added, 0), written, dryRun: !!opts.dryRun, results, errors };
+  return { days, box: opts.box || "all", offset, chunk, total, done, nextOffset: done ? null : offset + chunk, recentMessages: recent.length, leadsWithEmail: pool.length, leadsTouched: results.length, eventsAdded: results.reduce((s, r) => s + r.added, 0), written, dryRun: !!opts.dryRun, results, errors };
 }
