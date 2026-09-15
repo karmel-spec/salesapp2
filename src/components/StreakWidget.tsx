@@ -52,9 +52,7 @@ export function StreakWidget() {
       title: `WON! 🏆 ${latest ? latest.name : ""}`.trim(),
       lines: [
         `${mineLine}${latest?.value ? `${latest.value} — ` : ""}another piano finding its home.`,
-        `${w.month.label}: ${w.month.count} sale${w.month.count === 1 ? "" : "s"}${w.month.dollars ? ` · ${usd(w.month.dollars)}` : ""}${w.month.mine ? ` · ${w.month.mine} yours` : ""}.`,
-        `${w.year.label}: ${w.year.count} sale${w.year.count === 1 ? "" : "s"}${w.year.dollars ? ` · ${usd(w.year.dollars)}` : ""}${w.year.mine ? ` · ${w.year.mine} yours` : ""}.`,
-        `All-time in the console: ${w.allTime.count} won${w.allTime.dollars ? ` · ${usd(w.allTime.dollars)}` : ""}.${w.bestMonth ? ` Best month: ${w.bestMonth.count} (${w.bestMonth.label})${w.bestMonth.label === w.month.label ? " — that's this month!" : ", within reach?"}` : ""}`,
+        `${w.month.label} so far: ${w.month.count} sale${w.month.count === 1 ? "" : "s"}${w.month.dollars ? ` · ${usd(w.month.dollars)} in sales volume` : ""}.`,
         "Keep closing. Every win here is a family with music in the house.",
       ],
     });
