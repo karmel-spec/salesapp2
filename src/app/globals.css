@@ -1372,10 +1372,13 @@ tbody tr:hover { background: #faf7f2; }
 .snooze-preview li{margin:2px 0}
 
 /* ---- Sales streaks ---- */
-.streak-chip{display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap;margin:8px 10px 4px;padding:7px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#f3ede2;font-size:12px;font-weight:600;cursor:pointer;width:calc(100% - 20px)}
+.streak-chips{display:flex;flex-direction:column;gap:6px;margin:6px 10px 10px}
+.streak-chip{display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap;padding:7px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#f3ede2;font-size:12px;font-weight:600;cursor:pointer;width:100%}
+.streak-chip.team{border-color:rgba(61,111,182,.5);background:rgba(61,111,182,.12)}
+.streak-chip.team.alive{border-color:rgba(120,170,240,.8);background:rgba(61,111,182,.28)}
 .streak-chip.alive{border-color:rgba(232,181,77,.55);background:rgba(232,181,77,.12)}
 .streak-chip .sep{opacity:.5}
-.streak-panel{margin:4px 10px 8px;padding:12px;border-radius:12px;background:#fff;color:var(--ink,#121212);box-shadow:0 8px 24px rgba(0,0,0,.25);font-size:13px;display:flex;flex-direction:column;gap:10px}
+.streak-panel{margin:0 10px 10px;padding:12px;border-radius:12px;background:#fff;color:var(--ink,#121212);box-shadow:0 8px 24px rgba(0,0,0,.25);font-size:13px;display:flex;flex-direction:column;gap:10px}
 .streak-head{display:flex;justify-content:space-between;align-items:center}
 .streak-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .streak-stats>div{display:flex;flex-direction:column;background:#f7f4ec;border-radius:8px;padding:8px}

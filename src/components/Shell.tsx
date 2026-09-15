@@ -354,6 +354,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           {/* Phones: the brand area is a slim top bar, so the button lives in the drawer instead. */}
           <NewLeadButton className="btn new-lead-btn drawer-only" />
           <GlobalSearch className="drawer-only" />
+          <StreakWidget />
           {NAV.map((item) => {
             if (item.in && collapsed[item.in]) return null;
             const active =
@@ -433,7 +434,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <div className="who-wrap">
             <WhoAmI />
           </div>
-          <StreakWidget />
         </nav>
         {/* The helper dock (#blp-dock: assistant faces + 💡) is created in
             layout.tsx outside React's tree and pinned over this footer area

@@ -140,12 +140,22 @@ export function StreakWidget() {
   const flame = data.streak >= 10 ? "🔥🔥" : data.streak >= 3 ? "🔥" : "✨";
   return (
     <>
-      <button className={`streak-chip${data.streakAlive ? " alive" : ""}`} onClick={() => setOpen((o) => !o)} title="Your sales streak — leads worked per business day">
-        <span>{flame} {data.streak}-day streak</span>
-        <span className="sep">·</span>
-        <span>{n} worked today</span>
-        {data.best && <><span className="sep">·</span><span>best {data.best.count}</span></>}
-      </button>
+      <div className="streak-chips">
+        <button className={`streak-chip${data.streakAlive ? " alive" : ""}`} onClick={() => setOpen((o) => !o)} title="Your sales streak — leads worked per business day">
+          <span>{flame} {data.streak}-day sales streak</span>
+          <span className="sep">·</span>
+          <span>{n} worked today</span>
+          {data.best && <><span className="sep">·</span><span>best {data.best.count}</span></>}
+        </button>
+        {data.teamQuestions && (
+          <button className={`streak-chip team${data.teamQuestions.streakAlive ? " alive" : ""}`} onClick={() => setOpen((o) => !o)} title="Team support streak — business days you answered at least one 'Question for Brigham' on the Store Map task boards">
+            <span>💬 {data.teamQuestions.streak}-day team support streak</span>
+            <span className="sep">·</span>
+            <span>{data.teamQuestions.open} waiting</span>
+            {data.teamQuestions.answeredToday > 0 && <><span className="sep">·</span><span>{data.teamQuestions.answeredToday} answered today</span></>}
+          </button>
+        )}
+      </div>
       {open && (
         <div className="streak-panel">
           <div className="streak-head">
