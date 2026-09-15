@@ -1396,6 +1396,8 @@ tbody tr:hover { background: #faf7f2; }
 .celebrate.m10 .celebrate-card,.celebrate.record .celebrate-card,.celebrate.week .celebrate-card{border:3px solid #E8B54D;padding:34px 36px}
 .celebrate.speed .celebrate-title{color:#3D6FB6}
 .celebrate.allclear .celebrate-card{border:3px solid #E8B54D;padding:30px 34px}
+.celebrate.won .celebrate-card{border:3px solid #2E7D5B;padding:34px 36px;background:linear-gradient(180deg,#fff,#f3faf6)}
+.celebrate.won .celebrate-title{color:#2E7D5B;font-size:40px}
 .celebrate.allclear .celebrate-title{font-size:34px}
 .celebrate .btn.ghost{background:transparent;color:var(--ink-2,#555);border:1px solid var(--line,#ccc)}
 .celebrate-card .btn+.btn{margin-left:8px}

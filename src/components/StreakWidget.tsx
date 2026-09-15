@@ -10,10 +10,11 @@ import type { Streak } from "@/lib/streak";
  * a bigger one for a new personal record. Business days only — weekends and
  * holidays never break a streak. Each milestone celebrates once per day.
  */
-type Level = "m1" | "m5" | "m10" | "record" | "week" | "speed" | "allclear";
+type Level = "m1" | "m5" | "m10" | "record" | "week" | "speed" | "allclear" | "won";
+type Wins = { month: { count: number; dollars: number; mine: number; label: string }; year: { count: number; dollars: number; mine: number; label: string }; allTime: { count: number; dollars: number; mine: number }; bestMonth: { label: string; count: number } | null; latest: { name: string; value: string; when: string; closedBy: string } | null };
 type TeamQ = { open: number; byOwner: { owner: string; n: number; boardLink: string }[]; answeredToday: number; streak: number; streakAlive: boolean; bestStreak: number; tracking: boolean };
 type AllClear = { newUncontacted: number; topTenLeft: number; unreadReplies: number; clear: boolean };
-type StreakData = Streak & { allClear?: AllClear; teamQuestions?: TeamQ | null };
+type StreakData = Streak & { allClear?: AllClear; teamQuestions?: TeamQ | null; wins?: Wins };
 const fmt = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
 export function StreakWidget() {
@@ -21,6 +22,7 @@ export function StreakWidget() {
   const [data, setData] = useState<StreakData | null>(null);
   const [open, setOpen] = useState(false);
   const [party, setParty] = useState<{ level: Level; title: string; lines: string[]; link?: { href: string; label: string } } | null>(null);
+  const lastWins = useRef<number | null>(null);
 
   const load = useCallback(async (fresh = false) => {
     const w = getWho();
@@ -29,9 +31,34 @@ export function StreakWidget() {
     try {
       const d = await api<StreakData>(`/api/streak?who=${encodeURIComponent(w)}${fresh ? "&fresh=1" : ""}`);
       setData(d);
-      celebrate(d);
+      // A new Won since the last check → celebrate before anything else.
+      const wins = d.wins?.allTime.count ?? null;
+      if (wins !== null && lastWins.current !== null && wins > lastWins.current && d.wins) {
+        lastWins.current = wins;
+        celebrateWin(d.wins, d.who);
+      } else {
+        if (wins !== null) lastWins.current = wins;
+        celebrate(d);
+      }
     } catch { /* quiet — the chip just doesn't update */ }
   }, []);
+
+  function celebrateWin(w: Wins, me: string) {
+    const usd = (n: number) => (n ? `$${Math.round(n).toLocaleString()}` : "");
+    const latest = w.latest;
+    const mineLine = latest && latest.closedBy && latest.closedBy.toLowerCase() === me.toLowerCase() ? "You closed it. " : "";
+    setParty({
+      level: "won",
+      title: `WON! 🏆 ${latest ? latest.name : ""}`.trim(),
+      lines: [
+        `${mineLine}${latest?.value ? `${latest.value} — ` : ""}another piano finding its home.`,
+        `${w.month.label}: ${w.month.count} sale${w.month.count === 1 ? "" : "s"}${w.month.dollars ? ` · ${usd(w.month.dollars)}` : ""}${w.month.mine ? ` · ${w.month.mine} yours` : ""}.`,
+        `${w.year.label}: ${w.year.count} sale${w.year.count === 1 ? "" : "s"}${w.year.dollars ? ` · ${usd(w.year.dollars)}` : ""}${w.year.mine ? ` · ${w.year.mine} yours` : ""}.`,
+        `All-time in the console: ${w.allTime.count} won${w.allTime.dollars ? ` · ${usd(w.allTime.dollars)}` : ""}.${w.bestMonth ? ` Best month: ${w.bestMonth.count} (${w.bestMonth.label})${w.bestMonth.label === w.month.label ? " — that's this month!" : ", within reach?"}` : ""}`,
+        "Keep closing. Every win here is a family with music in the house.",
+      ],
+    });
+  }
 
   function celebrate(d: StreakData) {
     if (typeof window === "undefined") return;
@@ -170,8 +197,8 @@ function Celebration({ level, title, lines, link, onDone }: { level: Level; titl
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const resize = () => { canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr; canvas.style.width = innerWidth + "px"; canvas.style.height = innerHeight + "px"; };
     resize();
-    const N = level === "record" || level === "week" ? 700 : level === "m10" || level === "allclear" ? 500 : level === "m5" || level === "speed" ? 240 : 140;
-    const ms = level === "record" || level === "m10" || level === "week" ? 12_000 : 8_000;
+    const N = level === "record" || level === "week" || level === "won" ? 700 : level === "m10" || level === "allclear" ? 500 : level === "m5" || level === "speed" ? 240 : 140;
+    const ms = level === "record" || level === "m10" || level === "week" || level === "won" ? 12_000 : 8_000;
     const colors = ["#9E2020", "#B43333", "#E8B54D", "#F4E1A6", "#2E7D5B", "#3D6FB6", "#ffffff"];
     const W = canvas.width, H = canvas.height;
     const parts = Array.from({ length: N }, (_, i) => ({
@@ -207,7 +234,7 @@ function Celebration({ level, title, lines, link, onDone }: { level: Level; titl
         <div className="celebrate-title">{title}</div>
         {lines.map((l) => <div key={l} className="celebrate-line">{l}</div>)}
         {link && <a className="btn" href={link.href} target="_blank" rel="noopener" onClick={onDone}>{link.label}</a>}
-        <button className={link ? "btn ghost" : "btn"} onClick={onDone}>{link ? "Later" : level === "m10" || level === "record" || level === "week" ? "Let's go 💪" : "Keep going →"}</button>
+        <button className={link ? "btn ghost" : "btn"} onClick={onDone}>{link ? "Later" : level === "won" ? "Next one 🎹" : level === "m10" || level === "record" || level === "week" ? "Let's go 💪" : "Keep going →"}</button>
       </div>
     </div>
   );
