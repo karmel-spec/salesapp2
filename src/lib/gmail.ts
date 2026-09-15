@@ -296,3 +296,26 @@ export async function mailboxSummary(user: string, sample = 5): Promise<MailboxS
     return { user, total: 0, unread: 0, oldestDays: null, oldest: [], error: err instanceof Error ? err.message : String(err) };
   }
 }
+
+/** Message ids matching a Gmail search in this mailbox (up to `cap`). */
+export async function searchMessageIds(user: string, q: string, cap = 200): Promise<string[]> {
+  const token = await tokenFor(user);
+  let ids: string[] = [];
+  let page = "";
+  do {
+    const r = await gget<{ messages?: { id: string }[]; nextPageToken?: string }>(token, `/messages?q=${encodeURIComponent(q)}&maxResults=100${page ? `&pageToken=${page}` : ""}`);
+    ids = ids.concat((r.messages || []).map((m) => m.id));
+    page = r.nextPageToken || "";
+  } while (page && ids.length < cap);
+  return ids;
+}
+
+export interface PlainMessage { id: string; rfcMessageId: string; subject: string; from: string; fromAddress: string; to: string; internalDate: number; text: string }
+/** One message with headers and plain-text body. */
+export async function getPlainMessage(user: string, id: string): Promise<PlainMessage> {
+  const token = await tokenFor(user);
+  const m = await gget<{ id: string; internalDate?: string; payload?: Part & { headers?: { name: string; value: string }[] } }>(token, `/messages/${id}?format=full`);
+  const h = (n: string) => m.payload?.headers?.find((x) => x.name.toLowerCase() === n.toLowerCase())?.value || "";
+  const from = h("From");
+  return { id: m.id, rfcMessageId: h("Message-ID") || h("Message-Id"), subject: h("Subject"), from, fromAddress: addressOf(from).toLowerCase(), to: h("To"), internalDate: Number(m.internalDate || 0), text: bodyText(m.payload) };
+}
