@@ -671,7 +671,7 @@ export function ActivityView({
           {scope === "brigham"
             ? "BL Client Responses"
             : scope === "new"
-              ? folder ? `${folder} inquiries` : excludeFolders ? "Customer Service" : "New Inquiries"
+              ? folder ? `${folder} inquiries` : excludeFolders ? "Customer Service" : "SalesCaptain"
               : inboxOnly
                 ? "Sales Responses"
                 : "Activity"}
