@@ -191,3 +191,43 @@ export async function imapReply(user: string, opts: { to: string; subject: strin
   });
   return { id: info.messageId || "sent" };
 }
+
+export interface ImapPlainMessage { id: string; rfcMessageId: string; subject: string; from: string; fromAddress: string; to: string; internalDate: number; text: string }
+/**
+ * Recent mail (all folders, Gmail "All Mail") newer than `days`, oldest first,
+ * sliced by offset/chunk — for the daily staff-email sweep on personal Gmail.
+ */
+export async function imapRecent(user: string, days: number, offset = 0, chunk = 40): Promise<{ total: number; messages: ImapPlainMessage[] }> {
+  return withClient(user, async (c) => {
+    const lock = await c.getMailboxLock("[Gmail]/All Mail");
+    try {
+      const since = new Date(Date.now() - days * 86400_000);
+      const uids = ((await c.search({ since }, { uid: true })) || []).sort((a, b) => a - b);
+      const slice = uids.slice(offset, offset + chunk);
+      const out: ImapPlainMessage[] = [];
+      for (const uid of slice) {
+        try {
+          const dl = await c.download(String(uid), undefined, { uid: true });
+          const chunks: Buffer[] = [];
+          for await (const ch of dl.content) chunks.push(Buffer.from(ch));
+          const parsed = await simpleParser(Buffer.concat(chunks));
+          const fromAddr = parsed.from?.value?.[0];
+          const toText = Array.isArray(parsed.to) ? parsed.to.map((t) => t.text).join(", ") : parsed.to?.text || "";
+          out.push({
+            id: String(uid),
+            rfcMessageId: parsed.messageId || "",
+            subject: parsed.subject || "",
+            from: parsed.from?.text || "",
+            fromAddress: (fromAddr?.address || "").toLowerCase(),
+            to: toText,
+            internalDate: (parsed.date || new Date(0)).getTime(),
+            text: (parsed.text || (parsed.html ? htmlToText(String(parsed.html)) : "")).trim(),
+          });
+        } catch { /* skip one message */ }
+      }
+      return { total: uids.length, messages: out };
+    } finally {
+      lock.release();
+    }
+  });
+}

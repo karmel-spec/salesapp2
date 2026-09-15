@@ -1,6 +1,7 @@
 import { getLeads, getLead, updateLeadFields, fitTimeline, type Lead, type TimelineEvent } from "./leads";
 import { autoFolder } from "./folders";
 import { searchMessageIds, getPlainMessage } from "./gmail";
+import { imapConfigured, imapRecent } from "./imapmail";
 
 /**
  * Daily staff-email sweep. Emails the team sends to (or receives from) a
@@ -10,7 +11,9 @@ import { searchMessageIds, getPlainMessage } from "./gmail";
  * customer emails as inbound (unread if unanswered), staff emails as
  * email_out attributed by signature or mailbox. One sheet write per lead.
  */
-export const SWEEP_MAILBOXES = ["info@brighamlarsonpianos.com", "brigham@brighamlarsonpianos.com", "melissa@brighamlarsonpianos.com", "alisa@brighamlarsonpianos.com", "lisa@brighamlarsonpianos.com"];
+export const SWEEP_MAILBOXES = ["info@brighamlarsonpianos.com", "brigham@brighamlarsonpianos.com", "melissa@brighamlarsonpianos.com", "alisa@brighamlarsonpianos.com", "lisa@brighamlarsonpianos.com", "brighamlarson@gmail.com"];
+/** Personal Gmail has no delegation — it's read over IMAP with an app password. */
+const IMAP_BOXES = new Set(["brighamlarson@gmail.com"]);
 const OPEN = new Set(["new", "active", "snoozed", "support", "dormant"]);
 const REPS = "Brigham|Melissa|Lisa|Alisa|Karmel|Susie|Ezzy";
 const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
@@ -54,11 +57,19 @@ export async function runStaffEmailSweep(opts: { days?: number; dryRun?: boolean
   // the cron's background function walks the chunks.
   const boxes = opts.box ? [opts.box] : SWEEP_MAILBOXES;
   const offset = opts.offset ?? 0, chunk = opts.chunk ?? 40;
-  const recent: Awaited<ReturnType<typeof getPlainMessage>>[] = [];
+  const recent: { rfcMessageId: string; subject: string; fromAddress: string; to: string; internalDate: number; text: string }[] = [];
   const errors: string[] = [];
   let total = 0, done = true;
   for (const box of boxes) {
     try {
+      if (IMAP_BOXES.has(box)) {
+        if (!imapConfigured(box)) { errors.push(`${box}: not connected (app password missing)`); continue; }
+        const r = await imapRecent(box, days, opts.box ? offset : 0, opts.box ? chunk : 600);
+        total += r.total;
+        if (opts.box && offset + chunk < r.total) done = false;
+        recent.push(...r.messages.filter((m) => m.fromAddress !== "no-reply@salescaptain.com"));
+        continue;
+      }
       const ids = await searchMessageIds(box, `newer_than:${days}d -from:no-reply@salescaptain.com -category:promotions`, 600);
       total += ids.length;
       const slice = opts.box ? ids.slice(offset, offset + chunk) : ids;

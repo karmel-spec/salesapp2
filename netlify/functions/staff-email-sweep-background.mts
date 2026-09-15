@@ -2,7 +2,7 @@
  *  console call stays short. POST ?key=…[&days=3] */
 const SITE = process.env.URL || "https://blpsalesapp.netlify.app";
 const KEY = process.env.BLP_APP_ACCESS_KEY || "";
-const MAILBOXES = ["info@brighamlarsonpianos.com", "brigham@brighamlarsonpianos.com", "melissa@brighamlarsonpianos.com", "alisa@brighamlarsonpianos.com", "lisa@brighamlarsonpianos.com"];
+const MAILBOXES = ["info@brighamlarsonpianos.com", "brigham@brighamlarsonpianos.com", "melissa@brighamlarsonpianos.com", "alisa@brighamlarsonpianos.com", "lisa@brighamlarsonpianos.com", "brighamlarson@gmail.com"];
 
 export default async (req: Request) => {
   const url = new URL(req.url);
