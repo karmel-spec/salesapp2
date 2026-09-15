@@ -10,27 +10,30 @@ import type { Streak } from "@/lib/streak";
  * a bigger one for a new personal record. Business days only — weekends and
  * holidays never break a streak. Each milestone celebrates once per day.
  */
-type Level = "m1" | "m5" | "m10" | "record" | "week" | "speed";
+type Level = "m1" | "m5" | "m10" | "record" | "week" | "speed" | "allclear";
+type TeamQ = { open: number; byOwner: { owner: string; n: number; boardLink: string }[]; answeredToday: number; streak: number; streakAlive: boolean; bestStreak: number; tracking: boolean };
+type AllClear = { newUncontacted: number; topTenLeft: number; unreadReplies: number; clear: boolean };
+type StreakData = Streak & { allClear?: AllClear; teamQuestions?: TeamQ | null };
 const fmt = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
 export function StreakWidget() {
   const [who, setWho] = useState("");
-  const [data, setData] = useState<Streak | null>(null);
+  const [data, setData] = useState<StreakData | null>(null);
   const [open, setOpen] = useState(false);
-  const [party, setParty] = useState<{ level: Level; title: string; lines: string[] } | null>(null);
+  const [party, setParty] = useState<{ level: Level; title: string; lines: string[]; link?: { href: string; label: string } } | null>(null);
 
   const load = useCallback(async (fresh = false) => {
     const w = getWho();
     if (!w || w === "app") { setWho(""); return; }
     setWho(w);
     try {
-      const d = await api<Streak>(`/api/streak?who=${encodeURIComponent(w)}${fresh ? "&fresh=1" : ""}`);
+      const d = await api<StreakData>(`/api/streak?who=${encodeURIComponent(w)}${fresh ? "&fresh=1" : ""}`);
       setData(d);
       celebrate(d);
     } catch { /* quiet — the chip just doesn't update */ }
   }, []);
 
-  function celebrate(d: Streak) {
+  function celebrate(d: StreakData) {
     if (typeof window === "undefined") return;
     const key = `blp_streak_seen:${d.who}:${d.today.date}`;
     let seen: Record<string, boolean> = {};
@@ -47,7 +50,37 @@ export function StreakWidget() {
     else if (n >= 1 && !seen.m1) level = "m1";
     else if (weekRecord && !seen[`week:${d.thisWeek.weekStart}`]) level = "week";
     else if (lightning && !seen.speed) level = "speed";
+    // All clear → point him at the team's questions. Also shown once as a kickoff (Brigham asked for it).
+    const tq = d.teamQuestions;
+    let kickoff = false;
+    try { kickoff = !localStorage.getItem("blp_teamq_kickoff") && d.who === "Brigham" && !!tq; } catch {}
+    if (!level && tq && ((d.allClear?.clear && !seen.allclear) || kickoff)) level = "allclear";
     if (!level) return;
+    if (level === "allclear") {
+      if (d.allClear?.clear) seen.allclear = true;
+      try { localStorage.setItem("blp_teamq_kickoff", "1"); } catch {}
+      const top = tq!.byOwner[0];
+      const owners = tq!.byOwner.map((o) => `${o.owner.split(" ")[0]} ${o.n}`).join(" · ");
+      const streakLine = tq!.streak > 0
+        ? `Team-questions streak: ${tq!.streak} business day${tq!.streak === 1 ? "" : "s"}${tq!.streakAlive ? "" : " — answer one today to keep it alive"}.`
+        : "Team-questions streak: 0 — answer one today and it starts.";
+      setParty({
+        level,
+        title: d.allClear?.clear ? "All clear — extraordinary work! 🌟" : "Extraordinary sales work! 🌟",
+        lines: [
+          d.allClear?.clear
+            ? "Every new lead contacted, your Top Ten worked, every client response answered. That's how a pipeline gets closed."
+            : `${d.today.count} leads worked today and a ${d.streak}-day streak. The sales side is in great hands.`,
+          tq!.open > 0
+            ? `Now give the team a few minutes: ${tq!.open} question${tq!.open === 1 ? "" : "s"} for Brigham ${tq!.open === 1 ? "is" : "are"} waiting on the Store Map boards (${owners}).`
+            : "No team questions are waiting right now — enjoy it.",
+          streakLine,
+        ],
+        link: top ? { href: top.boardLink, label: `Answer ${top.owner.split(" ")[0]}'s questions →` } : undefined,
+      });
+      try { localStorage.setItem(key, JSON.stringify(seen)); } catch {}
+      return;
+    }
     if (level === "week") seen[`week:${d.thisWeek.weekStart}`] = true;
     if (level === "speed") seen.speed = true;
     if (n >= 1) seen.m1 = true;
@@ -102,6 +135,9 @@ export function StreakWidget() {
             <div><span className="big">🏆 {data.thisWeek.perfectTens}</span><span className="lbl">Perfect Tens this week · {data.perfectTensAllTime} all-time</span></div>
             <div><span className="big">{data.thisWeek.leadsWorked}</span><span className="lbl">worked this week{data.bestWeek ? ` · best week ${data.bestWeek.leadsWorked} (${fmt(data.bestWeek.weekStart)})` : ""}</span></div>
             <div><span className="big">⚡ {data.speed.streak}</span><span className="lbl">reply-within-the-hour streak (days)</span></div>
+            {data.teamQuestions && (
+              <div><span className="big">💬 {data.teamQuestions.streak}</span><span className="lbl">team-questions streak · {data.teamQuestions.open} waiting · {data.teamQuestions.answeredToday} answered today{data.teamQuestions.bestStreak ? ` · best ${data.teamQuestions.bestStreak}` : ""}</span></div>
+            )}
             <div><span className="big">{data.speed.today.fast}/{data.speed.today.inbound}</span><span className="lbl">answered within the hour today{data.speed.today.fastestMin !== null ? ` · fastest ${data.speed.today.fastestMin} min` : ""} · week {data.speed.weekFast}/{data.speed.weekInbound}</span></div>
           </div>
           {data.today.leads.length > 0 && (
@@ -121,12 +157,12 @@ export function StreakWidget() {
           <div className="muted" style={{ fontSize: 12 }}>A lead counts as worked when you text, email, call, note, edit or coach it. Weekends and shop holidays never break a streak. Speed counts customer texts 9–6 on your leads answered by a person within 60 minutes. A recap text arrives Fridays at 5.</div>
         </div>
       )}
-      {party && <Celebration level={party.level} title={party.title} lines={party.lines} onDone={() => setParty(null)} />}
+      {party && <Celebration level={party.level} title={party.title} lines={party.lines} link={party.link} onDone={() => setParty(null)} />}
     </>
   );
 }
 
-function Celebration({ level, title, lines, onDone }: { level: Level; title: string; lines: string[]; onDone: () => void }) {
+function Celebration({ level, title, lines, link, onDone }: { level: Level; title: string; lines: string[]; link?: { href: string; label: string }; onDone: () => void }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = ref.current!;
@@ -134,7 +170,7 @@ function Celebration({ level, title, lines, onDone }: { level: Level; title: str
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const resize = () => { canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr; canvas.style.width = innerWidth + "px"; canvas.style.height = innerHeight + "px"; };
     resize();
-    const N = level === "record" || level === "week" ? 700 : level === "m10" ? 500 : level === "m5" || level === "speed" ? 240 : 140;
+    const N = level === "record" || level === "week" ? 700 : level === "m10" || level === "allclear" ? 500 : level === "m5" || level === "speed" ? 240 : 140;
     const ms = level === "record" || level === "m10" || level === "week" ? 12_000 : 8_000;
     const colors = ["#9E2020", "#B43333", "#E8B54D", "#F4E1A6", "#2E7D5B", "#3D6FB6", "#ffffff"];
     const W = canvas.width, H = canvas.height;
@@ -170,7 +206,8 @@ function Celebration({ level, title, lines, onDone }: { level: Level; title: str
       <div className="celebrate-card" onClick={(e) => e.stopPropagation()}>
         <div className="celebrate-title">{title}</div>
         {lines.map((l) => <div key={l} className="celebrate-line">{l}</div>)}
-        <button className="btn" onClick={onDone}>{level === "m10" || level === "record" || level === "week" ? "Let's go 💪" : "Keep going →"}</button>
+        {link && <a className="btn" href={link.href} target="_blank" rel="noopener" onClick={onDone}>{link.label}</a>}
+        <button className={link ? "btn ghost" : "btn"} onClick={onDone}>{link ? "Later" : level === "m10" || level === "record" || level === "week" ? "Let's go 💪" : "Keep going →"}</button>
       </div>
     </div>
   );

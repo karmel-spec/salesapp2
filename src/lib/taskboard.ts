@@ -71,3 +71,18 @@ export async function taskSummaries(sample = 5): Promise<Map<string, TaskSummary
   }
   return out;
 }
+
+export interface AskCard { id: string; owner: string; text: string; created: string }
+/** Open "Questions for Brigham" cards across every Store Map board. */
+export async function askBrighamCards(): Promise<AskCard[]> {
+  if (!URL_BASE || !KEY) return [];
+  const res = await fetch(`${URL_BASE}/rest/v1/tb_cards?select=id,owner,col,text,created,snooze&col=eq.askbrigham&limit=2000`, {
+    headers: { apikey: KEY, Authorization: `Bearer ${KEY}` },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Task board read failed (${res.status})`);
+  const today = new Date().toISOString().slice(0, 10);
+  return ((await res.json()) as (Card & { id: string })[])
+    .filter((c) => !(c.snooze && c.snooze > today))
+    .map((c) => ({ id: String(c.id), owner: (c.owner || "").trim(), text: (c.text || "").replace(/\s+/g, " ").trim(), created: c.created }));
+}
