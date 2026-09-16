@@ -38,7 +38,7 @@ const MODEL = process.env.SMS_MODEL || "claude-haiku-4-5-20251001";
 // Tech Phones name) — pricing is an owner decision
 const PRICE_SETTERS = ["brigham", "karmel"];
 
-const PHASES = ["New Arrival - Admin", "Assessment", "CAP", "PRSB & Plate Refinishing",
+const PHASES = ["New Arrival - Admin", "Assessment", "CAP", "PRSB - Downbearing",
   "Lacquer Soundboard", "Restringing", "Chip Tuning", "DHRT", "1st Tuning", "Refinishing",
   "QC & Assembly", "2nd Tuning", "Exit Prep - Admin"];
 const PHASE_STATES = ["In Queue", "Paused", "For Sale", "Waiting on Brigham",
