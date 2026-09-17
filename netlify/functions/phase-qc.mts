@@ -99,13 +99,13 @@ export default async (req: Request) => {
     // Post Sale QC (Brigham 9/8): the pre-delivery final QC uses the SAME
     // worksheet wording as QC & Assembly, but its checks/requests are kept
     // under their own phase so the original showroom QC record stays intact
-    // 9/16: PRSB was renamed (Downbearing / Notching and Pins). The seeded
-    // worksheet rows still carry the old phase names, so the new phases read
-    // their checklist through this alias until the sheet is relabelled.
+    // 9/17: the Phase Checklists rows now carry the NEW PRSB names. Requests
+    // filed under the retired names (e.g. a mini-QC opened before the rename)
+    // still find their items through the reverse alias.
     const ITEM_ALIAS: Record<string, string> = {
       "Post Sale QC": "QC & Assembly",
-      "PRSB - Downbearing": "PRSBa - Pre-Plate",
-      "PRSB - Notching and Pins": "PRSBb - Plate In",
+      "PRSBa - Pre-Plate": "PRSB - Downbearing",
+      "PRSBb - Plate In": "PRSB - Notching and Pins",
     };
     const itemsPhase = ITEM_ALIAS[phase] || phase;
     const items = rows.filter((v) => v[0] === itemsPhase)
