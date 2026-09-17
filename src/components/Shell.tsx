@@ -35,6 +35,7 @@ const NAV: { href: string; label: string; sub?: boolean; boardKey?: string; grou
 const BLP_APPS = [
   { href: "https://blpadmintraining.netlify.app", label: "Admin Training" },
   { href: "https://blpagents.netlify.app", label: "Agent App" },
+  { href: "https://blpmarketing.netlify.app", label: "Marketing App" },
   { href: "https://blpcrm.netlify.app", label: "CRM" },
   { href: "https://pianologapp.netlify.app", label: "Piano Log App" },
   { href: "https://pianotechnologylibrary.com", label: "PTL" },
