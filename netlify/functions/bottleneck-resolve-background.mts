@@ -81,6 +81,15 @@ async function bridge(body: Record<string, unknown>) {
 const ALLOWED = new Set(["move", "setphase", "setdone", "settrack", "setcabinetry", "queue",
   "settype", "setpayplan", "setkeys", "markduplicate", "unmarkduplicate", "note"]);   // note → scope note on the card
 
+/* Phases this flow may never set unattended (Walter 9/17). "Delivered" does not
+ * just change a dropdown — the bridge physically relocates the row below the
+ * SOLD divider and the piano leaves the map. Hallet Davis 1700946 went that way
+ * on Sep 11 when an answer of Mark's was read as "this one was delivered", and
+ * nobody noticed for six days. Every other phase is a dropdown someone can put
+ * back in seconds; these two are not, so they become a job for a human. The
+ * prompt says so too — this is the guard that does not depend on the model. */
+const HUMAN_ONLY_PHASES = new Set(["delivered", "sold"]);
+
 export default async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("", { headers: CORS });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
@@ -145,8 +154,10 @@ export default async (req: Request) => {
     + "with the allowed bridge actions (sheet layout changes, adding brand-new pianos, emails) go in "
     + "followups for a human. Phases must be one of: New Arrival - Admin, Assessment, CAP, PRSB - Downbearing, "
     + "PRSB - Notching and Pins, Lacquer Soundboard, Restringing, Chip Tuning, DHRT, 1st Tuning, Refinishing, "
-    + "QC & Assembly, 2nd Tuning, Exit Prep - Admin, Delivered, In Queue, Paused, For Sale, Sale Pending, "
-    + "Sold, Post Sale QC, Waiting on Brigham, Waiting on Curtis Harper, Waiting on Customer, Waiting on OTHER. "
+    + "QC & Assembly, 2nd Tuning, Exit Prep - Admin, In Queue, Paused, For Sale, Sale Pending, "
+    + "Post Sale QC, Waiting on Brigham, Waiting on Curtis Harper, Waiting on Customer, Waiting on OTHER. "
+    + "NEVER set a phase of \"Delivered\" or \"Sold\" — those take a piano off the map and a human must do "
+    + "them. If an answer says a piano was delivered or sold, put it in followups instead. "
     + "Use action \"note\" with a `note` field to record an instruction or status on a piano's card. "
     + "Answers that state lasting policy go in rules_extracted.";
   const userMsg = "BOTTLENECKS AND BRIGHAM'S ANSWERS:\n"
@@ -169,6 +180,14 @@ export default async (req: Request) => {
   const executed: string[] = [];
   for (const a of out.actions || []) {
     if (!ALLOWED.has(a.action)) { executed.push(`✗ ${a.action}: not allowed`); continue; }
+    if (a.action === "setphase" && HUMAN_ONLY_PHASES.has(String(a.phase || "").trim().toLowerCase())) {
+      const want = String(a.phase || "").trim();
+      (out.followups = out.followups || []).push(
+        `Set ${a.serial} to "${want}" by hand if that is right — ${a.why || "from a bottleneck answer"} `
+        + `(automation can't take a piano off the map)`);
+      executed.push(`⏸ setphase ${a.serial} → ${want}: needs a human`);
+      continue;
+    }
     const p = pianos.find(x => x.serial === a.serial);
     if (!p) { executed.push(`✗ ${a.serial}: unknown serial`); continue; }
     const { action, serial, why, ...rest } = a;
