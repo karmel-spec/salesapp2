@@ -197,9 +197,13 @@ export default async (req: Request) => {
     if (!rows.length) return json({ error: "no such request" }, headers, 404);
     const q = rows[0];
     const outcome = p.outcome === "pass" ? "passed" : "rework";
+    // manager's overall note (Brigham 9/17) — kept with the verdicts, sent to the tech
+    const genNote = String(p.note || "").trim().slice(0, 400);
+    const verdicts = { ...((q.verdicts || {}) as Record<string, unknown>) };
+    if (genNote) verdicts._note = { note: genNote, by: String(p.manager || ""), at: now };
     await fetch(`${SB()}/rest/v1/qc_requests?id=eq.${Number(p.id)}`, {
       method: "PATCH", headers: sb(),
-      body: JSON.stringify({ status: outcome, manager: String(p.manager || ""), updated: now }),
+      body: JSON.stringify({ status: outcome, manager: String(p.manager || ""), updated: now, verdicts }),
     });
     const first = String(q.requested_by || "").split(" ")[0] || "team";
     // keep the scorecard's QC Log fed: record the inspection outcome there too
@@ -219,21 +223,21 @@ export default async (req: Request) => {
           user: { name: (p.manager || "Manager") + " (mini-QC pass)", email: "" } }),
       }).catch(() => {});
       await textByName(q.requested_by,
-        `✅ Mini-QC PASSED — ${q.phase} on ${q.piano || "#" + q.serial} (${String(p.manager || "manager").split(" ")[0]}). Phase advanced to ${q.next_phase}. Nice work.`);
+        `✅ Mini-QC PASSED — ${q.phase} on ${q.piano || "#" + q.serial} (${String(p.manager || "manager").split(" ")[0]}). Phase advanced to ${q.next_phase}. Nice work.${genNote ? " Note: " + genNote : ""}`);
     } else {
       const failed = Object.entries((q.verdicts || {}) as Record<string, any>)
-        .filter(([, v]) => v.verdict === "fail")
+        .filter(([k, v]) => k !== "_note" && v.verdict === "fail")
         .map(([k, v]) => `✗ ${k}${v.note ? " — " + v.note : ""}`);
       await fetch("https://blpsalesapp.netlify.app/.netlify/functions/taskboard-write", {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ key: APP_KEY, op: "add", owner: q.requested_by,
           text: `🔁 REWORK — ${q.phase} on ${q.piano || "#" + q.serial} (mini-QC by ${String(p.manager || "").split(" ")[0]}):\n` +
-            (failed.join("\n") || "see manager"),
+            (failed.join("\n") || "see manager") + (genNote ? "\n\n📝 " + genNote : ""),
           serial: q.serial, from: String(p.manager || "Mini-QC"),
           user: { name: p.manager || "Mini-QC", email: "" } }),
       }).catch(() => {});
       await textByName(q.requested_by,
-        `🔁 Mini-QC on ${q.phase} — ${q.piano || "#" + q.serial}: ${failed.length} item${failed.length === 1 ? "" : "s"} need rework (card on your task board). Clock in under 🔁 Rework, fix, then re-request QC.`);
+        `🔁 Mini-QC on ${q.phase} — ${q.piano || "#" + q.serial}: ${failed.length} item${failed.length === 1 ? "" : "s"} need rework (card on your task board). Clock in under 🔁 Rework, fix, then re-request QC.${genNote ? " Note: " + genNote : ""}`);
     }
     return json({ ok: true, status: outcome }, headers);
   }
