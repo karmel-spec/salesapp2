@@ -138,14 +138,44 @@ export default async (req: Request) => {
   if (!tu) return finish({ error: "AI revision failed: " + (aj.error?.message || "no output") }, 502);
   const out = tu.input;
 
+  /* Never persist a plan we have not looked at (Walter 9/18). On 9/18 this
+   * saved a revision with week:"", weekStart:"" and zero techs — the store was
+   * emptied and the Planner fell back to the static August snapshot on every
+   * load. A truncated or malformed tool result is a normal failure mode
+   * (max_tokens against a full week), so it is checked rather than trusted.
+   * The stop_reason tells us specifically when the model ran out of room. */
+  const revised = out?.plan;
+  const techCount = Array.isArray(revised?.techs) ? revised.techs.length : 0;
+  const bad: string[] = [];
+  if (!revised) bad.push("no plan returned");
+  if (!String(revised?.weekStart || "").trim()) bad.push("no weekStart");
+  if (!String(revised?.week || "").trim()) bad.push("no week");
+  if (!techCount) bad.push("no technicians");
+  if (bad.length) {
+    const truncated = aj.stop_reason === "max_tokens";
+    const why = bad.join(", ") + (truncated ? " (the model hit max_tokens — the plan came back truncated)" : "");
+    await logAdjustment({ by: String(body.by || "Brigham"), kind: "schedule notes",
+      input: (globalTxt ? "GLOBAL: " + globalTxt + "\n" : "") + notesTxt,
+      outcome: "REFUSED — revision discarded: " + why, rules: [], questions: [],
+      saved: false, saveErr: why });
+    return finish({ error: "The revision came back incomplete (" + why
+      + "), so nothing was saved and your existing plan is untouched. Try again, "
+      + "or split your notes into smaller batches.", saved: false, discarded: true }, 502);
+  }
+
   // persist: rules to the sheet, revised plan to the bridge
   await appendRules(out.rules_extracted || [], String(body.by || "Brigham"));
   let saved = false, saveErr = "";
   try {
     const sv = await fetch(BRIDGE, { method: "POST", redirect: "follow",
       headers: { "content-type": "text/plain;charset=utf-8" },
+      // aiRevised flags the CONTENT as model-written while the name stays the
+      // human who asked for it — they clicked apply, so this legitimately
+      // overwrites their own plan and must not trip the bot guard. Without the
+      // flag the history reads as if Mark typed the whole week himself.
       body: JSON.stringify({ pin: APP_KEY, key: APP_KEY, action: "saveproposal",
         week: out.plan.week, weekStart: out.plan.weekStart, plan: JSON.stringify(out.plan),
+        aiRevised: true, aiModel: MODEL,
         user: { name: String(body.by || "Brigham") + " (Planner notes)" } }) });
     const sj = await sv.json();
     saved = !!sj.ok; saveErr = sj.error || "";
