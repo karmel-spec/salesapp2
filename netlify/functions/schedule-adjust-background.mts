@@ -137,6 +137,25 @@ export default async (req: Request) => {
   const tu = (aj.content || []).find((c: any) => c.type === "tool_use");
   if (!tu) return finish({ error: "AI revision failed: " + (aj.error?.message || "no output") }, 502);
   const out = tu.input;
+  // The model sometimes returns `plan` as a JSON STRING instead of an object
+  // (9/18: Mark's second notes pass). JSON.stringify of that string double-
+  // encoded the plan, the bridge accepted the valid string literal, and every
+  // reader then failed to parse the broken text inside — the Planner showed
+  // the Aug 10 snapshot. Normalize + validate here; never save a plan that is
+  // not an object with technicians.
+  if (typeof out.plan === "string") { try { out.plan = JSON.parse(out.plan); } catch { out.plan = null; } }
+  const okPlan = out.plan && typeof out.plan === "object" && !Array.isArray(out.plan)
+    && Array.isArray(out.plan.techs) && out.plan.techs.length
+    && out.plan.techs.every((t: any) => t && typeof t === "object" && t.name && (t.days == null || Array.isArray(t.days)));
+  if (!okPlan) {
+    await logAdjustment({ by: String(body.by || "Brigham"), kind: "schedule notes",
+      input: (globalTxt ? "GLOBAL: " + globalTxt + "\n" : "") + notesTxt,
+      outcome: "AI returned a malformed plan (not an object with technicians) — NOTHING was saved; the previous proposal stands. Re-apply the notes.",
+      rules: [], questions: [], saved: false, saveErr: "malformed plan from the model" });
+    return finish({ error: "The AI revision came back malformed, so nothing was saved — the current proposal is untouched. Tap Apply adjustments once more." }, 502);
+  }
+  if (!out.plan.weekStart && plan.weekStart) out.plan.weekStart = plan.weekStart;
+  if (!out.plan.week && plan.week) out.plan.week = plan.week;
 
   /* Never persist a plan we have not looked at (Walter 9/18). On 9/18 this
    * saved a revision with week:"", weekStart:"" and zero techs — the store was
