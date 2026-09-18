@@ -201,13 +201,50 @@ export default async (req: Request) => {
     await new Promise(r => setTimeout(r, 350));
   }
 
-  // update proposal bottlenecks
+  /* Update proposal bottlenecks.
+   *
+   * Matching used to be an exact string compare between the title the model
+   * returned and the stored one, with no report of a miss (Walter 9/18). One
+   * different character — a curly apostrophe, an em dash for a hyphen, a
+   * trimmed word, a "RESOLVED:" prefix — and the item silently survived
+   * forever, while the caller was still told "bottlenecks updated: N", since
+   * N counted what the MODEL returned rather than what actually matched.
+   * That is why the Manager Clarification list filled up with items that were
+   * answered rounds ago.
+   *
+   * Now: titles are normalised before matching, anything the model marked
+   * resolved that STILL does not match is reported instead of dropped, and an
+   * item whose own title already says RESOLVED is retired on sight. */
+  const normTitle = (t: unknown) => String(t ?? "")
+    .replace(/^\s*(✅|⚠|RESOLVED|DONE|CLOSED)[:\s—–-]*/i, "")   // its own status prefix
+    .replace(/[\u2018\u2019\u201B]/g, "'").replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2010-\u2015]/g, "-")                            // every dash to "-"
+    .replace(/\s+/g, " ").trim().toLowerCase();
+
   let planSaved = false;
+  let bResolved = 0, bRewritten = 0, bAutoDropped = 0;
+  const bUnmatched: string[] = [];
   if (plan && (out.bottleneck_updates || []).length) {
-    const ups = new Map((out.bottleneck_updates as any[]).map(u => [u.title, u]));
+    const ups = new Map((out.bottleneck_updates as any[]).map(u => [normTitle(u.title), u]));
+    const matched = new Set<string>();
     plan.bottlenecks = (plan.bottlenecks || [])
-      .filter((b: string[]) => !(ups.get(b[0])?.resolved))
-      .map((b: string[]) => { const u = ups.get(b[0]); return u && u.new_body ? [b[0], u.new_body] : b; });
+      .filter((b: string[]) => {
+        const k = normTitle(b[0]);
+        const u = ups.get(k);
+        if (u) matched.add(k);
+        if (u?.resolved) { bResolved++; return false; }
+        // answered in an earlier round, renamed rather than removed
+        if (/^\s*(✅|RESOLVED|DONE|CLOSED)\b/i.test(String(b[0] || ""))) { bAutoDropped++; return false; }
+        return true;
+      })
+      .map((b: string[]) => {
+        const u = ups.get(normTitle(b[0]));
+        if (u && u.new_body) { bRewritten++; return [b[0], u.new_body]; }
+        return b;
+      });
+    for (const [k, u] of ups) {
+      if (!matched.has(k) && u?.resolved) bUnmatched.push(String(u.title || "(untitled)"));
+    }
     try {
       const sv = await bridge({ action: "saveproposal", week: plan.week, weekStart: plan.weekStart,
         plan: JSON.stringify(plan), user });
@@ -219,14 +256,20 @@ export default async (req: Request) => {
   await logAdjustment({ by: String(body.by || "Brigham"), kind: "bottleneck answers",
     input: items.map((i: any) => `${i.title} → ${i.answer}`).join("\n"),
     outcome: [...executed,
-      ...((out.bottleneck_updates || []).length ? [`bottlenecks updated: ${(out.bottleneck_updates || []).length}`] : []),
+      ...(bResolved ? [`bottlenecks cleared: ${bResolved}`] : []),
+      ...(bAutoDropped ? [`bottlenecks retired (title already said resolved): ${bAutoDropped}`] : []),
+      ...(bRewritten ? [`bottlenecks rewritten: ${bRewritten}`] : []),
+      ...bUnmatched.map((t) => `⚠ could not match a resolved bottleneck to any on the board: "${t}"`),
       ...(out.followups || []).map((f: string) => "for a human: " + f)].join("\n"),
     rules: out.rules_extracted || [], questions: out.questions || [],
     saved: (out.bottleneck_updates || []).length ? planSaved : true,
     saveErr: (out.bottleneck_updates || []).length && !planSaved ? "plan save failed" : "" });
 
   return finish({ ok: true, executed, planSaved,
-    bottlenecks_updated: (out.bottleneck_updates || []).length,
+    // what actually changed on the board, not what the model asked for
+    bottlenecks_updated: bResolved + bRewritten + bAutoDropped,
+    bottlenecks_cleared: bResolved, bottlenecks_rewritten: bRewritten,
+    bottlenecks_retired: bAutoDropped, bottlenecks_unmatched: bUnmatched,
     rules_saved: out.rules_extracted || [], followups: out.followups || [],
     questions: out.questions || [] });
 };
