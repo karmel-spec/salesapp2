@@ -257,6 +257,12 @@ export async function runReminder(kind: "friday" | "saturday"): Promise<string> 
 const CLEANING_LOG_TAB = "Cleaning Log";
 
 export async function runCleaningReminder(): Promise<string> {
+  // Paused by Karmel 2026-09-20 until further notice. Keep the scheduled
+  // Netlify functions alive as a safe no-op so resuming is one env/code flip.
+  if ((process.env.CLEANING_TEXTS_PAUSED || "1") !== "0") {
+    return "skip: Friday cleaning texts paused by Karmel 2026-09-20";
+  }
+
   const now = denverParts();
   const testDate = process.env.REMINDER_TEST_DATE;
   if (!testDate && !(now.weekday === "Fri" && now.hour === 15)) {
