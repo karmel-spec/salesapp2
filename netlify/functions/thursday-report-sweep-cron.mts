@@ -25,13 +25,24 @@ export default async () => {
   try { rows = await sheetGet(REPORT_SHEET, `'${year}'!A1:BA60`); } catch (e) { console.error("year tab", String(e)); }
   const header = rows[0] || [];
   let col = header.findIndex(h => labels.includes(String(h || "").trim()));
-  // required reporters: Current Team techs (+ Doris), minus report_exempt
-  let required: string[] = [];
-  try {
-    const rj = await (await fetch(`${SITE}/.netlify/functions/team-roster?key=${encodeURIComponent(KEY())}`)).json() as any;
-    const team: string[][] = (rj.tabs && rj.tabs["Current Team"]) || [];
-    team.slice(1).forEach(r => { const first = String(r[0] || "").trim(), pos = String(r[3] || r[2] || "").toLowerCase(); if (!first) return; if (/tech/.test(pos) || /^doris$/i.test(first)) required.push(first); });
-  } catch (e) { console.error("roster", String(e)); }
+  /* Required reporters: the year tab's OWN rows, minus report_exempt.
+   *
+   * This used to come from the roster as
+   *     pos = String(r[3] || r[2] || "")   … if (/tech/.test(pos))
+   * but the PROJECTED roster columns are First | Last | Position | Start date,
+   * so r[3] is the START DATE — "7/12/2002" never matches /tech/. The list
+   * silently collapsed to Doris, the one name checked explicitly, so the
+   * Thursday chase texted nobody else and the GO / NOT GO verdict sent to
+   * Brigham and Karmel was computed over a single person (Walter 9/21).
+   *
+   * Fixing the index alone would not be enough: /tech/ matches only "Piano
+   * Shop Technician", missing every Piano Rebuilder, Refinisher and Intern —
+   * most of the shop. The year tab already lists exactly who reports each
+   * week, Brigham and Karmel curate it, and the Planner reads the same tab,
+   * so there is no second list to keep in step. */
+  let required: string[] = rows.slice(1)
+    .map(r => String(r[0] || "").trim())
+    .filter(Boolean);
   let exempt = ["victoria"];
   try { const sj = await (await fetch(`${SITE}/.netlify/functions/app-settings?key=${encodeURIComponent(KEY())}`)).json() as any; const ex = sj && sj.settings && sj.settings.report_exempt; if (ex) exempt = String(ex).split(",").map(s => s.trim().toLowerCase()).filter(Boolean); } catch { /* keep default */ }
   required = [...new Set(required)].filter(n => !exempt.includes(n.toLowerCase()));
