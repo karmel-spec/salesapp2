@@ -12,7 +12,10 @@ const REMINDER = "⏰ BLP reminder: your weekly report was due today (Thursday) 
 export default async () => {
   const now = denver();
   if (now.weekday !== "Thu" || now.h !== 18) return new Response("not the Thursday 6 PM Denver hour", { status: 200 });
-  // labels: this week's Friday (tomorrow) and today, M/D/YY without leading zeros
+  // labels: this week's Friday (tomorrow) then today/Thursday, M/D/YY without
+  // leading zeros. Both are accepted because the year tab's headers have used
+  // each at different times; since 9/21 they are all Thursdays, so a MISSING
+  // column is reported as the Thursday one (labels[1]) rather than the Friday.
   const today = new Date(Date.UTC(now.y, now.m - 1, now.d));
   const fri = new Date(today.getTime() + 86400000);
   const lab = (d: Date) => `${d.getUTCMonth() + 1}/${d.getUTCDate()}/${String(d.getUTCFullYear()).slice(2)}`;
@@ -42,7 +45,7 @@ export default async () => {
   for (const name of missing) { const r = await notify(name, REMINDER); if (r.sent) reminded.push(name); else failed.push(`${name} (${r.reason || "not sent"})`); }
   const verdict = missing.length ? `🔴 SCHEDULING NOT GO YET — missing: ${missing.join(", ")}. (The Planner falls back to their last week's report, so scheduling can still proceed if needed.)`
     : "🟢 SCHEDULING IS GO — all technician reports in.";
-  const summary = `${verdict}\n\nWeek column: ${col >= 0 ? header[col] : "not created yet (" + labels[0] + ")"} · required: ${required.length}\nSubmitted: ${submitted.join(", ") || "—"}\nReminded tonight: ${reminded.join(", ") || "—"}${failed.length ? "\nCould not text: " + failed.join("; ") : ""}\n— Claude (Thursday sweep)`;
+  const summary = `${verdict}\n\nWeek column: ${col >= 0 ? header[col] : "not created yet (expected " + labels[1] + ")"} · required: ${required.length}\nSubmitted: ${submitted.join(", ") || "—"}\nReminded tonight: ${reminded.join(", ") || "—"}${failed.length ? "\nCould not text: " + failed.join("; ") : ""}\n— Claude (Thursday sweep)`;
   const b = await notify("Brigham", summary); const k = await notify("Karmel", summary);
   try { await sheetAppend(REPORT_SHEET, "App Updates", [new Date().toISOString(), `⏰ Thursday report sweep: ${missing.length ? "missing " + missing.join(", ") : "all in"}; reminded ${reminded.length}; verdict texted to Brigham + Karmel.`, "Claude (Netlify scheduled)", "(log only)"]); } catch { /* best-effort */ }
   console.log("thursday-report-sweep", { required, submitted, missing, reminded, failed, b, k });
