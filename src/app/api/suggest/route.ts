@@ -15,7 +15,7 @@ export const maxDuration = 60;
  */
 
 const ORIGIN_OK =
-  /^https:\/\/(www\.)?(brighamlarsonpianos\.(com|org|tech)|pianotechnologylibrary\.com|(blpsalesapp|blpshop|blpcrm|blpstoremap|blpmap|pianologapp|blpagents|blppricetags|blppricetag|pricetags-blp)\.netlify\.app)$/;
+  /^https:\/\/(www\.)?(brighamlarsonpianos\.(com|org|tech)|pianotechnologylibrary\.com|(blpsalesapp|blpshop|blpcrm|blpstoremap|blpmap|pianologapp|blpagents|blpmarketing|blpadmintraining|blptuningtraining|blppricetags|blppricetag|pricetags-blp)\.netlify\.app)$/;
 const ORIGIN_DEV = /^http:\/\/localhost(:\d+)?$/;
 
 function corsHeaders(req: NextRequest): Record<string, string> {

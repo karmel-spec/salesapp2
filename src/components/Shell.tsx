@@ -34,6 +34,7 @@ const NAV: { href: string; label: string; sub?: boolean; boardKey?: string; grou
  * (href starting with "/") open in-app; the rest open in a new tab. */
 const BLP_APPS = [
   { href: "https://blpadmintraining.netlify.app", label: "Admin Training" },
+  { href: "https://blptuningtraining.netlify.app", label: "Tuning Academy" },
   { href: "https://blpagents.netlify.app", label: "Agent App" },
   { href: "https://blpmarketing.netlify.app", label: "Marketing App" },
   { href: "https://blpcrm.netlify.app", label: "CRM" },
