@@ -18,6 +18,7 @@
 import * as crypto from "node:crypto";
 import { getStore } from "@netlify/blobs";
 import { logAdjustment, denverStamp } from "./lib/adjust-log";
+import { normalizeBottlenecks } from "./_blp-sched-lib.mts";
 
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
 const RULES_TAB = "Scheduling Rules";
@@ -119,7 +120,7 @@ export default async (req: Request) => {
     + "[start,end,kind,title,note]; times are shop-clock 12h without am/pm where 7-11=morning, 12-6=afternoon; "
     + "kind must be an existing colors key). Keep every tech's hours realistic and keep the Friday 2:30-3:30 "
     + "cleaning block for full-day techs. Update the 'who' summary line when a tech's pianos change. "
-    + "Add/adjust bottlenecks entries when notes reveal blockers. Distinguish one-off adjustments (apply them, "
+    + "Add/adjust bottlenecks entries when notes reveal blockers — every bottlenecks entry MUST be a two-element array [title, body] (never a plain string); per-piano reconciliation notes belong in reportOverrides, not bottlenecks. Distinguish one-off adjustments (apply them, "
     + "list in changes) from standing rules ('always', 'never', 'from now on', 'remember') which also go in "
     + "rules_extracted. Do not invent work that wasn't asked for.";
   const userMsg = `STANDING RULES:\n${rules.map(r => "- " + r).join("\n") || "(none yet)"}\n\n`
@@ -154,6 +155,7 @@ export default async (req: Request) => {
       rules: [], questions: [], saved: false, saveErr: "malformed plan from the model" });
     return finish({ error: "The AI revision came back malformed, so nothing was saved — the current proposal is untouched. Tap Apply adjustments once more." }, 502);
   }
+  out.plan.bottlenecks = normalizeBottlenecks(out.plan.bottlenecks);   // [title, body] pairs only (9/25)
   if (!out.plan.weekStart && plan.weekStart) out.plan.weekStart = plan.weekStart;
   if (!out.plan.week && plan.week) out.plan.week = plan.week;
 

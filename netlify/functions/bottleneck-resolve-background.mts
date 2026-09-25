@@ -18,6 +18,7 @@
 import * as crypto from "node:crypto";
 import { getStore } from "@netlify/blobs";
 import { logAdjustment, denverStamp } from "./lib/adjust-log";
+import { normalizeBottlenecks } from "./_blp-sched-lib.mts";
 
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
 const RULES_TAB = "Scheduling Rules";
@@ -227,7 +228,7 @@ export default async (req: Request) => {
   if (plan && (out.bottleneck_updates || []).length) {
     const ups = new Map((out.bottleneck_updates as any[]).map(u => [normTitle(u.title), u]));
     const matched = new Set<string>();
-    plan.bottlenecks = (plan.bottlenecks || [])
+    plan.bottlenecks = normalizeBottlenecks(plan.bottlenecks)
       .filter((b: string[]) => {
         const k = normTitle(b[0]);
         const u = ups.get(k);

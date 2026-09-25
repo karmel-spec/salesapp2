@@ -64,3 +64,21 @@ export function denver(d = new Date()) {
   return { weekday: g("weekday"), y: +g("year"), m: +g("month"), d: +g("day"), h: +g("hour") % 24, min: +g("minute") };
 }
 export const denverStamp = (d = new Date()) => new Intl.DateTimeFormat("en-US", { timeZone: "America/Denver", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(d);
+
+/* Bottleneck entries are [title, body] pairs — the Planner renders bn[0] as
+ * the heading and bn[1] as the text. On 9/25 a revision came back with 33
+ * plain STRINGS in plan.bottlenecks (per-piano reconciliation notes), so the
+ * Manager Clarification list showed one-letter headings ("T", "2", "1"…).
+ * Coerce anything that is not a pair into one; drop empties. */
+export function normalizeBottlenecks(list: unknown): string[][] {
+  if (!Array.isArray(list)) return [];
+  const out: string[][] = [];
+  for (const b of list) {
+    if (Array.isArray(b)) { const t = String(b[0] ?? "").trim(); if (t) out.push([t, String(b[1] ?? "").trim()]); continue; }
+    if (b && typeof b === "object") { const o = b as Record<string, unknown>; const t = String(o.title ?? o.name ?? "").trim(); if (t) out.push([t, String(o.body ?? o.text ?? o.detail ?? "").trim()]); continue; }
+    const str = String(b ?? "").trim(); if (!str) continue;
+    const m = /^(.{6,90}?)(?:\s+[—–-]\s+|:\s+)(.+)$/s.exec(str);
+    out.push(m ? [m[1].trim(), m[2].trim()] : [str.slice(0, 90), str.length > 90 ? str : ""]);
+  }
+  return out;
+}
