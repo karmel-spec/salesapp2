@@ -38,6 +38,7 @@ const BLP_APPS = [
   { href: "https://blpagents.netlify.app", label: "Agent App" },
   { href: "https://blpmarketing.netlify.app", label: "Marketing App" },
   { href: "https://blpcrm.netlify.app", label: "CRM" },
+  { href: "https://blpclientportal.netlify.app", label: "Client Portal" },
   { href: "https://pianologapp.netlify.app", label: "Piano Log App" },
   { href: "https://pianotechnologylibrary.com", label: "PTL" },
   { href: "https://brighamlarsonpianos.tech", label: "Shop App" },
