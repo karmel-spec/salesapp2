@@ -35,6 +35,8 @@ const EDITABLE: (keyof typeof COLS)[] = [
   "pianoType", "value", "lastContact",
 ];
 
+const isShopWork = (t: string) => /restoration|refinish|refurbish|qrs|player/i.test(t || "");
+
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const guard = requireSession(req);
   if (guard) return guard;
@@ -58,6 +60,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       kind: "edit",
       text: `Updated ${Object.keys(fields).join(", ")}`,
     });
+    // Shop-work lead marked WON → open its Client Portal project (fire and forget; the portal drafts the welcome for approval).
+    if (fields.status && /^won/i.test(fields.status) && found.lead.statusBucket !== "won" && isShopWork(found.lead.leadType)) {
+      const l = found.lead;
+      const portal = process.env.CLIENT_PORTAL_URL || "https://blpclientportal.netlify.app";
+      fetch(`${portal}/api/projects/from-sale`, { method: "POST", headers: { "content-type": "application/json", "x-blp-key": process.env.BLP_INTEGRATION_KEY || process.env.BLP_APP_ACCESS_KEY || "pianoman" }, body: JSON.stringify({ lead: { id: l.id, name: l.name, first: l.firstName, last: l.lastName, email: l.emailClean || l.email, phone: l.phoneDialable || l.phone, address: l.address, leadType: l.leadType, pianoType: l.pianoType, value: l.value, rep: fields.closedBy || body.who || l.closedBy, headline: l.headline, notes: l.notes } }) })
+        .then(async (r) => { const j = (await r.json().catch(() => ({}))) as { project?: string; url?: string; existing?: boolean; error?: string }; await appendTimeline(found.lead, found.shape, { at: new Date().toISOString(), who: "Client Portal", kind: "edit", text: r.ok ? `${j.existing ? "Client Portal project already open" : "Client Portal project created"}${j.url ? ` — ${j.url}` : ""}` : `Client Portal handoff failed: ${j.error || r.status}` }); })
+        .catch(() => {});
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     return jsonError(err);
