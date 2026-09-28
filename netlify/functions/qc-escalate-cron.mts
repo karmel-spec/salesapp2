@@ -19,7 +19,7 @@ export default async () => {
     `${SB}/rest/v1/qc_requests?status=eq.pending&escalated=eq.false&created=lt.${encodeURIComponent(cutoff)}`,
     { headers: h })).json()) as Array<{ id: number; serial: string; piano: string; phase: string; requested_by: string }>;
   for (const q of rows) {
-    const msg = `⏰ Mini-QC waiting ${">"}${escMin} min — ${q.phase} on ${q.piano || "#" + q.serial} (requested by ${String(q.requested_by || "").split(" ")[0]}). Inspect: https://blpstoremap.netlify.app/#qc=${q.id}`;
+    const msg = `⏰ Mini-QC waiting ${">"}${escMin} min — ${q.phase} on ${(q.piano ? String(q.piano).trim() + " #" : "#") + q.serial} (requested by ${String(q.requested_by || "").split(" ")[0]}). Inspect: https://blpstoremap.netlify.app/#qc=${q.id}`;
     // during the training month (through 10/3) Brigham owns every mini-QC —
     // silence nudges him again and loops in Mark; afterwards Mark + Karmel
     let escalateTo = ["Brigham", "Mark Hales"];

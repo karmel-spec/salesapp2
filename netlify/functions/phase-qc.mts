@@ -75,6 +75,9 @@ async function checklistRows(): Promise<{ rows: string[][]; gloss: string[][] }>
   return clCache;
 }
 
+// every mini-QC text names the piano AND its serial (Walter 9/28)
+const label = (piano: unknown, serial: unknown) =>
+  String(piano || "").trim() ? `${String(piano).trim()} #${serial}` : `#${serial}`;
 async function textByName(name: string, message: string) {
   try {
     await fetch("https://blpsalesapp.netlify.app/.netlify/functions/request-notify", {
@@ -171,7 +174,7 @@ export default async (req: Request) => {
       escMin = st.qc_escalate_minutes || escMin;
     } catch { /* defaults */ }
     const who = String(p.by || "a tech").split(" ")[0];
-    const what = `${p.phase} on ${p.piano || "#" + p.serial}`;
+    const what = `${p.phase} on ${label(p.piano, p.serial)}`;
     await textByName(inspector,
       `🔍 Mini-QC requested — ${what} by ${who}. Inspect: ${APP_URL}/#qc=${id} (escalates after ${escMin} min)`);
     if (videoCopy) await textByName(videoCopy,
@@ -223,7 +226,7 @@ export default async (req: Request) => {
           user: { name: (p.manager || "Manager") + " (mini-QC pass)", email: "" } }),
       }).catch(() => {});
       await textByName(q.requested_by,
-        `✅ Mini-QC PASSED — ${q.phase} on ${q.piano || "#" + q.serial} (${String(p.manager || "manager").split(" ")[0]}). Phase advanced to ${q.next_phase}. Nice work.${genNote ? " Note: " + genNote : ""}`);
+        `✅ Mini-QC PASSED — ${q.phase} on ${label(q.piano, q.serial)} (${String(p.manager || "manager").split(" ")[0]}). Phase advanced to ${q.next_phase}. Nice work.${genNote ? " Note: " + genNote : ""}`);
     } else {
       const failed = Object.entries((q.verdicts || {}) as Record<string, any>)
         .filter(([k, v]) => k !== "_note" && v.verdict === "fail")
@@ -231,13 +234,13 @@ export default async (req: Request) => {
       await fetch("https://blpsalesapp.netlify.app/.netlify/functions/taskboard-write", {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ key: APP_KEY, op: "add", owner: q.requested_by,
-          text: `🔁 REWORK — ${q.phase} on ${q.piano || "#" + q.serial} (mini-QC by ${String(p.manager || "").split(" ")[0]}):\n` +
+          text: `🔁 REWORK — ${q.phase} on ${label(q.piano, q.serial)} (mini-QC by ${String(p.manager || "").split(" ")[0]}):\n` +
             (failed.join("\n") || "see manager") + (genNote ? "\n\n📝 " + genNote : ""),
           serial: q.serial, from: String(p.manager || "Mini-QC"),
           user: { name: p.manager || "Mini-QC", email: "" } }),
       }).catch(() => {});
       await textByName(q.requested_by,
-        `🔁 Mini-QC on ${q.phase} — ${q.piano || "#" + q.serial}: ${failed.length} item${failed.length === 1 ? "" : "s"} need rework (card on your task board). Clock in under 🔁 Rework, fix, then re-request QC.${genNote ? " Note: " + genNote : ""}`);
+        `🔁 Mini-QC on ${q.phase} — ${label(q.piano, q.serial)}: ${failed.length} item${failed.length === 1 ? "" : "s"} need rework (card on your task board). Clock in under 🔁 Rework, fix, then re-request QC.${genNote ? " Note: " + genNote : ""}`);
     }
     return json({ ok: true, status: outcome }, headers);
   }
