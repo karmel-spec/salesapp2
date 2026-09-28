@@ -157,7 +157,15 @@ export default async (req: Request) => {
     const r = await fetch(`${SB()}/rest/v1/qc_requests?serial=eq.${encodeURIComponent(String(p.serial))}&status=eq.pending`, {
       method: "PATCH", headers: { ...sb(), Prefer: "return=representation" },
       body: JSON.stringify({ status: "withdrawn", manager: String(p.by || "delivery").slice(0, 60), updated: new Date().toISOString() }) });
-    const rows = r.ok ? ((await r.json()) as unknown[]) : [];
+    let rows = r.ok ? ((await r.json()) as unknown[]) : [];
+    if (!r.ok) {
+      // the status column may not accept a new value — then the moot request
+      // is simply removed; nothing was decided on it
+      const d = await fetch(`${SB()}/rest/v1/qc_requests?serial=eq.${encodeURIComponent(String(p.serial))}&status=eq.pending`, {
+        method: "DELETE", headers: { ...sb(), Prefer: "return=representation" } });
+      rows = d.ok ? ((await d.json()) as unknown[]) : [];
+      if (!d.ok) return json({ error: "withdraw failed " + r.status + "/" + d.status }, headers, 502);
+    }
     return json({ ok: true, withdrawn: rows.length }, headers);
   }
   if (op === "request") {
