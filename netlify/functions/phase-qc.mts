@@ -150,6 +150,16 @@ export default async (req: Request) => {
     return json({ ok: true }, headers);
   }
 
+  if (op === "withdraw") {
+    // a piano delivered with a mini-QC still pending (Mark 9/28, Weber 33045):
+    // the request is moot — mark it withdrawn so the queue and the map glow
+    // let go of it, without a verdict
+    const r = await fetch(`${SB()}/rest/v1/qc_requests?serial=eq.${encodeURIComponent(String(p.serial))}&status=eq.pending`, {
+      method: "PATCH", headers: { ...sb(), Prefer: "return=representation" },
+      body: JSON.stringify({ status: "withdrawn", manager: String(p.by || "delivery").slice(0, 60), updated: new Date().toISOString() }) });
+    const rows = r.ok ? ((await r.json()) as unknown[]) : [];
+    return json({ ok: true, withdrawn: rows.length }, headers);
+  }
   if (op === "request") {
     // one pending request per serial+phase
     const ex = await (await fetch(`${SB()}/rest/v1/qc_requests?serial=eq.${encodeURIComponent(p.serial)}&phase=eq.${encodeURIComponent(p.phase)}&status=eq.pending&limit=1`, { headers: sb() })).json() as unknown[];
