@@ -39,7 +39,7 @@ const BLP_APPS: { href: string; label: string; ownersOnly?: boolean }[] = [
   { href: "https://blpadmintraining.netlify.app", label: "Admin Training" },
   { href: "https://blptuningtraining.netlify.app", label: "Tuning Academy" },
   { href: "https://blpagents.netlify.app", label: "Agent App" },
-  { href: "https://bkfinance.netlify.app", label: "BK Finance", ownersOnly: true },
+  { href: "https://larson-family-finance.netlify.app", label: "BK Finance", ownersOnly: true },
   { href: "https://blpmarketing.netlify.app", label: "Marketing App" },
   { href: "https://blpmovers.netlify.app", label: "Movers App" },
   { href: "https://blpcrm.netlify.app", label: "CRM" },
