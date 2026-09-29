@@ -31,11 +31,15 @@ const NAV: { href: string; label: string; sub?: boolean; boardKey?: string; grou
 ];
 
 /** The rest of the BLP app family — a collapsible group. Internal routes
- * (href starting with "/") open in-app; the rest open in a new tab. */
-const BLP_APPS = [
+ * (href starting with "/") open in-app; the rest open in a new tab.
+ * `ownersOnly` tiles show only when the sidebar "Who are you?" picker says
+ * Brigham or Karmel. */
+const OWNER_REPS = ["Brigham", "Karmel"];
+const BLP_APPS: { href: string; label: string; ownersOnly?: boolean }[] = [
   { href: "https://blpadmintraining.netlify.app", label: "Admin Training" },
   { href: "https://blptuningtraining.netlify.app", label: "Tuning Academy" },
   { href: "https://blpagents.netlify.app", label: "Agent App" },
+  { href: "https://bkfinance.netlify.app", label: "BK Finance", ownersOnly: true },
   { href: "https://blpmarketing.netlify.app", label: "Marketing App" },
   { href: "https://blpmovers.netlify.app", label: "Movers App" },
   { href: "https://blpcrm.netlify.app", label: "CRM" },
@@ -55,6 +59,14 @@ const BLP_APPS = [
  */
 function BlpAppsMenu() {
   const [open, setOpen] = useState(false);
+  const [who, setWho] = useState("");
+  useEffect(() => {
+    const read = () => setWho(localStorage.getItem("blp_rep_name") || "");
+    read();
+    window.addEventListener("blp:who", read);
+    return () => window.removeEventListener("blp:who", read);
+  }, []);
+  const apps = BLP_APPS.filter((a) => !a.ownersOnly || OWNER_REPS.includes(who));
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -85,7 +97,7 @@ function BlpAppsMenu() {
               <span className="muted-light">↗ opens in a new tab</span>
             </div>
             <div className="apps-grid">
-              {BLP_APPS.map((a) =>
+              {apps.map((a) =>
                 a.href.startsWith("/") ? (
                   <Link key={a.href} href={a.href} className="apps-tile" role="menuitem" onClick={() => setOpen(false)}>
                     <b>{a.label}</b>
