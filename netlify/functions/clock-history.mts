@@ -47,7 +47,7 @@ export default async (req: Request) => {
   const cutoff = Date.now() - days * 86400000;
   try {
     const t = await gt();
-    const ranges = full ? ["Payroll Clock!A2:H8000", "Time Log!A2:J8000"] : ["Payroll Clock!A2:G4000", "Time Log!A2:H8000"];
+    const ranges = full ? ["Payroll Clock!A2:H8000", "Time Log!A2:J8000", "Clock Fix Requests!A2:F8000"] : ["Payroll Clock!A2:G4000", "Time Log!A2:H8000"];
     const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchGet?` +
       ranges.map((x) => "ranges=" + encodeURIComponent(x)).join("&"),
       { headers: { Authorization: "Bearer " + t } });
@@ -72,7 +72,23 @@ export default async (req: Request) => {
         tlF.push({ row: i + 2, tech: s(v[0]), serial: s(v[1]), piano: s(v[2]), phase: s(v[3]), start: s(v[4]), end: s(v[5]),
           minutes: Number(v[6]) || 0, source: s(v[7]), voided: s(v[9]) });
       });
-      return new Response(JSON.stringify({ ok: true, full: true, days, pay: payF.slice(0, 8000), tl: tlF.slice(0, 8000) }), { headers });
+      // the team's clock-fix requests, newest first, same shape as the bridge's
+      // fn=clockfixes: WHEN is a date cell, shown the way the bridge shows it
+      // ("Oct 1, 11:13 AM" — the sheet's own display is "10/1/2026 11:13:49")
+      const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const fmtWhen = (raw: string) => {
+        const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::\d{2})?)?$/.exec(raw.trim());
+        if (!m) return raw;
+        const h = Number(m[4] || 0);
+        return `${MON[Number(m[1]) - 1]} ${Number(m[2])}, ${h % 12 || 12}:${m[5] || "00"} ${h < 12 ? "AM" : "PM"}`;
+      };
+      const fixes: object[] = [];
+      (d.valueRanges[2]?.values || []).forEach((v, i) => {
+        if (!v[0]) return;
+        fixes.push({ row: i + 2, when: fmtWhen(s(v[0])), who: s(v[1]), clock: s(v[2]), serial: s(v[3]), note: s(v[4]), status: s(v[5]) || "open" });
+      });
+      fixes.reverse();
+      return new Response(JSON.stringify({ ok: true, full: true, days, pay: payF.slice(0, 8000), tl: tlF.slice(0, 8000), fixes: fixes.slice(0, 200) }), { headers });
     }
     const pay = (d.valueRanges[0]?.values || [])
       .filter((v) => v[0] && v[2] && okPay(v[2]))
