@@ -35,11 +35,19 @@ export default async (req: Request) => {
   if ((u.searchParams.get("key") || "") !== (process.env.BLP_APP_ACCESS_KEY || "")) {
     return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers });
   }
-  const days = Math.min(60, Number(u.searchParams.get("days")) || 16);
+  // full=1 (Walter 10/1): the Store Map's Time Clock Adjustments / Payroll /
+  // Job-costing reports read the same two tabs with the bridge's own row
+  // shape — sheet row number, date, source, note and the Void stamp — so a
+  // punch can be edited from them. The bridge's fn=payrollrows / fn=timelog
+  // reads of those tabs were taking 10–90 s under Google's throttling; this
+  // is the same ~1 s Sheets API read. No payroll epoch and up to 730 days,
+  // exactly like the bridge, so row counts match either way.
+  const full = u.searchParams.get("full") === "1";
+  const days = Math.min(full ? 730 : 60, Number(u.searchParams.get("days")) || 16);
   const cutoff = Date.now() - days * 86400000;
   try {
     const t = await gt();
-    const ranges = ["Payroll Clock!A2:G4000", "Time Log!A2:H8000"];
+    const ranges = full ? ["Payroll Clock!A2:H8000", "Time Log!A2:J8000"] : ["Payroll Clock!A2:G4000", "Time Log!A2:H8000"];
     const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchGet?` +
       ranges.map((x) => "ranges=" + encodeURIComponent(x)).join("&"),
       { headers: { Authorization: "Bearer " + t } });
@@ -51,6 +59,21 @@ export default async (req: Request) => {
     // Time Log history has no epoch: it's all real work.
     const PAY_EPOCH = new Date("2026-09-01T00:00:00-06:00").getTime();
     const okPay = (v: string) => { const x = new Date(v).getTime(); return !isNaN(x) && x >= Math.max(cutoff, PAY_EPOCH); };
+    if (full) {
+      const s = (x: unknown) => String(x ?? "");
+      const payF: object[] = [], tlF: object[] = [];
+      (d.valueRanges[0]?.values || []).forEach((v, i) => {   // i + 2 = sheet row, same as the bridge
+        if (!v[0] || !v[2] || !okd(v[2])) return;
+        payF.push({ row: i + 2, tech: s(v[0]), date: s(v[1]), start: s(v[2]), end: s(v[3]), minutes: Number(v[4]) || 0,
+          source: s(v[5]), note: s(v[6]), voided: s(v[7]) });
+      });
+      (d.valueRanges[1]?.values || []).forEach((v, i) => {
+        if (!v[0] || !v[4] || !okd(v[4])) return;
+        tlF.push({ row: i + 2, tech: s(v[0]), serial: s(v[1]), piano: s(v[2]), phase: s(v[3]), start: s(v[4]), end: s(v[5]),
+          minutes: Number(v[6]) || 0, source: s(v[7]), voided: s(v[9]) });
+      });
+      return new Response(JSON.stringify({ ok: true, full: true, days, pay: payF.slice(0, 8000), tl: tlF.slice(0, 8000) }), { headers });
+    }
     const pay = (d.valueRanges[0]?.values || [])
       .filter((v) => v[0] && v[2] && okPay(v[2]))
       .map((v) => ({ tech: String(v[0]), start: String(v[2]), end: String(v[3] || ""), minutes: Number(v[4]) || 0, note: String(v[6] || "") }));
