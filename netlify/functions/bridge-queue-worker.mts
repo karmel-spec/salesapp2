@@ -32,6 +32,17 @@ export default async (req: Request) => {
   const rows = (await r.json()) as Array<{ id: number; payload: unknown; attempts: number }>;
   let drained = 0, gaveUp = 0;
   for (const row of rows) {
+    // belt and braces (Walter 10/2): a Delivered phase change is never replayed
+    // by a robot — see pianolog-write; any such row still queued is parked
+    const pl = (row.payload || {}) as { action?: unknown; phase?: unknown };
+    if (String(pl.action || "") === "setphase" && /^delivered$/i.test(String(pl.phase || ""))) {
+      await fetch(`${SB}/rest/v1/bridge_queue?id=eq.${row.id}`, {
+        method: "PATCH", headers: sbHeaders(),
+        body: JSON.stringify({ status: "failed", last_error: "not replayed: Delivered is human-only", updated: new Date().toISOString() }),
+      }).catch(() => {});
+      gaveUp++;
+      continue;
+    }
     const fw = await forwardToBridge(row.payload, 9000);
     const patch: Record<string, unknown> = { updated: new Date().toISOString(), attempts: row.attempts + 1 };
     if (fw.kind === "real") {

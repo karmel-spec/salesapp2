@@ -76,6 +76,14 @@ export default async (req: Request) => {
     return new Response(JSON.stringify({ error: "action not relayable: " + action }), { status: 400, headers });
   }
   const { relayKey: _drop, ...payload } = p;
+  // setphase → Delivered is NEVER replayed from the queue (Walter 10/2): on
+  // 9/28 an inline attempt that had in fact landed was marked ambiguous, the
+  // piano was put back by hand, and 15 minutes later the worker re-applied
+  // the queued copy — Steinway D #38930 went off the map again unnoticed for
+  // four days. Delivered is a one-way move off the map, so it is inline-only:
+  // if the bridge's answer is not a real result the client is told to try
+  // again instead of a robot finishing the job later.
+  const humanOnly = action === "setphase" && /^delivered$/i.test(String((payload as { phase?: unknown }).phase || ""));
 
   // 1. durable record first — the op can no longer be lost
   const ins = await fetch(SB + "/rest/v1/bridge_queue", {
@@ -97,6 +105,13 @@ export default async (req: Request) => {
       body: JSON.stringify({ status: "done", result: fw.body, attempts: 1, updated: new Date().toISOString() }),
     }).catch(() => {});
     return new Response(JSON.stringify(fw.body), { headers });
+  }
+  if (humanOnly) {
+    await fetch(`${SB}/rest/v1/bridge_queue?id=eq.${qid}`, {
+      method: "PATCH", headers: sbHeaders(),
+      body: JSON.stringify({ status: "failed", attempts: 1, last_error: "not queued: Delivered is inline-only (" + (fw.err || fw.kind) + ")", updated: new Date().toISOString() }),
+    }).catch(() => {});
+    return new Response(JSON.stringify({ error: "the bridge did not confirm the Delivered change — check the card and try again (Delivered is never applied later by the queue)" }), { status: 502, headers });
   }
   await fetch(`${SB}/rest/v1/bridge_queue?id=eq.${qid}`, {
     method: "PATCH", headers: sbHeaders(),
