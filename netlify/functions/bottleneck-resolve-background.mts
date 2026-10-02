@@ -71,12 +71,15 @@ async function bridgeOnce(body: Record<string, unknown>) {
 // after each deploy WITHOUT running the action — that read as ✓ before
 // (12:20 run today). Retry through it; never count it as success.
 async function bridge(body: Record<string, unknown>) {
-  for (let a = 0; a < 3; a++) {
+  let last: any = null;
+  for (let a = 0; a < 4; a++) {
     const j = await bridgeOnce(body);
-    if (!(j && j.service && !j.error)) return j;
-    await new Promise(r => setTimeout(r, 2000 * (a + 1)));
+    last = j;
+    // a real answer — not the generic ping, not Google's HTML error page
+    if (!(j && j.service && !j.error) && !(j && /non-JSON page/.test(String(j.error || "")))) return j;
+    await new Promise(r => setTimeout(r, 3000 * (a + 1)));
   }
-  return { error: "the Google bridge is mid-deploy — try again in a minute" };
+  return last && last.error ? last : { error: "the Google bridge is mid-deploy — try again in a minute" };
 }
 
 const ALLOWED = new Set(["move", "setphase", "setdone", "settrack", "setcabinetry", "queue",
@@ -117,14 +120,22 @@ export default async (req: Request) => {
   let plan: any = null;
   // bridge only, with retries (see schedule-adjust-background 9/11); a plan
   // for a week that is already over is not touched
-  for (let a = 0; a < 3 && !plan; a++) {
+  // Walter 10/2: at 12:39 all three reads hit Google's HTML page, the run went
+  // on without a plan, executed its card actions, told the Planner "Answers
+  // processed", and the board kept every question. Now: more patient reads,
+  // and with no plan the run STOPS before touching anything — the Planner
+  // keeps the typed answers so one more tap retries the whole thing.
+  for (let a = 0; a < 6 && !plan; a++) {
     try {
       const j = await (await fetch(BRIDGE + "?fn=proposal&_=" + Date.now(), { redirect: "follow", signal: AbortSignal.timeout(45000) })).json();
       if (j.ok) plan = typeof j.plan === "string" ? JSON.parse(j.plan) : j.plan;
     } catch {}
-    if (!plan && a < 2) await new Promise(r => setTimeout(r, 3000));
+    if (!plan && a < 5) await new Promise(r => setTimeout(r, 5000 * (a + 1)));
   }
-  if (plan && plan.weekStart && new Date(plan.weekStart + "T00:00:00-06:00").getTime() < Date.now() - 6 * 86400000) plan = null;
+  if (!plan) return finish({ error: "Couldn't load the current plan from the Google bridge (it is answering with its error page right now) — nothing was changed and your answers are still in the boxes. Try again in a minute." }, 503);
+  if (plan.weekStart && new Date(plan.weekStart + "T00:00:00-06:00").getTime() < Date.now() - 6 * 86400000) {
+    return finish({ error: "The stored proposal is for " + (plan.week || plan.weekStart) + " — that week is over, so answers can't be applied to it." }, 409);
+  }
 
   const tools = [{
     name: "resolution",
