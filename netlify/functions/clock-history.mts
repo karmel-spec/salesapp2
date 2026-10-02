@@ -47,7 +47,10 @@ export default async (req: Request) => {
   const cutoff = Date.now() - days * 86400000;
   try {
     const t = await gt();
-    const ranges = full ? ["Payroll Clock!A2:H8000", "Time Log!A2:J8000", "Clock Fix Requests!A2:F8000"] : ["Payroll Clock!A2:G4000", "Time Log!A2:H8000"];
+    // both modes read through the Void columns (H / J): a voided punch is
+    // not a punch (Mark 10/2 — his voided double clock-in kept showing on his
+    // dashboard and doubling his day's hours)
+    const ranges = full ? ["Payroll Clock!A2:H8000", "Time Log!A2:J8000", "Clock Fix Requests!A2:F8000"] : ["Payroll Clock!A2:H4000", "Time Log!A2:J8000"];
     const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchGet?` +
       ranges.map((x) => "ranges=" + encodeURIComponent(x)).join("&"),
       { headers: { Authorization: "Bearer " + t } });
@@ -91,10 +94,10 @@ export default async (req: Request) => {
       return new Response(JSON.stringify({ ok: true, full: true, days, pay: payF.slice(0, 8000), tl: tlF.slice(0, 8000), fixes: fixes.slice(0, 200) }), { headers });
     }
     const pay = (d.valueRanges[0]?.values || [])
-      .filter((v) => v[0] && v[2] && okPay(v[2]))
+      .filter((v) => v[0] && v[2] && okPay(v[2]) && !String(v[7] || "").trim())
       .map((v) => ({ tech: String(v[0]), start: String(v[2]), end: String(v[3] || ""), minutes: Number(v[4]) || 0, note: String(v[6] || "") }));
     const tl = (d.valueRanges[1]?.values || [])
-      .filter((v) => v[0] && v[4] && okd(v[4]))
+      .filter((v) => v[0] && v[4] && okd(v[4]) && !String(v[9] || "").trim())
       .map((v) => ({ tech: String(v[0]), serial: String(v[1] || ""), piano: String(v[2] || ""), phase: String(v[3] || ""),
         start: String(v[4]), end: String(v[5] || ""), minutes: Number(v[6]) || 0 }));
     return new Response(JSON.stringify({ ok: true, pay, tl }), { headers });
