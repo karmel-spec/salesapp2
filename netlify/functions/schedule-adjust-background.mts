@@ -57,6 +57,35 @@ async function readRules(): Promise<string[]> {
   const j = await sheets(`values/${encodeURIComponent(`'${RULES_TAB}'!A2:C200`)}`);
   return ((j.values as string[][]) || []).map(r => r[1] || "").filter(Boolean);
 }
+// The techs' weekly reports (Walter 10/2): Apply only ever saw the plan, the
+// notes and the rules, so "re-check the weekly report and redo his week"
+// got a shrug — the reports are read by the Saturday draft alone. Now the
+// latest filed column of the year tab (header ≤ tomorrow, so a Friday-dated
+// column counts this week) rides along, one entry per tech.
+const REPORT_TAB = String(new Date().getFullYear());
+async function readWeekReports(): Promise<{ label: string; byTech: Record<string, string> } | null> {
+  const j = await sheets(`values/${encodeURIComponent(`'${REPORT_TAB}'!A1:CZ60`)}`);
+  const rows: string[][] = (j.values || []) as string[][];
+  if (!rows.length) return null;
+  const hdr = rows[0];
+  const limit = Date.now() + 86400000;
+  let best = -1, bestT = -Infinity;
+  hdr.forEach((h, i) => {
+    const m = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/.exec(String(h || "").trim());
+    if (!m) return;
+    const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+    const t = new Date(y, Number(m[1]) - 1, Number(m[2])).getTime();
+    const filled = rows.slice(1).some(r => String(r[i] || "").trim());
+    if (t <= limit && t > bestT && filled) { bestT = t; best = i; }
+  });
+  if (best < 0) return null;
+  const byTech: Record<string, string> = {};
+  rows.slice(1).forEach(r => {
+    const n = String(r[0] || "").trim(), v = String(r[best] || "").trim();
+    if (n && v) byTech[n] = v.length > 1400 ? v.slice(0, 1400) + " …" : v;
+  });
+  return { label: String(hdr[best]), byTech };
+}
 async function appendRules(rules: string[], by: string) {
   if (!rules.length) return;
   await sheets(`values/${encodeURIComponent(`'${RULES_TAB}'!A1`)}:append?valueInputOption=RAW`, "POST",
@@ -98,6 +127,7 @@ export default async (req: Request) => {
   }
 
   const rules = await readRules().catch(() => [] as string[]);
+  const reports = await readWeekReports().catch(() => null);
   const notesTxt = Object.entries(body.notes || {})
     .filter(([, v]) => String(v || "").trim())
     .map(([k, v]) => `${k}: ${String(v).trim()}`).join("\n");
@@ -122,8 +152,16 @@ export default async (req: Request) => {
     + "cleaning block for full-day techs. Update the 'who' summary line when a tech's pianos change. "
     + "Add/adjust bottlenecks entries when notes reveal blockers — every bottlenecks entry MUST be a two-element array [title, body] (never a plain string); per-piano reconciliation notes belong in reportOverrides, not bottlenecks. Distinguish one-off adjustments (apply them, "
     + "list in changes) from standing rules ('always', 'never', 'from now on', 'remember') which also go in "
-    + "rules_extracted. Do not invent work that wasn't asked for.";
+    + "rules_extracted. Do not invent work that wasn't asked for. "
+    + "You also get each technician's WEEKLY REPORT (their own account of this week, per piano: DONE / CONTINUE NEXT WEEK "
+    + "(with days to finish) / NOT STARTED). When a note asks you to re-check a report or redo a tech's week from it, rebuild "
+    + "that tech's days from the report: CONTINUE NEXT WEEK items first with their days-to-finish, then NOT STARTED items, "
+    + "DONE items need no time; keep standing rules and fixed blocks. A tech with no report cannot be rebuilt — say so in questions.";
+  const reportsTxt = reports
+    ? `TECH WEEKLY REPORTS (filed under ${reports.label}):\n` + Object.entries(reports.byTech).map(([n, t]) => `${n}: ${t}`).join("\n") + "\n\n"
+    : "TECH WEEKLY REPORTS: (none found on the year tab)\n\n";
   const userMsg = `STANDING RULES:\n${rules.map(r => "- " + r).join("\n") || "(none yet)"}\n\n`
+    + reportsTxt
     + `BRIGHAM'S NOTES THIS WEEK:\n${globalTxt ? "GLOBAL: " + globalTxt + "\n" : ""}${notesTxt}\n\n`
     + `CURRENT PLAN JSON:\n${JSON.stringify(plan)}`;
 
