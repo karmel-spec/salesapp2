@@ -205,7 +205,7 @@ export default async (req: Request) => {
     if (!r0.length) return json({ error: "no such request" }, headers, 404);
     const v = r0[0].verdicts || {};
     v[String(p.item)] = { verdict: p.verdict === "pass" ? "pass" : "fail",
-      note: String(p.note || "").slice(0, 300), by: String(p.manager || ""), at: now };
+      note: String(p.note || "").slice(0, 1000), by: String(p.manager || ""), at: now };
     const r = await fetch(`${SB()}/rest/v1/qc_requests?id=eq.${Number(p.id)}`, {
       method: "PATCH", headers: sb(),
       body: JSON.stringify({ verdicts: v, manager: String(p.manager || ""), updated: now }),
@@ -219,7 +219,10 @@ export default async (req: Request) => {
     const q = rows[0];
     const outcome = p.outcome === "pass" ? "passed" : "rework";
     // manager's overall note (Brigham 9/17) — kept with the verdicts, sent to the tech
-    const genNote = String(p.note || "").trim().slice(0, 400);
+    const genNote = String(p.note || "").trim().slice(0, 1500);
+    // the text relay caps a message at 1200 chars — a long note is shortened
+    // there and kept in full on the card / in the app (Jacob 10/5)
+    const smsNote = (more: string) => !genNote ? "" : " Note: " + (genNote.length > 700 ? genNote.slice(0, 700).trimEnd() + "… " + more : genNote);
     const verdicts = { ...((q.verdicts || {}) as Record<string, unknown>) };
     if (genNote) verdicts._note = { note: genNote, by: String(p.manager || ""), at: now };
     await fetch(`${SB()}/rest/v1/qc_requests?id=eq.${Number(p.id)}`, {
@@ -244,7 +247,7 @@ export default async (req: Request) => {
           user: { name: (p.manager || "Manager") + " (mini-QC pass)", email: "" } }),
       }).catch(() => {});
       await textByName(q.requested_by,
-        `✅ Mini-QC PASSED — ${q.phase} on ${label(q.piano, q.serial)} (${String(p.manager || "manager").split(" ")[0]}). Phase advanced to ${q.next_phase}. Nice work.${genNote ? " Note: " + genNote : ""}`);
+        `✅ Mini-QC PASSED — ${q.phase} on ${label(q.piano, q.serial)} (${String(p.manager || "manager").split(" ")[0]}). Phase advanced to ${q.next_phase}. Nice work.${smsNote("(full note in the app)")}`);
     } else {
       const failed = Object.entries((q.verdicts || {}) as Record<string, any>)
         .filter(([k, v]) => k !== "_note" && v.verdict === "fail")
@@ -258,7 +261,7 @@ export default async (req: Request) => {
           user: { name: p.manager || "Mini-QC", email: "" } }),
       }).catch(() => {});
       await textByName(q.requested_by,
-        `🔁 Mini-QC on ${q.phase} — ${label(q.piano, q.serial)}: ${failed.length} item${failed.length === 1 ? "" : "s"} need rework (card on your task board). Clock in under 🔁 Rework, fix, then re-request QC.${genNote ? " Note: " + genNote : ""}`);
+        `🔁 Mini-QC on ${q.phase} — ${label(q.piano, q.serial)}: ${failed.length} item${failed.length === 1 ? "" : "s"} need rework (card on your task board). Clock in under 🔁 Rework, fix, then re-request QC.${smsNote("(full note on the card)")}`);
     }
     return json({ ok: true, status: outcome }, headers);
   }

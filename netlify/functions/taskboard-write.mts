@@ -64,7 +64,7 @@ export default async (req: Request, context: { waitUntil?: (p: Promise<unknown>)
       const newId = "tc" + Date.now().toString(36) + Math.floor(Math.random() * 1e4);
       await sb("tb_cards", "POST", {
         id: newId, owner: String(p.owner || ""), col: "todo",
-        text: String(p.text || "").slice(0, 2000), serial: String(p.serial || ""),
+        text: String(p.text || "").slice(0, 6000), serial: String(p.serial || ""),
         due: String(p.due || ""), from_who: String(p.from || ""),
         ord: Number(p.order) || 0, created: nowIso, updated_at: nowIso,
       });
@@ -77,7 +77,7 @@ export default async (req: Request, context: { waitUntil?: (p: Promise<unknown>)
       await sb("tb_cards?id=eq." + encodeURIComponent(id), "PATCH", patch);
     } else if (op === "edit") {
       const patch: Record<string, unknown> = { updated_at: nowIso };
-      if (p.text !== undefined) patch.text = String(p.text).slice(0, 2000);
+      if (p.text !== undefined) patch.text = String(p.text).slice(0, 6000);
       if (p.due !== undefined) patch.due = String(p.due);
       if (p.serial !== undefined) patch.serial = String(p.serial);
       await sb("tb_cards?id=eq." + encodeURIComponent(id), "PATCH", patch);
