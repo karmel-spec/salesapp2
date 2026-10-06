@@ -60,9 +60,22 @@ export function isHoliday(date: string): boolean {
   for (const f of fixed) { const fd = new Date(f + "T00:00:00Z"); const fdow = fd.getUTCDay(); const obs = new Date(fd); if (fdow === 6) obs.setUTCDate(fd.getUTCDate() - 1); else if (fdow === 0) obs.setUTCDate(fd.getUTCDate() + 1); else continue; if (obs.toISOString().slice(0, 10) === date) return true; }
   return dow === 0 || dow === 6 ? false : false;
 }
-export const isBusinessDay = (date: string) => { const dow = new Date(date + "T12:00:00Z").getUTCDay(); return dow !== 0 && dow !== 6 && !isHoliday(date); };
+/**
+ * Streak days (Brigham, 2026-10-06): sales streaks run Tuesday–Friday. Saturday,
+ * Sunday and Monday never count against a streak, and neither do shop holidays
+ * or logged days off (vacations) — see `daysOff`.
+ */
+let daysOff: Set<string> = new Set();
+export function setDaysOff(dates: Iterable<string>) { daysOff = new Set(dates); }
+export const isBusinessDay = (date: string) => { const dow = new Date(date + "T12:00:00Z").getUTCDay(); return dow >= 2 && dow <= 5 && !isHoliday(date) && !daysOff.has(date); };
 const prevDay = (date: string) => { const dt = new Date(date + "T12:00:00Z"); dt.setUTCDate(dt.getUTCDate() - 1); return dt.toISOString().slice(0, 10); };
 const prevBusinessDay = (date: string) => { let d = prevDay(date); while (!isBusinessDay(d)) d = prevDay(d); return d; };
+/** Expand "YYYY-MM-DD".."YYYY-MM-DD" ranges into individual dates. */
+export function expandRange(from: string, to: string): string[] {
+  const out: string[] = []; const a = new Date(from + "T12:00:00Z"), b = new Date((to || from) + "T12:00:00Z");
+  for (let d = new Date(a); d <= b && out.length < 120; d.setUTCDate(d.getUTCDate() + 1)) out.push(d.toISOString().slice(0, 10));
+  return out;
+}
 
 export function computeStreak(leads: Lead[], who: string, now = new Date()): Streak {
   const per = new Map<string, Map<string, string>>(); // date → leadId → name

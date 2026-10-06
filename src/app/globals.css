@@ -1422,3 +1422,9 @@ tbody tr:hover { background: #faf7f2; }
 .topten-row.worst{border-left:4px solid #5b6b7a}
 .topten-row.worst.worked{opacity:.55}
 .topten-facts .btn.small{padding:4px 10px;font-size:12px}
+
+.streak-off{display:flex;flex-direction:column;gap:6px;font-size:12px}
+.streak-off-row{display:flex;justify-content:space-between;align-items:center;gap:6px;background:#f7f4ec;border-radius:6px;padding:4px 8px}
+.streak-off-form{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.streak-off-form input[type=text]{grid-column:1/3}
+.streak-off-form .btn{grid-column:1/3}

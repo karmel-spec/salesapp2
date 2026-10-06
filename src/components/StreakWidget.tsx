@@ -14,7 +14,8 @@ type Level = "m1" | "m5" | "m10" | "record" | "week" | "speed" | "allclear" | "w
 type Wins = { month: { count: number; dollars: number; mine: number; label: string }; year: { count: number; dollars: number; mine: number; label: string }; allTime: { count: number; dollars: number; mine: number }; bestMonth: { label: string; count: number } | null; latest: { name: string; value: string; when: string; closedBy: string } | null };
 type TeamQ = { open: number; byOwner: { owner: string; n: number; boardLink: string }[]; answeredToday: number; streak: number; streakAlive: boolean; bestStreak: number; tracking: boolean };
 type AllClear = { newUncontacted: number; topTenLeft: number; unreadReplies: number; clear: boolean };
-type StreakData = Streak & { allClear?: AllClear; teamQuestions?: TeamQ | null; wins?: Wins };
+type DayOff = { from: string; to: string; who: string; note: string };
+type StreakData = Streak & { allClear?: AllClear; teamQuestions?: TeamQ | null; wins?: Wins; daysOff?: DayOff[] };
 const fmt = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
 export function StreakWidget() {
@@ -23,6 +24,23 @@ export function StreakWidget() {
   const [open, setOpen] = useState(false);
   const [party, setParty] = useState<{ level: Level; title: string; lines: string[]; link?: { href: string; label: string } } | null>(null);
   const lastWins = useRef<number | null>(null);
+  const [offFrom, setOffFrom] = useState("");
+  const [offTo, setOffTo] = useState("");
+  const [offNote, setOffNote] = useState("");
+  const [offBusy, setOffBusy] = useState(false);
+  async function addOff() {
+    if (!offFrom) return;
+    setOffBusy(true);
+    try {
+      await api("/api/streak/days-off", { method: "POST", body: JSON.stringify({ from: offFrom, to: offTo || offFrom, who, note: offNote || "day off", addedBy: getWho() }) });
+      setOffFrom(""); setOffTo(""); setOffNote("");
+      await load(true);
+    } catch (e) { alert(e instanceof Error ? e.message : String(e)); } finally { setOffBusy(false); }
+  }
+  async function removeOff(d: DayOff) {
+    setOffBusy(true);
+    try { await api(`/api/streak/days-off?from=${d.from}&who=${encodeURIComponent(d.who)}`, { method: "DELETE" }); await load(true); } catch {} finally { setOffBusy(false); }
+  }
 
   const load = useCallback(async (fresh = false) => {
     const w = getWho();
@@ -113,7 +131,7 @@ export function StreakWidget() {
     if (n >= 10) seen.m10 = true;
     if (level === "record") { seen.recordToday = true; seen[`record:${n}`] = true; }
     try { localStorage.setItem(key, JSON.stringify(seen)); } catch {}
-    const streakLine = `${d.streak}-business-day streak${d.streak >= 5 ? " 🔥" : ""} — weekends and holidays don't count against you.`;
+    const streakLine = `${d.streak}-day streak${d.streak >= 5 ? " 🔥" : ""} — Tuesday to Friday; weekends, Mondays, holidays and days off never count against you.`;
     if (level === "m1") setParty({ level, title: "First lead worked today! 🎉", lines: [streakLine, "Don't break it — one worked lead a day keeps the streak alive."] });
     if (level === "m5") setParty({ level, title: "Five leads worked! 🔥", lines: ["Halfway to a Perfect Ten.", d.tenStreak > 0 ? `Your Perfect-Ten streak is ${d.tenStreak} day${d.tenStreak > 1 ? "s" : ""} — five more keeps it alive.` : "Five more today starts a Perfect-Ten streak.", streakLine] });
     if (level === "m10") setParty({ level, title: "PERFECT TEN! 🏆", lines: [`${n} leads worked today — that's a ${d.tenStreak}-day Perfect-Ten streak.`, best ? `Your best ever is ${best.count} in one day (${fmt(best.date)}). Think you can beat it today?` : "That's your best day yet — keep going.", "Keep up the great work."] });
@@ -163,7 +181,7 @@ export function StreakWidget() {
             <button className="btn ghost small" onClick={() => setOpen(false)}>✕</button>
           </div>
           <div className="streak-stats">
-            <div><span className="big">{data.streak}</span><span className="lbl">business days{data.streakAlive ? "" : " (work one lead today to keep it)"}</span></div>
+            <div><span className="big">{data.streak}</span><span className="lbl">day streak (Tue–Fri){data.streakAlive ? "" : " · work one lead today to keep it"}</span></div>
             <div><span className="big">{n}</span><span className="lbl">worked today{n < 10 ? ` · ${10 - n} to a Perfect Ten` : " · Perfect Ten ✓"}</span></div>
             <div><span className="big">{data.best?.count ?? 0}</span><span className="lbl">best day{data.best ? ` · ${fmt(data.best.date)}` : ""}</span></div>
             <div><span className="big">{data.tenStreak}</span><span className="lbl">Perfect-Ten streak</span></div>
@@ -189,7 +207,23 @@ export function StreakWidget() {
               </span>
             ))}
           </div>
-          <div className="muted" style={{ fontSize: 12 }}>A lead counts as worked when you text, email, call, note, edit or coach it. Weekends and shop holidays never break a streak. Speed counts customer texts 9–6 on your leads answered by a person within 60 minutes. A recap text arrives Fridays at 5.</div>
+          <div className="streak-off">
+            <div className="muted"><b>Days off</b> (never break a streak)</div>
+            {(data.daysOff || []).length === 0 && <div className="muted" style={{ fontSize: 12 }}>none logged</div>}
+            {(data.daysOff || []).map((d) => (
+              <div key={d.from + d.who} className="streak-off-row">
+                <span>{fmt(d.from)}{d.to !== d.from ? ` – ${fmt(d.to)}` : ""}{d.note ? ` · ${d.note}` : ""}</span>
+                <button className="btn ghost small" disabled={offBusy} onClick={() => removeOff(d)} title="Remove">✕</button>
+              </div>
+            ))}
+            <div className="streak-off-form">
+              <input type="date" value={offFrom} onChange={(e) => setOffFrom(e.target.value)} aria-label="From" />
+              <input type="date" value={offTo} onChange={(e) => setOffTo(e.target.value)} aria-label="To" />
+              <input type="text" value={offNote} onChange={(e) => setOffNote(e.target.value)} placeholder="vacation" />
+              <button className="btn small" disabled={offBusy || !offFrom} onClick={addOff}>Add</button>
+            </div>
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>A lead counts as worked when you text, email, call, note, edit or coach it. Streak days are Tuesday–Friday; weekends, Mondays, shop holidays and logged days off never break a streak. Speed counts customer texts 9–6 on your leads answered by a person within 60 minutes. A recap text arrives Fridays at 5.</div>
         </div>
       )}
       {party && <Celebration level={party.level} title={party.title} lines={party.lines} link={party.link} onDone={() => setParty(null)} />}

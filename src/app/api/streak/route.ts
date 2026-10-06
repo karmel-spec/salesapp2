@@ -6,6 +6,7 @@ import { rankLeads, workedSince } from "@/lib/topten-auto";
 import { getTopTen } from "@/lib/topten";
 import { scopeOf } from "@/lib/inbox-split";
 import { computeWins } from "@/lib/wins";
+import { loadDaysOff } from "@/lib/days-off";
 import { requireSession, jsonError } from "@/lib/api";
 import { config } from "@/lib/config";
 
@@ -20,7 +21,8 @@ export async function GET(req: NextRequest) {
   try {
     const who = (req.nextUrl.searchParams.get("who") || "Brigham").trim();
     const { leads } = await getLeads(req.nextUrl.searchParams.get("fresh") === "1");
-    const base = { ...computeStreak(leads, who), wins: computeWins(leads, who) };
+    const daysOff = await loadDaysOff(who);
+    const base = { ...computeStreak(leads, who), wins: computeWins(leads, who), daysOff };
     if (who !== "Brigham") return NextResponse.json(base);
 
     // "All clear" = every new lead contacted, today's Top Ten worked, no unread replies to Brigham.
