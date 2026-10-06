@@ -166,7 +166,7 @@ export default async (req: Request) => {
     + "with the allowed bridge actions (sheet layout changes, adding brand-new pianos, emails) go in "
     + "followups for a human. Phases must be one of: New Arrival - Admin, Assessment, CAP, PRSB - Downbearing, "
     + "PRSB - Notching and Pins, Lacquer Soundboard, Restringing, Chip Tuning, DHRT, 1st Tuning, Refinishing, "
-    + "QC & Assembly, 2nd Tuning, Exit Prep - Admin, In Queue, Paused, For Sale, Sale Pending, "
+    + "QC & Assembly, 2nd Tuning, Exit Prep - Admin, In Queue, Paused, Player Piano Work, For Sale, Sale Pending, "
     + "Post Sale QC, Waiting on Brigham, Waiting on Curtis Harper, Waiting on Customer, Waiting on OTHER. "
     + "NEVER set a phase of \"Delivered\" or \"Sold\" — those take a piano off the map and a human must do "
     + "them. If an answer says a piano was delivered or sold, put it in followups instead. "

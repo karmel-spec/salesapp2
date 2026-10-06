@@ -41,7 +41,7 @@ const PRICE_SETTERS = ["brigham", "karmel"];
 const PHASES = ["New Arrival - Admin", "Assessment", "CAP", "PRSB - Downbearing",
   "Lacquer Soundboard", "Restringing", "Chip Tuning", "DHRT", "1st Tuning", "Refinishing",
   "QC & Assembly", "2nd Tuning", "Exit Prep - Admin"];
-const PHASE_STATES = ["In Queue", "Paused", "For Sale", "Waiting on Brigham",
+const PHASE_STATES = ["In Queue", "Paused", "Player Piano Work", "For Sale", "Waiting on Brigham",
   "Waiting on Curtis Harper", "Waiting on OTHER", "Delivered"];
 
 /* ---------- Google Sheets read (same self-contained pattern as the reminders) ---------- */
