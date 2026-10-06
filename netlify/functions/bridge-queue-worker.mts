@@ -29,7 +29,7 @@ export default async (req: Request) => {
     `${SB}/rest/v1/bridge_queue?status=eq.queued&order=created.asc&limit=8`,
     { headers: sbHeaders() },
   );
-  const rows = (await r.json()) as Array<{ id: number; payload: unknown; attempts: number }>;
+  const rows = (await r.json()) as Array<{ id: number; payload: unknown; attempts: number; created?: string }>;
   let drained = 0, gaveUp = 0;
   for (const row of rows) {
     // belt and braces (Walter 10/2): a Delivered phase change is never replayed
@@ -43,7 +43,9 @@ export default async (req: Request) => {
       gaveUp++;
       continue;
     }
-    const fw = await forwardToBridge(row.payload, 9000);
+    // a replay is marked (Walter 10/6) so the bridge can skip a move that
+    // already landed or that a newer move has replaced since it was queued
+    const fw = await forwardToBridge({ ...(row.payload as object), replayOf: row.id, queuedAt: row.created || "" }, 9000);
     const patch: Record<string, unknown> = { updated: new Date().toISOString(), attempts: row.attempts + 1 };
     if (fw.kind === "real") {
       patch.status = "done";
