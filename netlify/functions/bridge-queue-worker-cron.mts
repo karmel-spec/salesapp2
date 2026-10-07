@@ -6,7 +6,7 @@ export default async () => {
   const key = process.env.BLP_APP_ACCESS_KEY || "";
   try {
     const r = await fetch(
-      "https://blpsalesapp.netlify.app/.netlify/functions/bridge-queue-worker?key=" + encodeURIComponent(key),
+      "https://blpsalesapp.netlify.app/.netlify/functions/bridge-queue-worker-background?key=" + encodeURIComponent(key),
     );
     const j = await r.json().catch(() => ({}));
     if ((j as { drained?: number }).drained || (j as { gaveUp?: number }).gaveUp) {
