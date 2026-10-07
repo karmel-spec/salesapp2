@@ -2,6 +2,8 @@ import crypto from "crypto";
 import { config } from "./config";
 import { readRows, writeCells, insertRowTop, canWrite, expandColumns, readCell, moveRow } from "./sheets";
 import { crmUpsertLead, crmNote } from "./crm";
+import { getStore } from "@netlify/blobs";
+import { gzipSync, gunzipSync } from "node:zlib";
 
 /**
  * Lead domain model over the Leads Log spreadsheet.
@@ -503,13 +505,36 @@ let inFlight: Promise<{ leads: Lead[]; shape: SheetShape }> | null = null;
 export async function getLeads(force = false): Promise<{ leads: Lead[]; shape: SheetShape }> {
   if (cache && Date.now() - cache.at < (force ? FORCE_REUSE_MS : CACHE_MS)) return cache;
   if (inFlight) return inFlight;
+  lastForce = force;
   inFlight = (async () => {
     try { return await readLeadsNow(); } finally { inFlight = null; }
   })();
   return inFlight;
 }
+// Shared cache of the raw sheet rows in Netlify Blobs: every function
+// instance (and every staff browser's polling) reads ONE Sheets copy per
+// CACHE_MS instead of each warm instance fetching its own. Blobs reads don't
+// count against the Sheets quota. Writes clear it (invalidateCache).
+const ROWS_KEY = "rows";
+function rowsStore() { try { return getStore({ name: "leads-cache", consistency: "strong" }); } catch { return null; } }
+let lastForce = false;
 async function readLeadsNow(): Promise<{ leads: Lead[]; shape: SheetShape }> {
-  const rows = await readRows();
+  let rows: string[][] | null = null;
+  const store = rowsStore();
+  if (store) {
+    try {
+      // gzip: the raw sheet is ~9 MB of JSON, ~1 MB compressed.
+      const buf = (await store.get(ROWS_KEY, { type: "arrayBuffer" })) as ArrayBuffer | null;
+      if (buf) {
+        const c = JSON.parse(gunzipSync(Buffer.from(buf)).toString("utf8")) as { at: number; rows: string[][] };
+        if (c && Date.now() - c.at < (lastForce ? FORCE_REUSE_MS : CACHE_MS)) rows = c.rows;
+      }
+    } catch { /* cache miss */ }
+  }
+  if (!rows) {
+    rows = await readRows();
+    if (store) { try { store.set(ROWS_KEY, gzipSync(Buffer.from(JSON.stringify({ at: Date.now(), rows })))).catch(() => {}); } catch { /* ignore */ } }
+  }
   if (!rows.length) throw new Error("Leads Log sheet is empty");
   const shape = shapeFromHeader(rows[0]);
   const now = new Date();
@@ -535,6 +560,8 @@ async function readLeadsNow(): Promise<{ leads: Lead[]; shape: SheetShape }> {
 
 export function invalidateCache() {
   cache = null;
+  const store = rowsStore();
+  if (store) store.delete(ROWS_KEY).catch(() => {});
 }
 
 export async function getLead(id: string, force = false): Promise<{ lead: Lead; shape: SheetShape } | null> {

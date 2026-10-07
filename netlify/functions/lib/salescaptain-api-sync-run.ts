@@ -107,7 +107,7 @@ export async function runSalesCaptainApiSync(opts: SyncOptions = {}): Promise<Sy
         else if (out.skipped) base.skippedMsgs++;
         else { base.posted++; base.samples.length < 60 && base.samples.push(`${m.created_at.slice(0, 16)} ${m.direction} ${out.created ? "NEW " : ""}${out.leadName || c.contact_name} ← ${text.replace(/\s+/g, " ").slice(0, 60)}`); }
         newest = Math.max(newest, at);
-        await new Promise((res) => setTimeout(res, out.duplicate || out.skipped ? 150 : 700)); // sheet quota
+        await new Promise((res) => setTimeout(res, out.duplicate || out.skipped ? 150 : 1400)); // Sheets quota: a posted message costs a read + a write
       } catch (e) { base.errors++; base.samples.length < 60 && base.samples.push(`ERR post ${c.contact_name}: ${String(e).slice(0, 80)}`); }
     }
   }
