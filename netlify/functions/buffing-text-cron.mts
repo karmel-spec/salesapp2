@@ -4,9 +4,9 @@
  * the top plate screws (Curtis's order) and the top visible hardware to prep
  * (furthest along first), with a link to the buffing list in the Store Map.
  *
- * OFF until the App Settings row `buffing_text` says "on" — Mark does the
- * one-time cleanup of the list first, then the switch is flipped on the
- * Settings page. `buffing_text_to` overrides who gets it (default Korban).
+ * ON by default since Mark finished the one-time cleanup (Walter 10/7): a
+ * blank App Settings `buffing_text` means on; "off" (or no/false/0) pauses it.
+ * `buffing_text_to` overrides who gets it (default Korban).
  * Skipped on days when both lists are empty.
  *
  * The cron fires at 17:00 and 18:00 UTC so one of them is 11:00 Denver in
@@ -25,7 +25,7 @@ export default async () => {
   if (hour !== 11 || wd === "Sat" || wd === "Sun") return;
   let st: Record<string, string> = {};
   try { st = (await loadSettings()).settings; } catch { return; }   // no settings → never guess "on"
-  if (!/^(on|yes|true|1)$/i.test(String(st.buffing_text || "").trim())) return;
+  if (/^(off|no|false|0)$/i.test(String(st.buffing_text || "").trim())) return;   // paused in Settings
   const to = String(st.buffing_text_to || "Korban").trim() || "Korban";
   try {
     const msg = await buffingText();
