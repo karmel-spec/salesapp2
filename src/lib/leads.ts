@@ -533,7 +533,13 @@ async function readLeadsNow(): Promise<{ leads: Lead[]; shape: SheetShape }> {
   }
   if (!rows) {
     rows = await readRows();
-    if (store) { try { store.set(ROWS_KEY, gzipSync(Buffer.from(JSON.stringify({ at: Date.now(), rows })))).catch(() => {}); } catch { /* ignore */ } }
+    if (store) {
+      try {
+        const gz = gzipSync(Buffer.from(JSON.stringify({ at: Date.now(), rows })));
+        const ab = gz.buffer.slice(gz.byteOffset, gz.byteOffset + gz.byteLength) as ArrayBuffer;
+        store.set(ROWS_KEY, ab).catch(() => {});
+      } catch { /* ignore */ }
+    }
   }
   if (!rows.length) throw new Error("Leads Log sheet is empty");
   const shape = shapeFromHeader(rows[0]);
