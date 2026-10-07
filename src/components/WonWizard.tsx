@@ -8,7 +8,7 @@ import { type Handoff, type Item, type Question, emptyHandoff, questionsFor, ren
 
 interface PickPiano { serial: string; row: number; year: string; make: string; model: string; size: string; category: string; price: string; location: string; section: string; sellable: boolean; forSale: boolean; label: string }
 
-const STEPS = ["Branch", "Piano", "Deal", "Money", "Logistics", "Team", "Send"] as const;
+const STEPS = ["Branch", "Contact", "Piano", "Deal", "Money", "Logistics", "Team", "Send"] as const;
 const PIANO_TYPES = ["Upright", "Tall Upright", "Grand", "Baby Grand", "Spinet", "Console", "Player Piano", "Digital", "Heirloom / family piano"];
 
 /**
@@ -19,7 +19,13 @@ const PIANO_TYPES = ["Upright", "Tall Upright", "Grand", "Baby Grand", "Spinet",
  * delivery.
  */
 export function WonWizard({ lead, who, initial, resendId, onClose, onSent, onSkip }: { lead: Lead; who: string; initial?: Handoff | null; resendId?: string; onClose: () => void; onSent: (r: { id: string; warnings: string[]; emailed: boolean; to: string[] }) => void; onSkip: () => void }) {
-  const [h, setH] = useState<Handoff>(() => initial ? { ...initial } : { ...emptyHandoff(who || "Brigham"), branch: /restoration|refinish|refurbish|qrs|player/i.test(lead.leadType) ? "shop" : "showroom" });
+  const leadContact = { phone: lead.phoneDialable || lead.phone || "", email: lead.emailClean || lead.email || "", address: lead.address || "" };
+  const [h, setH] = useState<Handoff>(() => {
+    const base = { ...emptyHandoff(who || "Brigham", leadContact), branch: (/restoration|refinish|refurbish|qrs|player/i.test(lead.leadType) ? "shop" : "showroom") as Handoff["branch"] };
+    if (!initial) return base;
+    // Older handoffs (before the Contact step) have no contact/delivery — fall back to the lead's details.
+    return { ...base, ...initial, contact: { ...leadContact, ...(initial.contact || {}) }, delivery: initial.delivery || base.delivery };
+  });
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -45,7 +51,7 @@ export function WonWizard({ lead, who, initial, resendId, onClose, onSent, onSki
     else set({ piano: { ...h.piano, label: text, serial: h.piano.row ? "" : h.piano.serial, row: undefined } });
   };
 
-  const contact = { name: lead.name, email: lead.emailClean || lead.email, phone: lead.phoneDialable || lead.phone, address: lead.address };
+  const contact = { name: lead.name, email: h.contact.email, phone: h.contact.phone, address: h.contact.address };
   const preview = useMemo(() => renderHandoff(h, contact, { lead: `${typeof location !== "undefined" ? location.origin : ""}/leads/${lead.id}` }), [h, lead.id, contact.name, contact.email, contact.phone, contact.address]);
   const t = useMemo(() => todos(h), [h]);
 
@@ -58,7 +64,8 @@ export function WonWizard({ lead, who, initial, resendId, onClose, onSent, onSki
   }
 
   const last = STEPS.length - 1;
-  const stepKey = (["branch", "piano", "deal", "money", "logistics", "team", "send"] as const)[step];
+  const stepKey = (["branch", "contact", "piano", "deal", "money", "logistics", "team", "send"] as const)[step];
+  const missing = { phone: !h.contact.phone.trim(), email: !h.contact.email.trim(), address: !h.contact.address.trim() };
 
   return (
     <div className="wonwiz" role="dialog" aria-modal="true" aria-label="Won handoff">
@@ -85,6 +92,23 @@ export function WonWizard({ lead, who, initial, resendId, onClose, onSent, onSki
                 <input className="wonwiz-input" placeholder="someone else…" value={["Brigham", "Karmel", "Melissa", "Arnold"].includes(h.closer) ? "" : h.closer} onChange={(e) => set({ closer: e.target.value })} />
               </div>
               <p className="muted small">Every question after this is skippable. Unanswered items show as "not answered" so admin knows to ask.</p>
+            </div>
+          )}
+
+          {stepKey === "contact" && (
+            <div className="wonwiz-page">
+              <div className="ask">How do we reach {lead.firstName || lead.name}?</div>
+              {(missing.phone || missing.email || missing.address) ? <p className="small" style={{ color: "#8a6f1a", margin: 0 }}>⚠ Missing on the lead: {[missing.phone && "phone", missing.email && "email", missing.address && "address"].filter(Boolean).join(", ")}. Fill in what you got at the handshake — it saves to the lead and the CRM.</p> : <p className="muted small">All on file. Correct anything that changed.</p>}
+              <div className="grid2">
+                <label className="fld">Phone{missing.phone && <span className="miss">missing</span>}<input className="wonwiz-input" placeholder="801-555-1234" value={h.contact.phone} onChange={(e) => set({ contact: { ...h.contact, phone: e.target.value } })} /></label>
+                <label className="fld">Email{missing.email && <span className="miss">missing</span>}<input className="wonwiz-input" type="email" placeholder="name@example.com" value={h.contact.email} onChange={(e) => set({ contact: { ...h.contact, email: e.target.value } })} /></label>
+              </div>
+              <label className="fld">{h.branch === "shop" ? "Pickup address (where the piano is now)" : "Customer address"}{missing.address && <span className="miss">missing</span>}<input className="wonwiz-input" placeholder="street, city, state" value={h.contact.address} onChange={(e) => set({ contact: { ...h.contact, address: e.target.value } })} /></label>
+              <div className="ask small">{h.branch === "shop" ? "Deliver back to the same address as pickup?" : "Deliver to this address?"}</div>
+              <div className="choices">
+                {([["yes", "Yes, same address"], ["no", "No — different address"], ["nd", "Not discussed"]] as const).map(([v, label]) => <label key={v} className={h.delivery.same === v ? "on" : ""}><input type="radio" name="delsame" checked={h.delivery.same === v} onChange={() => set({ delivery: { ...h.delivery, same: v } })} />{label}</label>)}
+              </div>
+              {h.delivery.same === "no" && <label className="fld">Delivery address<input className="wonwiz-input" placeholder="street, city, state — stairs, gate code" value={h.delivery.address} onChange={(e) => set({ delivery: { ...h.delivery, address: e.target.value } })} autoFocus /></label>}
             </div>
           )}
 

@@ -1480,3 +1480,4 @@ tbody tr:hover { background: #faf7f2; }
 .handoff-strip{margin:4px 10px 10px;background:#fbf1dc;color:#1b1613;border:1px solid #c89a3c;border-radius:10px;padding:8px 10px;font-size:12.5px;line-height:1.4}
 .handoff-strip b{color:#1b1613}
 .handoff-strip a{color:var(--crimson,#9E2020);font-weight:600}
+.wonwiz .miss{display:inline-block;margin-left:6px;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#8a6f1a;background:#fbf1dc;border:1px solid #c89a3c;border-radius:999px;padding:1px 7px}

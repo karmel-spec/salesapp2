@@ -56,20 +56,26 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     // 1. Leads Log: status Won + closer + final price (one write).
     const fields: Record<string, string> = {};
+    // Contact details confirmed in the wizard → the lead (updateLeadFields pushes contact changes to the CRM).
+    const nc = h.contact || { phone: "", email: "", address: "" };
+    if (nc.phone?.trim() && nc.phone.trim() !== (lead.phone || "").trim() && !lead.phoneDialable) fields.phone = nc.phone.trim();
+    if (nc.email?.trim() && nc.email.trim().toLowerCase() !== (lead.emailClean || lead.email || "").trim().toLowerCase() && !lead.emailClean) fields.email = nc.email.trim();
+    if (nc.address?.trim() && nc.address.trim() !== (lead.address || "").trim()) fields.address = nc.address.trim();
     if (lead.statusBucket !== "won") fields.status = "Won";
     if (h.closer && h.closer !== lead.closedBy) fields.closedBy = h.closer;
     const cents = priceCents(h.price.v || "");
     if (cents && !lead.value.trim()) fields.value = `$${(cents / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
     if (h.piano.type && !lead.pianoType.trim()) fields.pianoType = h.piano.type;
     if (Object.keys(fields).length) {
-      await updateLeadFields(lead, found.shape, fields as Partial<Record<"status" | "closedBy" | "value" | "pianoType", string>>);
+      await updateLeadFields(lead, found.shape, fields as Partial<Record<"status" | "closedBy" | "value" | "pianoType" | "phone" | "email" | "address", string>>);
       // The same "Updated status" edit the inline editor logs — the WON celebration and win tallies key off it.
       await appendTimeline(lead, found.shape, { at: new Date().toISOString(), who, kind: "edit", text: `Updated ${Object.keys(fields).join(", ")} (Won)` });
     }
 
     // 2. Handoff record (Supabase) — the system of record for this handoff.
     const hid = body.resend || newHandoffId();
-    const contact = { name: lead.name, email: lead.emailClean || lead.email, phone: lead.phoneDialable || lead.phone, address: lead.address };
+    const contact = { name: lead.name, email: (fields.email || lead.emailClean || lead.email || "").trim(), phone: (fields.phone || lead.phoneDialable || lead.phone || "").trim(), address: (fields.address || lead.address || "").trim() };
+    h.contact = { phone: contact.phone, email: contact.email, address: contact.address };
     let row: HandoffRow | null = null;
     if (handoffStoreReady()) {
       try {

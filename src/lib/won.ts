@@ -31,6 +31,10 @@ export interface Handoff {
   price: Item; // v = final/quoted price text ("$14,500"), note
   items: Record<string, Item>;
   upsellAt50: boolean; // shop: put the owner back in Brigham's Top Ten at 50% complete
+  /** Contact details confirmed/filled in the wizard — written back to the lead (and so the CRM). */
+  contact: { phone: string; email: string; address: string };
+  /** Delivery address: same as the pickup / customer address, a different one, or not discussed. */
+  delivery: { same: "yes" | "no" | "nd" | ""; address: string };
   contacts: string;
   notes: string;
   qbo: boolean; // create the QBO customer + draft invoice
@@ -90,8 +94,18 @@ export function questionsFor(branch: Branch, step?: Question["step"]): Question[
   return QUESTIONS.filter((q) => (q.branch === "both" || q.branch === branch) && (!step || q.step === step));
 }
 
-export function emptyHandoff(closer: string): Handoff {
-  return { branch: "showroom", closer, piano: { serial: "", label: "" }, price: { v: "" }, items: {}, upsellAt50: true, contacts: "", notes: "", qbo: true };
+export function emptyHandoff(closer: string, contact = { phone: "", email: "", address: "" }): Handoff {
+  return { branch: "showroom", closer, piano: { serial: "", label: "" }, price: { v: "" }, items: {}, upsellAt50: true, contact, delivery: { same: "", address: "" }, contacts: "", notes: "", qbo: true };
+}
+
+/** Where the piano goes: the customer address, a different address, or still unknown. */
+export function deliveryAddress(h: Handoff): { text: string; known: boolean } {
+  const base = (h.contact?.address || "").trim();
+  if (h.delivery?.same === "no" && h.delivery.address.trim()) return { text: h.delivery.address.trim(), known: true };
+  if (h.delivery?.same === "yes" && base) return { text: `${base} (same as ${h.branch === "shop" ? "pickup" : "customer address"})`, known: true };
+  if (h.delivery?.same === "yes") return { text: "same as the customer address (address not on file yet)", known: false };
+  if (h.delivery?.same === "no") return { text: "different from pickup — address not captured", known: false };
+  return { text: "not discussed", known: false };
 }
 
 export const priceCents = (v: string): number | null => {
@@ -128,6 +142,10 @@ export function todos(h: Handoff): { admin: string[]; shop: string[] } {
     shop.push(`Pull ${h.piano.label || "the sold piano"}${h.piano.serial ? ` (serial ${h.piano.serial})` : ""} from the floor when delivery is set`);
   }
   if (h.piano.note) shop.push(`Piano note: ${h.piano.note}`);
+  const missing = [!h.contact?.phone?.trim() && "phone", !h.contact?.email?.trim() && "email", !h.contact?.address?.trim() && "address"].filter(Boolean);
+  if (missing.length) admin.push(`Get the customer's ${missing.join(", ")} (not on the lead)`);
+  const d = deliveryAddress(h);
+  if (!d.known && h.items.delivery?.v !== "customer") admin.push(`Confirm the delivery address (${d.text})`);
   if (h.contacts.trim()) admin.push(`Other contacts: ${h.contacts.trim()}`);
   return { admin, shop };
 }
@@ -142,7 +160,10 @@ export function renderHandoff(h: Handoff, lead: { name: string; email?: string; 
   const t = todos(h);
   const L: string[] = [];
   L.push(`${kind} closed by ${h.closer || "the rep"} — ${lead.name}`);
-  L.push([lead.phone, lead.email, lead.address].filter(Boolean).join(" · ") || "(no contact details on the lead)");
+  const c = { phone: h.contact?.phone || lead.phone, email: h.contact?.email || lead.email, address: h.contact?.address || lead.address };
+  L.push([c.phone, c.email, c.address].filter(Boolean).join(" · ") || "(no contact details on the lead)");
+  const miss = [!c.phone && "phone", !c.email && "email", !c.address && "address"].filter(Boolean);
+  if (miss.length) L.push(`  ⚠ missing: ${miss.join(", ")}`);
   L.push("");
   L.push(`PIANO: ${h.piano.label || "not specified"}${h.piano.serial ? ` · serial ${h.piano.serial}` : h.branch === "shop" ? " · serial not obtained" : ""}${h.piano.note ? `\n  note: ${h.piano.note}` : ""}`);
   L.push(`PRICE: ${price}${h.price.note ? `\n  note: ${h.price.note}` : ""}`);
@@ -164,6 +185,7 @@ export function renderHandoff(h: Handoff, lead: { name: string; email?: string; 
       const val = q.choices.length ? CHOICE_LABEL(q, it.v) : it.note || "";
       lines.push(`  ${q.label}: ${val}${q.choices.length && it.note ? ` — ${it.note}` : ""}`);
     }
+    if (s === "logistics") lines.push(`  Delivery address: ${deliveryAddress(h).text}`);
     if (s === "team") {
       if (h.branch === "shop") lines.push(`  Brigham's 50% upsell call: ${h.upsellAt50 ? "YES — back into his Top Ten at 50%" : "no"}`);
       if (h.contacts.trim()) lines.push(`  Other contacts: ${h.contacts.trim()}`);
@@ -199,6 +221,7 @@ export function handoffLines(h: Handoff): { section: string; label: string; valu
     if (!it || (!it.v && !it.note)) continue;
     out.push({ section: names[q.step], label: q.label.replace(/\?$/, ""), value: q.choices.length ? `${CHOICE_LABEL(q, it.v)}${it.note ? ` — ${it.note}` : ""}` : it.note || "" });
   }
+  out.push({ section: "Logistics", label: "Delivery address", value: deliveryAddress(h).text });
   if (h.branch === "shop") out.push({ section: "For the team", label: "Brigham's 50% upsell call", value: h.upsellAt50 ? "Yes — back into his Top Ten at 50%" : "No" });
   if (h.contacts.trim()) out.push({ section: "For the team", label: "Other contacts", value: h.contacts.trim() });
   if (h.notes.trim()) out.push({ section: "For the team", label: "Notes", value: h.notes.trim() });
