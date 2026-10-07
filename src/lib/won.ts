@@ -69,8 +69,8 @@ export const QUESTIONS: Question[] = [
   { id: "track", label: "Restoration level", choices: [{ v: "Rebuild", label: "Rebuild" }, { v: "Hybrid", label: "Hybrid" }, { v: "Refurbish", label: "Refurbish" }, { v: "Refinish", label: "Refinish only" }, { v: "Player", label: "Player" }, { v: "Misc", label: "Misc shop work" }, ND], branch: "shop", step: "deal", owner: "none" },
   { id: "refinish", label: "Refinishing", choices: [{ v: "yes", label: "Sold" }, { v: "no", label: "Declined" }, { v: "upsell", label: "Upsell at 50%" }, ND, TBD], branch: "shop", step: "deal", owner: "admin", settled: ["no", "nd"], todo: { yes: "Refinishing sold — get the color selection", upsell: "Refinishing upsell planned at 50% — flag it on the project", tbd: "Refinishing price TBD — quote the customer" } },
   { id: "selections", label: "Selections (keytops, color, hardware)", choices: [{ v: "committed", label: "Committed" }, { v: "admin", label: "Admin obtains" }, ND], branch: "shop", step: "deal", owner: "admin", settled: ["committed"], todo: { admin: "Obtain the client's selections (portal form)", nd: "Selections not discussed — send the selections form" } },
-  { id: "queueStart", label: "Queue speed — work starts in", choices: [{ v: "~1 month", label: "~1 month" }, { v: "~2 months", label: "~2 months" }, { v: "~3 months", label: "~3 months" }, { v: "~6 months", label: "~6 months" }, ND], branch: "shop", step: "deal", owner: "none", hint: "What Brigham told them. Add a note for the exact promise." },
-  { id: "complete", label: "100% complete by", choices: [{ v: "~3 months", label: "~3 months" }, { v: "~6 months", label: "~6 months" }, { v: "~9 months", label: "~9 months" }, { v: "~12 months", label: "~12 months" }, ND], branch: "shop", step: "deal", owner: "none" },
+  { id: "queueStart", label: "Queue speed — work starts in", choices: [{ v: "1 month", label: "1 month" }, { v: "2 months", label: "2 months" }, { v: "3 months", label: "3 months" }, { v: "6 months", label: "6 months" }, ND], branch: "shop", step: "deal", owner: "none", hint: "What Brigham told them. Add a note for the exact promise." },
+  { id: "complete", label: "From today's date — 100% complete by", choices: [{ v: "3 months", label: "3 months" }, { v: "6 months", label: "6 months" }, { v: "9 months", label: "9 months" }, { v: "12 months", label: "12 months" }, ND], branch: "shop", step: "deal", owner: "none", hint: "Counted from today." },
   { id: "scope", label: "Scope of work", choices: [], branch: "shop", step: "deal", owner: "none", hint: "What's included, what isn't." },
   // ---- Money
   { id: "deposit", label: "$1,000 queue deposit", choices: [{ v: "collected", label: "Collected" }, { v: "admin", label: "Admin collects" }, ND], branch: "shop", step: "money", owner: "admin", settled: ["collected"], todo: { admin: "Collect the $1,000 queue deposit", nd: "Queue deposit not discussed — collect $1,000 to enter the queue" } },
@@ -254,6 +254,8 @@ export interface HandoffRow {
   email_sent_at: string | null; email_to: string | null; admin_ack_at: string | null; admin_ack_by: string | null; shop_ack_at: string | null; shop_ack_by: string | null;
   nudged_at: string | null; nudge_count: number; upsell_followup: boolean; upsell_triggered_at: string | null; upsell_lead_id: string | null; arrived_at: string | null;
   log: { at: string; text: string; ok?: boolean }[];
+  /** "draft" = autosaved wizard in progress (one per lead); "sent" = a real handoff. */
+  status: "draft" | "sent"; draft_step: number | null; draft_by: string | null;
 }
 
 const SB_URL = process.env.SUPABASE_URL || "";
@@ -268,8 +270,9 @@ async function sb<T>(path: string, init: RequestInit = {}): Promise<T> {
     signal: AbortSignal.timeout(10000),
     cache: "no-store",
   });
-  if (!r.ok) throw new Error(`won_handoffs ${init.method || "GET"} ${r.status}: ${(await r.text()).slice(0, 200)}`);
-  return (r.status === 204 ? null : await r.json()) as T;
+  const text = await r.text();
+  if (!r.ok) throw new Error(`won_handoffs ${init.method || "GET"} ${r.status}: ${text.slice(0, 200)}`);
+  return (text ? JSON.parse(text) : null) as T; // return=minimal answers with an empty body
 }
 
 export const newHandoffId = () => `wh${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
@@ -287,7 +290,21 @@ export async function getHandoff(id: string): Promise<HandoffRow | null> {
   return r[0] || null;
 }
 export async function handoffsForLead(leadId: string): Promise<HandoffRow[]> {
-  return sb<HandoffRow[]>(`won_handoffs?lead_id=eq.${encodeURIComponent(leadId)}&order=created_at.desc`);
+  return sb<HandoffRow[]>(`won_handoffs?lead_id=eq.${encodeURIComponent(leadId)}&status=eq.sent&order=created_at.desc`);
+}
+
+// ---- autosaved drafts: one row per lead (id = draft id), replaced on every save, deleted on send/skip.
+export const draftId = (leadId: string) => `whd_${leadId.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+export async function getDraft(leadId: string): Promise<HandoffRow | null> {
+  const r = await sb<HandoffRow[]>(`won_handoffs?id=eq.${encodeURIComponent(draftId(leadId))}&status=eq.draft&limit=1`);
+  return r[0] || null;
+}
+export async function saveDraft(leadId: string, leadName: string, h: Handoff, step: number, who: string): Promise<void> {
+  const row = { id: draftId(leadId), lead_id: leadId, lead_name: leadName, closed_by: h.closer || who, branch: h.branch, serial: h.piano?.serial || null, piano: h.piano?.label || null, price_cents: priceCents(h.price?.v || ""), answers: h, status: "draft", draft_step: step, draft_by: who, updated_at: new Date().toISOString() };
+  await sb("won_handoffs?on_conflict=id", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(row) });
+}
+export async function deleteDraft(leadId: string): Promise<void> {
+  await sb(`won_handoffs?id=eq.${encodeURIComponent(draftId(leadId))}&status=eq.draft`, { method: "DELETE", headers: { Prefer: "return=minimal" } });
 }
 export async function listHandoffs(filter: string): Promise<HandoffRow[]> {
   return sb<HandoffRow[]>(`won_handoffs?${filter}`);

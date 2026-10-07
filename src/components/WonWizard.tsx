@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Lead } from "@/lib/leads";
 import { api } from "@/lib/client";
 import { TypeAhead } from "@/components/TypeAhead";
@@ -18,15 +18,53 @@ const PIANO_TYPES = ["Upright", "Tall Upright", "Grand", "Baby Grand", "Spinet",
  * its own note, so bench notes stay with the bench, delivery notes with
  * delivery.
  */
-export function WonWizard({ lead, who, initial, resendId, onClose, onSent, onSkip }: { lead: Lead; who: string; initial?: Handoff | null; resendId?: string; onClose: () => void; onSent: (r: { id: string; warnings: string[]; emailed: boolean; to: string[] }) => void; onSkip: () => void }) {
+export function WonWizard({ lead, who, initial, resendId, startStep, onClose, onSent, onSkip }: { lead: Lead; who: string; initial?: Handoff | null; resendId?: string; startStep?: number; onClose: () => void; onSent: (r: { id: string; warnings: string[]; emailed: boolean; to: string[] }) => void; onSkip: () => void }) {
   const leadContact = { phone: lead.phoneDialable || lead.phone || "", email: lead.emailClean || lead.email || "", address: lead.address || "" };
   const [h, setH] = useState<Handoff>(() => {
     const base = { ...emptyHandoff(who || "Brigham", leadContact), branch: (/restoration|refinish|refurbish|qrs|player/i.test(lead.leadType) ? "shop" : "showroom") as Handoff["branch"] };
-    if (!initial) return base;
-    // Older handoffs (before the Contact step) have no contact/delivery — fall back to the lead's details.
-    return { ...base, ...initial, contact: { ...leadContact, ...(initial.contact || {}) }, delivery: initial.delivery || base.delivery };
+    const merge = (x: Handoff): Handoff => ({ ...base, ...x, contact: { ...leadContact, ...(x.contact || {}) }, delivery: x.delivery || base.delivery }); // older rows predate the Contact step
+    if (initial) return merge(initial);
+    const local = readLocalDraft(lead.id);
+    return local ? merge(local.h) : base;
   });
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(() => (startStep ?? (initial ? 0 : readLocalDraft(lead.id)?.step ?? 0)));
+  const [resumed, setResumed] = useState<string>(() => (!initial && readLocalDraft(lead.id) ? readLocalDraft(lead.id)!.at : ""));
+  const [saved, setSaved] = useState<"" | "saving" | "saved" | "offline">("");
+  const dirty = useRef(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hRef = useRef(h); hRef.current = h;
+  const stepRef = useRef(step); stepRef.current = step;
+
+  // A draft saved on another device (or browser) wins over this one if it's newer.
+  useEffect(() => {
+    if (initial) return;
+    api<{ draft?: { answers: Handoff; step: number; at: string } | null }>(`/api/leads/${encodeURIComponent(lead.id)}/won`).then((r) => {
+      const d = r.draft;
+      if (!d || dirty.current) return;
+      const local = readLocalDraft(lead.id);
+      if (local && Date.parse(local.at) >= Date.parse(d.at)) return;
+      setH({ ...emptyHandoff(who || "Brigham", leadContact), ...d.answers, contact: { ...leadContact, ...(d.answers.contact || {}) }, delivery: d.answers.delivery || { same: "", address: "" } });
+      setStep(Math.min(d.step || 0, STEPS.length - 1));
+      setResumed(d.at);
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead.id]);
+
+  // Autosave: every change goes to this browser at once and to the server after a short pause.
+  useEffect(() => {
+    if (!dirty.current) return; // first render / programmatic loads don't count
+    writeLocalDraft(lead.id, h, step);
+    setSaved("saving");
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      api(`/api/leads/${encodeURIComponent(lead.id)}/won/draft`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ handoff: hRef.current, step: stepRef.current, who }) })
+        .then(() => setSaved("saved")).catch(() => setSaved("offline"));
+    }, 1200);
+    return () => { if (timer.current) clearTimeout(timer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [h, step]);
+  const clearDraft = () => { clearLocalDraft(lead.id); api(`/api/leads/${encodeURIComponent(lead.id)}/won/draft`, { method: "DELETE" }).catch(() => {}); };
+  const startOver = () => { dirty.current = false; clearDraft(); setResumed(""); setSaved(""); setStep(0); setH({ ...emptyHandoff(who || "Brigham", leadContact), branch: h.branch }); };
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [pianos, setPianos] = useState<PickPiano[]>([]);
@@ -39,8 +77,9 @@ export function WonWizard({ lead, who, initial, resendId, onClose, onSent, onSki
   }, []);
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, [onClose]);
 
-  const set = (patch: Partial<Handoff>) => setH((x) => ({ ...x, ...patch }));
-  const setItem = (id: string, patch: Partial<Item>) => setH((x) => ({ ...x, items: { ...x.items, [id]: { ...(x.items[id] || { v: "" }), ...patch } } }));
+  const set = (patch: Partial<Handoff>) => { dirty.current = true; setH((x) => ({ ...x, ...patch })); };
+  const setItem = (id: string, patch: Partial<Item>) => { dirty.current = true; setH((x) => ({ ...x, items: { ...x.items, [id]: { ...(x.items[id] || { v: "" }), ...patch } } })); };
+  const go = (n: number) => { dirty.current = true; setStep(n); };
 
   const options = useMemo(() => pianos.map((p) => `${p.label}${p.serial ? ` #${p.serial}` : ""}${p.price ? ` · ${p.price}` : ""}${p.location ? ` · ${p.location}` : ""}`), [pianos]);
   const pickPiano = (text: string) => {
@@ -59,6 +98,7 @@ export function WonWizard({ lead, who, initial, resendId, onClose, onSent, onSki
     setBusy(true); setErr("");
     try {
       const r = await api<{ ok: boolean; id: string; warnings: string[]; emailed: boolean; to: string[] }>(`/api/leads/${encodeURIComponent(lead.id)}/won`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ handoff: h, who, resend: resendId || undefined }) });
+      clearLocalDraft(lead.id);
       onSent(r);
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
   }
@@ -73,12 +113,13 @@ export function WonWizard({ lead, who, initial, resendId, onClose, onSent, onSki
         <header className="wonwiz-head">
           <div className="wonwiz-title">🏆 Won — {lead.name}</div>
           <ol className="wonwiz-steps">
-            {STEPS.map((s, i) => <li key={s} className={i < step ? "done" : i === step ? "now" : ""} onClick={() => i < step && setStep(i)}><i>{i < step ? "✓" : i + 1}</i>{s}</li>)}
+            {STEPS.map((s, i) => <li key={s} className={i < step ? "done" : i === step ? "now" : ""} onClick={() => i < step && go(i)}><i>{i < step ? "✓" : i + 1}</i>{s}</li>)}
           </ol>
           <button className="wonwiz-x" aria-label="Close" onClick={onClose}>✕</button>
         </header>
 
         <div className="wonwiz-body">
+          {resumed && <div className="wonwiz-resumed">✍️ Picked up your unfinished handoff from {new Date(resumed).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}. <button type="button" onClick={startOver}>Start over</button></div>}
           {stepKey === "branch" && (
             <div className="wonwiz-page">
               <div className="ask">What kind of win is this?</div>
@@ -195,15 +236,25 @@ export function WonWizard({ lead, who, initial, resendId, onClose, onSent, onSki
         </div>
 
         <footer className="wonwiz-foot">
-          <button className="btn ghost small" disabled={step === 0 || busy} onClick={() => setStep((s) => s - 1)}>← Back</button>
-          {step === 0 && <button className="btn ghost small" disabled={busy} onClick={onSkip} title="Mark Won without the handoff email">Skip the handoff</button>}
+          <button className="btn ghost small" disabled={step === 0 || busy} onClick={() => go(step - 1)}>← Back</button>
+          {step === 0 && <button className="btn ghost small" disabled={busy} onClick={() => { clearDraft(); onSkip(); }} title="Mark Won without the handoff email">Skip the handoff</button>}
+          <span className="wonwiz-saved">{saved === "saving" ? "Saving…" : saved === "saved" ? "✓ Draft saved" : saved === "offline" ? "Saved on this device (server unreachable)" : resumed ? "Draft" : ""}</span>
           <span className="spacer" />
-          {step < last ? <button className="btn small" onClick={() => setStep((s) => s + 1)}>{step === 0 ? "Start →" : "Next →"}</button> : <button className="btn small" disabled={busy} onClick={send}>{busy ? "Sending…" : resendId ? "Re-send to the team 🏆" : "Send to the team 🏆"}</button>}
+          {step < last ? <button className="btn small" onClick={() => go(step + 1)}>{step === 0 ? "Start →" : "Next →"}</button> : <button className="btn small" disabled={busy} onClick={send}>{busy ? "Sending…" : resendId ? "Re-send to the team 🏆" : "Send to the team 🏆"}</button>}
         </footer>
       </div>
     </div>
   );
 }
+
+const DRAFT_KEY = (leadId: string) => `blp_won_draft:${leadId}`;
+function readLocalDraft(leadId: string): { h: Handoff; step: number; at: string } | null {
+  try { const raw = localStorage.getItem(DRAFT_KEY(leadId)); return raw ? (JSON.parse(raw) as { h: Handoff; step: number; at: string }) : null; } catch { return null; }
+}
+function writeLocalDraft(leadId: string, h: Handoff, step: number) {
+  try { localStorage.setItem(DRAFT_KEY(leadId), JSON.stringify({ h, step, at: new Date().toISOString() })); } catch { /* private mode */ }
+}
+function clearLocalDraft(leadId: string) { try { localStorage.removeItem(DRAFT_KEY(leadId)); } catch { /* ignore */ } }
 
 /** One question: choice chips + its own note. */
 function QRow({ q, item, onChange, hidden }: { q: Question; item?: Item; onChange: (p: Partial<Item>) => void; hidden?: boolean }) {

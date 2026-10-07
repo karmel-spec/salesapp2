@@ -13,7 +13,7 @@ import type { LeadGeo } from "@/lib/geo-shared";
 import { ThreadComposer, replySubject } from "@/components/ThreadComposer";
 import { AttachButton, allowedAttachment, type PickedFile } from "@/components/AttachButton";
 import { WonWizard } from "@/components/WonWizard";
-import type { HandoffRow } from "@/lib/won";
+import type { HandoffRow, Handoff } from "@/lib/won";
 
 type Adjacent = { id: string; name: string } | null;
 
@@ -255,7 +255,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
         </div>
       )}
 
-      {lead.statusBucket === "won" && <HandoffStatus lead={lead} onFlash={setFlash} onDone={loadSoon} />}
+      <HandoffStatus lead={lead} onFlash={setFlash} onDone={loadSoon} />
 
       <div className="two-col">
         <div>
@@ -1669,15 +1669,27 @@ function InlineStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: stri
 /** After a Won: who has acknowledged the handoff, where it went, and a way to re-send it. */
 function HandoffStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: string) => void; onDone: () => void }) {
   const [row, setRow] = useState<HandoffRow | null | undefined>(undefined);
+  const [draft, setDraft] = useState<{ answers: Handoff; step: number; at: string; by: string | null } | null>(null);
   const [edit, setEdit] = useState(false);
   const load = useCallback(() => {
-    api<{ handoff: HandoffRow | null }>(`/api/leads/${encodeURIComponent(lead.id)}/won`).then((r) => setRow(r.handoff)).catch(() => setRow(null));
+    api<{ handoff: HandoffRow | null; draft: { answers: Handoff; step: number; at: string; by: string | null } | null }>(`/api/leads/${encodeURIComponent(lead.id)}/won`).then((r) => { setRow(r.handoff); setDraft(r.draft || null); }).catch(() => setRow(null));
   }, [lead.id]);
   useEffect(() => { load(); }, [load]);
   const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "");
   const portal = process.env.NEXT_PUBLIC_CLIENT_PORTAL_URL || "https://blpclientportal.netlify.app";
   if (row === undefined) return null;
   const warnings = (row?.log || []).filter((l) => l.ok === false).slice(-4);
+  const draftWhen = draft ? new Date(draft.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+  const sentHandoff = (r: { id: string; warnings: string[]; emailed: boolean; to: string[] }) => { setEdit(false); onFlash(r.emailed ? `🏆 Won — handoff sent to ${r.to.map((a) => a.split("@")[0]).join(", ")}` : `Handoff saved but the email did not send: ${r.warnings.join("; ")}`); load(); onDone(); };
+  if (lead.statusBucket !== "won") {
+    if (!draft) return null;
+    return (
+      <div className="handoff-card">
+        {edit && <WonWizard lead={lead} who={getWho()} initial={draft.answers} startStep={draft.step} onClose={() => { setEdit(false); load(); }} onSkip={() => { setEdit(false); load(); }} onSent={sentHandoff} />}
+        <div className="row"><span>✍️ Unfinished WON handoff — autosaved {draftWhen}{draft.by ? ` by ${draft.by}` : ""}. The lead is not marked Won yet.</span><span className="spacer" style={{ flex: 1 }} /><button className="btn small" onClick={() => setEdit(true)}>Resume →</button><button className="btn ghost small" onClick={() => { api(`/api/leads/${encodeURIComponent(lead.id)}/won/draft`, { method: "DELETE" }).then(() => { try { localStorage.removeItem(`blp_won_draft:${lead.id}`); } catch {} load(); }).catch(() => {}); }}>Discard</button></div>
+      </div>
+    );
+  }
   return (
     <div className="handoff-card">
       {edit && <WonWizard lead={lead} who={getWho()} initial={row?.answers || null} resendId={row?.id} onClose={() => setEdit(false)} onSkip={() => setEdit(false)} onSent={(r) => { setEdit(false); onFlash(r.emailed ? "🏆 Handoff re-sent to the team" : `Handoff saved but the email did not send: ${r.warnings.join("; ")}`); load(); onDone(); }} />}

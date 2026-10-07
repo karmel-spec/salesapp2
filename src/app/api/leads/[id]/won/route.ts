@@ -5,7 +5,7 @@ import { config } from "@/lib/config";
 import { crmUpsertLead, crmNote } from "@/lib/crm";
 import { sendEmail } from "@/lib/comms";
 import { qboConfigured, findOrCreateCustomer, createInvoice } from "@/lib/qbo";
-import { type Handoff, type HandoffRow, renderHandoff, summarize, todos, handoffLines, priceCents, newHandoffId, insertHandoff, patchHandoff, handoffsForLead, handoffStoreReady, ackToken, logHandoff } from "@/lib/won";
+import { type Handoff, type HandoffRow, renderHandoff, summarize, todos, handoffLines, priceCents, newHandoffId, insertHandoff, patchHandoff, handoffsForLead, handoffStoreReady, ackToken, logHandoff, getDraft, deleteDraft } from "@/lib/won";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 26;
@@ -27,8 +27,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   try {
     const { id } = await ctx.params;
     if (!handoffStoreReady()) return NextResponse.json({ handoff: null, configured: false });
-    const rows = await handoffsForLead(id);
-    return NextResponse.json({ handoff: rows[0] || null, configured: true, qbo: qboConfigured() });
+    const [rows, draft] = await Promise.all([handoffsForLead(id), getDraft(id).catch(() => null)]);
+    return NextResponse.json({ handoff: rows[0] || null, draft: draft ? { answers: draft.answers, step: draft.draft_step ?? 0, at: draft.updated_at, by: draft.draft_by } : null, configured: true, qbo: qboConfigured() });
   } catch (err) {
     return jsonError(err);
   }
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     let row: HandoffRow | null = null;
     if (handoffStoreReady()) {
       try {
-        const base: Partial<HandoffRow> = { lead_id: lead.id, lead_name: lead.name, closed_by: h.closer, branch: h.branch, serial: h.piano.serial || null, piano: h.piano.label || null, piano_type: h.piano.type || lead.pianoType || null, price_cents: cents, answers: h, summary_text: summarize(h), client_email: contact.email || null, client_phone: contact.phone || null, upsell_followup: h.branch === "shop" && h.upsellAt50 };
+        const base: Partial<HandoffRow> = { status: "sent", lead_id: lead.id, lead_name: lead.name, closed_by: h.closer, branch: h.branch, serial: h.piano.serial || null, piano: h.piano.label || null, piano_type: h.piano.type || lead.pianoType || null, price_cents: cents, answers: h, summary_text: summarize(h), client_email: contact.email || null, client_phone: contact.phone || null, upsell_followup: h.branch === "shop" && h.upsellAt50 };
         row = body.resend ? await patchHandoff(hid, base) : await insertHandoff({ id: hid, ...base });
       } catch (e) { warn(`Handoff record not saved: ${e instanceof Error ? e.message : String(e)}`); }
     } else warn("Supabase not configured — handoff record not saved (email still goes out)");
@@ -155,6 +155,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const fresh = await getLead(id, true);
     await appendTimeline(fresh?.lead || lead, found.shape, { at: new Date().toISOString(), who: h.closer, kind: "handoff", text: `🏆 WON handoff ${patch.email_sent_at ? `sent to ${HANDOFF_TO.map((a) => a.split("@")[0]).join("/")}` : "NOT emailed"} — ${summarize(h)}${links.portal ? ` · Portal: ${links.portal}` : ""}${links.qbo ? ` · QBO draft invoice: ${links.qbo}` : ""}${warnings.length ? ` · Warnings: ${warnings.join("; ")}` : ""}` });
     if (row) { await patchHandoff(hid, patch).catch(() => null); for (const w of warnings) await logHandoff(row, w, false); await logHandoff(row, `Handoff ${body.resend ? "re-sent" : "sent"} by ${who}`); }
+    if (handoffStoreReady()) await deleteDraft(lead.id).catch(() => null); // the autosaved draft is done with
 
     return NextResponse.json({ ok: true, id: hid, links, warnings, emailed: Boolean(patch.email_sent_at), to: HANDOFF_TO });
   } catch (err) {

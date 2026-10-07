@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   try {
     if (!handoffStoreReady()) return NextResponse.json({ checked: 0, reason: "store not configured" });
     const dry = req.nextUrl.searchParams.get("dry") === "1";
-    const rows = await listHandoffs(`branch=eq.shop&or=(arrived_at.is.null,and(upsell_followup.eq.true,upsell_triggered_at.is.null))&order=created_at.asc`);
+    const rows = await listHandoffs(`branch=eq.shop&status=eq.sent&or=(arrived_at.is.null,and(upsell_followup.eq.true,upsell_triggered_at.is.null))&order=created_at.asc`);
     if (!rows.length) return NextResponse.json({ checked: 0, triggered: [], arrived: [] });
     const pianos = await getPianos(true);
     const triggered: string[] = [], arrived: string[] = [];
