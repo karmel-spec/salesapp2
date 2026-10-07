@@ -149,7 +149,9 @@ export async function buildLists() {
     const ownDone = own && own.step2At;
     let done = "";
     if (sent) { if (plating!.step1At && stampedToday(plating!.step1At)) done = "Prepped for shipping"; else continue; }
-    else if (ownDone) { if (stampedToday(own!.step2At)) done = own!.step2 || "Done"; else continue; }
+    // "Already done" leaves the list at once (Mark 10/7, one-time cleanup) — only
+    // Buffed stays visible for the day with its undo
+    else if (ownDone) { if (stampedToday(own!.step2At) && !/^already done$/i.test(own!.step2)) done = own!.step2 || "Done"; else continue; }
     const finish = String(p.plateFinish || "").trim();
     hardware.push({ serial: p.serial, mapRow: p.row, phase: ph, phaseIdx: idx,
       // manufacturer and serial are all Korban needs (Walter 10/7)
