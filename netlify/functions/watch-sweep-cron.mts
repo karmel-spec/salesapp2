@@ -13,7 +13,11 @@ export default async () => {
     const n = await fetch(`${SITE}/api/sweep/non-responsive?key=${encodeURIComponent(KEY)}`);
     const nj = await n.json().catch(() => ({}));
     console.log(`[non-responsive-sweep] ${n.status} moved ${nj.count ?? "?"}`);
-    return new Response(JSON.stringify({ watch: j, nonResponsive: nj }), { status: 200, headers: { "content-type": "application/json" } });
+    // WON shop projects past 50% → Brigham's upsell call lands in his Top Ten; "piano coming" rows marked arrived.
+    const u = await fetch(`${SITE}/api/won/upsell-sweep?key=${encodeURIComponent(KEY)}`);
+    const uj = await u.json().catch(() => ({}));
+    console.log(`[upsell-sweep] ${u.status} checked ${uj.checked ?? "?"} triggered ${uj.triggered?.length ?? "?"} arrived ${uj.arrived?.length ?? "?"}`);
+    return new Response(JSON.stringify({ watch: j, nonResponsive: nj, upsell: uj }), { status: 200, headers: { "content-type": "application/json" } });
   } catch (e) {
     console.error("[watch-sweep] failed:", e);
     return new Response(String(e), { status: 500 });

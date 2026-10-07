@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRoster, api } from "@/lib/client";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { StreakWidget } from "@/components/StreakWidget";
+import { HandoffStrip } from "@/components/HandoffStrip";
 
 const NAV: { href: string; label: string; sub?: boolean; boardKey?: string; group?: string; in?: string }[] = [
   { href: "/bl-inbox", label: "BL Client Responses" },
@@ -371,6 +372,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <NewLeadButton className="btn new-lead-btn drawer-only" />
           <GlobalSearch className="drawer-only" />
           <StreakWidget />
+          <HandoffStrip />
           {NAV.map((item) => {
             if (item.in && collapsed[item.in]) return null;
             const active =

@@ -12,6 +12,8 @@ import { SummaryBar } from "@/components/SummaryBar";
 import type { LeadGeo } from "@/lib/geo-shared";
 import { ThreadComposer, replySubject } from "@/components/ThreadComposer";
 import { AttachButton, allowedAttachment, type PickedFile } from "@/components/AttachButton";
+import { WonWizard } from "@/components/WonWizard";
+import type { HandoffRow } from "@/lib/won";
 
 type Adjacent = { id: string; name: string } | null;
 
@@ -252,6 +254,8 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
           rule ({lead.effectiveRep} keeps the lead). Run the stale sweep from the Dashboard to write it to the sheet.
         </div>
       )}
+
+      {lead.statusBucket === "won" && <HandoffStatus lead={lead} onFlash={setFlash} onDone={loadSoon} />}
 
       <div className="two-col">
         <div>
@@ -1608,37 +1612,17 @@ function InlineStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: stri
   }
   if (choice === "Won") {
     return (
-      <span style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-        {closedBy === "" ? (
-          <>
-            <span style={{ fontSize: 13 }}>🏆 Did Brigham close this sale?</span>
-            <button className="btn small" disabled={busy} onClick={() => save("Won", { closedBy: "Brigham" })}>
-              {busy ? "Saving…" : "✓ Yes — Won"}
-            </button>
-            <button className="btn ghost small" disabled={busy} onClick={() => setClosedBy("__pick__")}>
-              Another rep…
-            </button>
-          </>
-        ) : (
-          <>
-            <span style={{ fontSize: 13 }}>🏆 Sale closed by:</span>
-            <select
-              value={closedBy === "__pick__" ? "" : closedBy}
-              autoFocus
-              disabled={busy}
-              onChange={(e) => {
-                const v = e.target.value;
-                setClosedBy(v || "__pick__");
-                if (v) save("Won", { closedBy: v }); // picking the closer IS the save
-              }}
-            >
-              <option value="">— pick the closer (saves)</option>
-              {closerRoster.map((r) => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </>
-        )}
-        <button className="btn ghost small" onClick={() => { setChoice(""); setClosedBy(""); setEditing(false); }}>✕</button>
-      </span>
+      <WonWizard
+        lead={lead}
+        who={getWho()}
+        onClose={() => { setChoice(""); setEditing(false); }}
+        onSkip={() => save("Won", { closedBy: closedBy && closedBy !== "__pick__" ? closedBy : "Brigham" })}
+        onSent={(r) => {
+          const names = r.to.map((a) => a.split("@")[0]).join(", ");
+          onFlash(r.emailed ? `🏆 Won — handoff sent to ${names}${r.warnings.length ? ` (${r.warnings.length} warning${r.warnings.length === 1 ? "" : "s"} — see the handoff card)` : ""}` : `🏆 Won — but the handoff email did not send: ${r.warnings.join("; ")}`);
+          setChoice(""); setEditing(false); onDone();
+        }}
+      />
     );
   }
   if (choice === "Snoozed") {
@@ -1679,5 +1663,50 @@ function InlineStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: stri
         </option>
       ))}
     </select>
+  );
+}
+
+/** After a Won: who has acknowledged the handoff, where it went, and a way to re-send it. */
+function HandoffStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: string) => void; onDone: () => void }) {
+  const [row, setRow] = useState<HandoffRow | null | undefined>(undefined);
+  const [edit, setEdit] = useState(false);
+  const load = useCallback(() => {
+    api<{ handoff: HandoffRow | null }>(`/api/leads/${encodeURIComponent(lead.id)}/won`).then((r) => setRow(r.handoff)).catch(() => setRow(null));
+  }, [lead.id]);
+  useEffect(() => { load(); }, [load]);
+  const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "");
+  const portal = process.env.NEXT_PUBLIC_CLIENT_PORTAL_URL || "https://blpclientportal.netlify.app";
+  if (row === undefined) return null;
+  const warnings = (row?.log || []).filter((l) => l.ok === false).slice(-4);
+  return (
+    <div className="handoff-card">
+      {edit && <WonWizard lead={lead} who={getWho()} initial={row?.answers || null} resendId={row?.id} onClose={() => setEdit(false)} onSkip={() => setEdit(false)} onSent={(r) => { setEdit(false); onFlash(r.emailed ? "🏆 Handoff re-sent to the team" : `Handoff saved but the email did not send: ${r.warnings.join("; ")}`); load(); onDone(); }} />}
+      {!row ? (
+        <div className="row"><span>🏆 Won{lead.closedBy ? ` by ${lead.closedBy}` : ""} — no handoff was sent to the team for this sale.</span><button className="btn small" onClick={() => setEdit(true)}>Fill out the handoff →</button></div>
+      ) : (
+        <>
+          <div className="row">
+            <b>🏆 {row.branch === "shop" ? "Shop project" : "Showroom sale"} handoff</b>
+            <span>{row.email_sent_at ? `sent ${when(row.email_sent_at)} by ${row.closed_by}` : "not emailed"}</span>
+            {row.piano && <span>· {row.piano}{row.serial ? ` #${row.serial}` : ""}</span>}
+            {row.price_cents ? <span>· ${(row.price_cents / 100).toLocaleString()}</span> : null}
+          </div>
+          <div className="row">
+            <span className={`ack ${row.admin_ack_at ? "yes" : "no"}`}>{row.admin_ack_at ? `✓ Admin: ${row.admin_ack_by || "got it"} ${when(row.admin_ack_at)}` : "⏳ Admin hasn't acknowledged"}</span>
+            <span className={`ack ${row.shop_ack_at ? "yes" : "no"}`}>{row.shop_ack_at ? `✓ Shop: ${row.shop_ack_by || "got it"} ${when(row.shop_ack_at)}` : "⏳ Shop hasn't acknowledged"}</span>
+            {row.nudge_count > 0 && <span className="muted">{row.nudge_count} reminder{row.nudge_count === 1 ? "" : "s"} sent</span>}
+          </div>
+          <div className="row">
+            {row.portal_project_id && <a href={`${portal}/admin/projects/${row.portal_project_id}`} target="_blank" rel="noreferrer">Client Portal project ↗</a>}
+            {row.qbo_invoice_url ? <a href={row.qbo_invoice_url} target="_blank" rel="noreferrer">QBO draft invoice ↗</a> : row.qbo_status ? <span className="muted">QBO: {row.qbo_status}</span> : null}
+            {row.upsell_followup && <span className="muted">{row.upsell_triggered_at ? "50% upsell lead created" : "50% upsell call: will land in Top Ten"}</span>}
+            {row.branch === "shop" && <span className="muted">{row.arrived_at ? `piano arrived ${when(row.arrived_at)}` : "piano coming (Store Map parking lot)"}</span>}
+            <span className="spacer" style={{ flex: 1 }} />
+            <button className="btn ghost small" onClick={() => setEdit(true)}>Edit & re-send</button>
+          </div>
+          {warnings.length > 0 && <div className="muted" style={{ fontSize: 12 }}>⚠ {warnings.map((w) => w.text).join(" · ")}</div>}
+        </>
+      )}
+    </div>
   );
 }

@@ -745,6 +745,8 @@ export async function createLead(input: {
   capturedBy?: string;
   openedBy?: string;
   status?: string; // e.g. "Support" for auto-created service contacts
+  /** Deliberate second lead for a known customer (e.g. the 50% upsell call after a WON shop project). */
+  skipDedupe?: boolean;
 }): Promise<string> {
   const { leads, shape } = await getLeads(true);
 
@@ -754,7 +756,7 @@ export async function createLead(input: {
   const dupe = leads.find(
     (l) => (phone && l.phoneDialable === phone) || (email && l.emailClean.toLowerCase() === email.toLowerCase())
   );
-  if (dupe) throw new Error(`Possible duplicate of existing lead "${dupe.name}" (${dupe.id})`);
+  if (dupe && !input.skipDedupe) throw new Error(`Possible duplicate of existing lead "${dupe.name}" (${dupe.id})`);
 
   const s = await ensureAppColumns(shape);
   const width = Math.max(s.header.length, ...Object.values(s.col).map((i) => i + 1));

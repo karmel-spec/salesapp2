@@ -1428,3 +1428,54 @@ tbody tr:hover { background: #faf7f2; }
 .streak-off-form{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .streak-off-form input[type=text]{grid-column:1/3}
 .streak-off-form .btn{grid-column:1/3}
+
+/* ---- WON handoff wizard (design B: guided steps + email preview) ---- */
+.wonwiz{position:fixed;inset:0;z-index:5100;display:flex;align-items:center;justify-content:center;background:rgba(18,18,18,.42);padding:12px}
+.wonwiz-card{background:#fff;color:var(--ink,#121212);border-radius:16px;width:min(640px,100%);max-height:calc(100vh - 24px);display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.35);animation:celebrate-pop .35s cubic-bezier(.2,1.2,.4,1)}
+.wonwiz-head{padding:14px 18px 10px;border-bottom:1px solid #e8e2d8;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;position:relative}
+.wonwiz-title{font-family:Georgia,serif;font-size:21px;font-weight:800;color:var(--crimson,#9E2020);flex:1 1 100%;padding-right:30px}
+.wonwiz-steps{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;color:#7a736a}
+.wonwiz-steps li{display:flex;align-items:center;gap:5px}
+.wonwiz-steps li.done{cursor:pointer;color:#2e7d5b}
+.wonwiz-steps li.now{color:var(--ink,#121212);font-weight:700}
+.wonwiz-steps i{width:20px;height:20px;border-radius:50%;display:inline-grid;place-items:center;font-style:normal;font-weight:700;font-size:11px;border:1.5px solid #d9d2c6}
+.wonwiz-steps li.done i{background:#2e7d5b;border-color:#2e7d5b;color:#fff}
+.wonwiz-steps li.now i{background:var(--crimson,#9E2020);border-color:var(--crimson,#9E2020);color:#fff}
+.wonwiz-x{position:absolute;top:10px;right:12px;border:none;background:none;font-size:18px;cursor:pointer;color:#7a736a}
+.wonwiz-body{padding:14px 18px;overflow-y:auto;flex:1;min-height:260px}
+.wonwiz-page{display:flex;flex-direction:column;gap:12px}
+.wonwiz .ask{font-family:Georgia,serif;font-size:19px;font-weight:600}
+.wonwiz .ask.small{font-size:14px;font-family:inherit;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--crimson,#9E2020);margin-top:4px}
+.wonwiz .choices{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.wonwiz .choices label{border:1.5px solid #d9d2c6;border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer;background:#fff;display:inline-flex;gap:4px;align-items:center;flex-direction:row}
+.wonwiz .choices label input{display:none}
+.wonwiz .choices label.on{border-color:var(--crimson,#9E2020);background:#f7e3e1;color:var(--crimson,#9E2020);font-weight:600}
+.wonwiz .choices.big{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.wonwiz .choices.big label{border-radius:12px;padding:12px 14px;flex-direction:column;align-items:flex-start;gap:3px}
+.wonwiz .choices.big label b{font-size:15px}
+.wonwiz .choices.big label span{font-size:12px;color:#7a736a;font-weight:400}
+.wonwiz .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.wonwiz .fld{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600;color:#5c5247}
+.wonwiz-input{font:inherit;font-size:14px;width:100%;box-sizing:border-box;border:1px solid #d9d2c6;border-radius:8px;padding:8px 10px;background:#faf8f3;color:var(--ink,#121212)}
+.wonwiz-input.note{flex:1 1 220px;min-width:160px}
+.wonwiz .chk{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;padding:8px 0}
+.wonwiz .qrow{display:flex;flex-direction:column;gap:6px;padding:9px 0;border-bottom:1px dashed #e8e2d8}
+.wonwiz .qlbl{font-size:14px;font-weight:600}
+.wonwiz .qnote{border:none;background:none;color:var(--crimson,#9E2020);font-size:12.5px;cursor:pointer;padding:4px 6px}
+.wonwiz-upsell{background:#fbf1dc;border:1px solid #c89a3c;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.wonwiz-to{font-size:12.5px;color:#5c5247}
+.wonwiz-preview{background:#faf8f3;border:1px solid #e8e2d8;border-radius:10px;padding:12px;font-size:12.5px;white-space:pre-wrap;word-break:break-word;line-height:1.45;max-height:46vh;overflow:auto;margin:0;font-family:ui-monospace,Menlo,monospace}
+.wonwiz-creates{font-size:12.5px;color:#5c5247;line-height:1.5}
+.wonwiz-err{color:var(--crimson,#9E2020);font-weight:600;font-size:13px}
+.wonwiz .ok{color:#2e7d5b;font-weight:600}
+.wonwiz-foot{padding:10px 18px;border-top:1px solid #e8e2d8;display:flex;gap:8px;align-items:center}
+.wonwiz-foot .spacer{flex:1}
+@media (max-width:560px){.wonwiz .grid2,.wonwiz .choices.big{grid-template-columns:1fr}.wonwiz-card{max-height:calc(100vh - 12px)}}
+/* handoff status card on the lead + the pending strip in the nav */
+.handoff-card{background:#fbf1dc;border:1px solid #c89a3c;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:13px;display:flex;flex-direction:column;gap:6px}
+.handoff-card .row{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
+.handoff-card .ack{display:inline-flex;gap:5px;align-items:center;padding:3px 9px;border-radius:999px;background:#fff;border:1px solid #e2d8c8;font-size:12px}
+.handoff-card .ack.yes{border-color:#2e7d5b;color:#2e7d5b;font-weight:600}
+.handoff-card .ack.no{border-color:#c89a3c;color:#8a6f1a}
+.handoff-strip{margin:4px 10px 10px;background:#fbf1dc;border:1px solid #c89a3c;border-radius:10px;padding:8px 10px;font-size:12.5px;line-height:1.4}
+.handoff-strip a{color:var(--crimson,#9E2020);font-weight:600}
