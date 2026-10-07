@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Lead } from "@/lib/leads";
 import { api } from "@/lib/client";
 import { TypeAhead } from "@/components/TypeAhead";
-import { type Handoff, type Item, type Question, emptyHandoff, questionsFor, renderHandoff, todos } from "@/lib/won";
+import { type Handoff, type Item, type Question, emptyHandoff, questionsFor, renderHandoff, todos, diffHandoff } from "@/lib/won";
 
 interface PickPiano { serial: string; row: number; year: string; make: string; model: string; size: string; category: string; price: string; location: string; section: string; sellable: boolean; forSale: boolean; label: string }
 
@@ -91,7 +91,7 @@ export function WonWizard({ lead, who, initial, resendId, startStep, onClose, on
   };
 
   const contact = { name: lead.name, email: h.contact.email, phone: h.contact.phone, address: h.contact.address };
-  const preview = useMemo(() => renderHandoff(h, contact, { lead: `${typeof location !== "undefined" ? location.origin : ""}/leads/${lead.id}` }), [h, lead.id, contact.name, contact.email, contact.phone, contact.address]);
+  const preview = useMemo(() => renderHandoff(h, contact, { lead: `${typeof location !== "undefined" ? location.origin : ""}/leads/${lead.id}` }, resendId && initial ? { since: "earlier", changes: diffHandoff(initial, h) } : undefined), [h, lead.id, contact.name, contact.email, contact.phone, contact.address, resendId, initial]);
   const t = useMemo(() => todos(h), [h]);
 
   async function send() {
@@ -228,7 +228,7 @@ export function WonWizard({ lead, who, initial, resendId, startStep, onClose, on
 
           {stepKey === "send" && (
             <div className="wonwiz-page">
-              <div className="ask">This is what the team gets</div>
+              <div className="ask">{resendId ? "This addendum is what the team gets" : "This is what the team gets"}</div>
               <div className="wonwiz-to">To: shop@ · info@ · melissa@ &nbsp;·&nbsp; Subject: {preview.subject}</div>
               <pre className="wonwiz-preview">{preview.body}</pre>
               <div className="wonwiz-creates">
@@ -244,7 +244,7 @@ export function WonWizard({ lead, who, initial, resendId, startStep, onClose, on
           {step === 0 && <button className="btn ghost small" disabled={busy} onClick={() => { clearDraft(); onSkip(); }} title="Mark Won without the handoff email">Skip the handoff</button>}
           <span className="wonwiz-saved">{saved === "saving" ? "Saving…" : saved === "saved" ? "✓ Draft saved" : saved === "offline" ? "Saved on this device (server unreachable)" : resumed ? "Draft" : ""}</span>
           <span className="spacer" />
-          {step < last ? <button className="btn small" onClick={() => go(step + 1)}>{step === 0 ? "Start →" : "Next →"}</button> : <button className="btn small" disabled={busy} onClick={send}>{busy ? "Sending…" : resendId ? "Re-send to the team 🏆" : "Send to the team 🏆"}</button>}
+          {step < last ? <button className="btn small" onClick={() => go(step + 1)}>{step === 0 ? "Start →" : "Next →"}</button> : <button className="btn small" disabled={busy} onClick={send}>{busy ? "Sending…" : resendId ? "Send addendum to the team 🏆" : "Send to the team 🏆"}</button>}
         </footer>
       </div>
     </div>

@@ -155,12 +155,19 @@ export function todos(h: Handoff): { admin: string[]; shop: string[] } {
 export interface HandoffLinks { lead?: string; crm?: string; portal?: string; qbo?: string; storemap?: string; ackAdmin?: string; ackShop?: string }
 
 /** The email body (plain text with [label](url) links — the mailer renders both parts). Also the wizard's preview. */
-export function renderHandoff(h: Handoff, lead: { name: string; email?: string; phone?: string; address?: string }, links: HandoffLinks = {}): { subject: string; body: string } {
+export function renderHandoff(h: Handoff, lead: { name: string; email?: string; phone?: string; address?: string }, links: HandoffLinks = {}, addendum?: { since: string; changes: { label: string; from: string; to: string }[] }): { subject: string; body: string } {
   const kind = h.branch === "shop" ? "Shop project" : "Showroom sale";
   const price = h.price.v?.trim() || "price not specified";
-  const subject = `WON · ${lead.name} · ${kind} · ${price}`;
+  const subject = `${addendum ? "ADDENDUM · " : ""}WON · ${lead.name} · ${kind} · ${price}`;
   const t = todos(h);
   const L: string[] = [];
+  if (addendum) {
+    L.push(`ADDENDUM — this replaces the handoff sent ${addendum.since}. What changed:`);
+    L.push(...(addendum.changes.length ? addendum.changes.map((c) => `  • ${c.label}: ${c.from} → ${c.to}`) : ["  (no answers changed — re-sent as a reminder)"]));
+    L.push("");
+    L.push("Full updated handoff below.");
+    L.push("");
+  }
   L.push(`${kind} closed by ${h.closer || "the rep"} — ${lead.name}`);
   const c = { phone: h.contact?.phone || lead.phone, email: h.contact?.email || lead.email, address: h.contact?.address || lead.address };
   L.push([c.phone, c.email, c.address].filter(Boolean).join(" · ") || "(no contact details on the lead)");
@@ -227,6 +234,19 @@ export function handoffLines(h: Handoff): { section: string; label: string; valu
   if (h.branch === "shop") out.push({ section: "For the team", label: "Brigham's 50% upsell call", value: h.upsellAt50 ? "Yes — back into his Top Ten at 50%" : "No" });
   if (h.contacts.trim()) out.push({ section: "For the team", label: "Other contacts", value: h.contacts.trim() });
   if (h.notes.trim()) out.push({ section: "For the team", label: "Notes", value: h.notes.trim() });
+  return out;
+}
+
+/** What changed between two versions of a handoff (for the addendum email). */
+export function diffHandoff(prev: Handoff, next: Handoff): { label: string; from: string; to: string }[] {
+  const a = new Map(handoffLines(prev).map((l) => [`${l.section} · ${l.label}`, l.value]));
+  const b = new Map(handoffLines(next).map((l) => [`${l.section} · ${l.label}`, l.value]));
+  const out: { label: string; from: string; to: string }[] = [];
+  if (prev.branch !== next.branch) out.push({ label: "Kind of win", from: prev.branch === "shop" ? "Shop project" : "Showroom sale", to: next.branch === "shop" ? "Shop project" : "Showroom sale" });
+  for (const [k, v] of b) if (a.get(k) !== v) out.push({ label: k.split(" · ")[1], from: a.get(k) || "(not answered)", to: v });
+  for (const [k, v] of a) if (!b.has(k)) out.push({ label: k.split(" · ")[1], from: v, to: "(removed)" });
+  const c = (h: Handoff) => [h.contact?.phone, h.contact?.email, h.contact?.address].map((x) => (x || "").trim()).join(" · ");
+  if (c(prev) !== c(next)) out.push({ label: "Contact details", from: c(prev) || "(none)", to: c(next) || "(none)" });
   return out;
 }
 

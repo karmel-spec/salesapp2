@@ -5,7 +5,7 @@ import { config } from "@/lib/config";
 import { crmUpsertLead, crmNote } from "@/lib/crm";
 import { sendEmail } from "@/lib/comms";
 import { qboConfigured, findOrCreateCustomer, createInvoice } from "@/lib/qbo";
-import { type Handoff, type HandoffRow, renderHandoff, summarize, todos, handoffLines, priceCents, newHandoffId, insertHandoff, patchHandoff, handoffsForLead, handoffStoreReady, ackToken, logHandoff, getDraft, deleteDraft } from "@/lib/won";
+import { type Handoff, type HandoffRow, renderHandoff, summarize, todos, handoffLines, diffHandoff, getHandoff, priceCents, newHandoffId, insertHandoff, patchHandoff, handoffsForLead, handoffStoreReady, ackToken, logHandoff, getDraft, deleteDraft } from "@/lib/won";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 26;
@@ -74,6 +74,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     // 2. Handoff record (Supabase) — the system of record for this handoff.
     const hid = body.resend || newHandoffId();
+    // Re-sending an existing handoff → an addendum that spells out what changed since the original.
+    let addendum: { since: string; changes: { label: string; from: string; to: string }[] } | undefined;
+    if (body.resend && handoffStoreReady()) {
+      const prev = await getHandoff(body.resend).catch(() => null);
+      if (prev?.answers) addendum = { since: new Date(prev.email_sent_at || prev.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Denver" }), changes: diffHandoff(prev.answers, h) };
+    }
     const contact = { name: lead.name, email: (fields.email || lead.emailClean || lead.email || "").trim(), phone: (fields.phone || lead.phoneDialable || lead.phone || "").trim(), address: (fields.address || lead.address || "").trim() };
     h.contact = { phone: contact.phone, email: contact.email, address: contact.address };
     let row: HandoffRow | null = null;
@@ -145,7 +151,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     // 4. The email — one message, three audiences, with signed "Got it" links.
     const ack = row ? { ackAdmin: `${config.publicBaseUrl}/api/won/ack?id=${hid}&role=admin&t=${await ackToken(hid, "admin")}`, ackShop: `${config.publicBaseUrl}/api/won/ack?id=${hid}&role=shop&t=${await ackToken(hid, "shop")}` } : {};
-    const mail = renderHandoff(h, contact, { ...links, ...ack });
+    const mail = renderHandoff(h, contact, { ...links, ...ack }, addendum);
     try {
       await sendEmail(HANDOFF_TO.join(", "), mail.subject, mail.body);
       patch.email_sent_at = new Date().toISOString(); patch.email_to = HANDOFF_TO.join(", ");
@@ -153,7 +159,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     // 5. Lead timeline (kind "handoff" so it isn't double-pushed to the CRM) + handoff record.
     const fresh = await getLead(id, true);
-    await appendTimeline(fresh?.lead || lead, found.shape, { at: new Date().toISOString(), who: h.closer, kind: "handoff", text: `🏆 WON handoff ${patch.email_sent_at ? `sent to ${HANDOFF_TO.map((a) => a.split("@")[0]).join("/")}` : "NOT emailed"} — ${summarize(h)}${links.portal ? ` · Portal: ${links.portal}` : ""}${links.qbo ? ` · QBO draft invoice: ${links.qbo}` : ""}${warnings.length ? ` · Warnings: ${warnings.join("; ")}` : ""}` });
+    await appendTimeline(fresh?.lead || lead, found.shape, { at: new Date().toISOString(), who: h.closer, kind: "handoff", text: `🏆 WON handoff${addendum ? ` ADDENDUM (${addendum.changes.length} change${addendum.changes.length === 1 ? "" : "s"}: ${addendum.changes.map((c) => c.label).join(", ") || "none"})` : ""} ${patch.email_sent_at ? `sent to ${HANDOFF_TO.map((a) => a.split("@")[0]).join("/")}` : "NOT emailed"} — ${summarize(h)}${links.portal ? ` · Portal: ${links.portal}` : ""}${links.qbo ? ` · QBO draft invoice: ${links.qbo}` : ""}${warnings.length ? ` · Warnings: ${warnings.join("; ")}` : ""}` });
+    if (row && addendum) Object.assign(patch, { admin_ack_at: null, admin_ack_by: null, shop_ack_at: null, shop_ack_by: null, nudge_count: 0, nudged_at: null });
     if (row) { await patchHandoff(hid, patch).catch(() => null); for (const w of warnings) await logHandoff(row, w, false); await logHandoff(row, `Handoff ${body.resend ? "re-sent" : "sent"} by ${who}`); }
     if (handoffStoreReady()) await deleteDraft(lead.id).catch(() => null); // the autosaved draft is done with
 

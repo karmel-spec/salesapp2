@@ -1682,7 +1682,12 @@ function HandoffStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: str
   const draftWhen = draft ? new Date(draft.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
   const sentHandoff = (r: { id: string; warnings: string[]; emailed: boolean; to: string[] }) => { setEdit(false); onFlash(r.emailed ? `🏆 Won — handoff sent to ${r.to.map((a) => a.split("@")[0]).join(", ")}` : `Handoff saved but the email did not send: ${r.warnings.join("; ")}`); load(); onDone(); };
   if (lead.statusBucket !== "won") {
-    if (!draft) return null;
+    if (!draft) return (
+      <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+        {edit && <WonWizard lead={lead} who={getWho()} onClose={() => { setEdit(false); load(); }} onSkip={() => { setEdit(false); load(); }} onSent={sentHandoff} />}
+        🏆 Closed this one? <button className="btn ghost small" onClick={() => setEdit(true)}>Open the WON wizard</button>
+      </div>
+    );
     return (
       <div className="handoff-card">
         {edit && <WonWizard lead={lead} who={getWho()} initial={draft.answers} startStep={draft.step} onClose={() => { setEdit(false); load(); }} onSkip={() => { setEdit(false); load(); }} onSent={sentHandoff} />}
@@ -1692,7 +1697,7 @@ function HandoffStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: str
   }
   return (
     <div className="handoff-card">
-      {edit && <WonWizard lead={lead} who={getWho()} initial={row?.answers || null} resendId={row?.id} onClose={() => setEdit(false)} onSkip={() => setEdit(false)} onSent={(r) => { setEdit(false); onFlash(r.emailed ? "🏆 Handoff re-sent to the team" : `Handoff saved but the email did not send: ${r.warnings.join("; ")}`); load(); onDone(); }} />}
+      {edit && <WonWizard lead={lead} who={getWho()} initial={row?.answers || null} resendId={row?.id} onClose={() => setEdit(false)} onSkip={() => setEdit(false)} onSent={(r) => { setEdit(false); onFlash(r.emailed ? "🏆 Addendum sent to the team" : `Handoff saved but the email did not send: ${r.warnings.join("; ")}`); load(); onDone(); }} />}
       {!row ? (
         <div className="row"><span>🏆 Won{lead.closedBy ? ` by ${lead.closedBy}` : ""} — no handoff was sent to the team for this sale.</span><button className="btn small" onClick={() => setEdit(true)}>Fill out the handoff →</button></div>
       ) : (
@@ -1714,7 +1719,7 @@ function HandoffStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: str
             {row.upsell_followup && <span className="muted">{row.upsell_triggered_at ? "50% upsell lead created" : "50% upsell call: will land in Top Ten"}</span>}
             {row.branch === "shop" && <span className="muted">{row.arrived_at ? `piano arrived ${when(row.arrived_at)}` : "piano coming (Store Map parking lot)"}</span>}
             <span className="spacer" style={{ flex: 1 }} />
-            <button className="btn ghost small" onClick={() => setEdit(true)}>Edit & re-send</button>
+            <button className="btn ghost small" onClick={() => setEdit(true)} title="Reopen the wizard; changes go out as an addendum email">Update & send addendum</button>
           </div>
           {warnings.length > 0 && <div className="muted" style={{ fontSize: 12 }}>⚠ {warnings.map((w) => w.text).join(" · ")}</div>}
         </>
