@@ -112,6 +112,10 @@ export async function buildLists() {
   const active = pianos.filter(p => p.active && !p.archived);
   const bySerial = new Map<string, any>();
   active.forEach(p => { if (p.serial) bySerial.set(norm(p.serial), p); });
+  // for-sale pianos are off Korban's list (Walter 10/7): phase For Sale, or
+  // "For Sale" in the Piano Log STATUS column
+  const forSale = (p: any) => !!p && (/^for sale$/i.test(String(p.phase || "").trim())
+    || /\bfor sale\b/i.test(String(p.status || "")));
   const task = (serial: string, name: string) =>
     tasks.find(t => norm(t.serial) === norm(serial) && norm(t.task) === norm(name) && !t.part);
 
@@ -130,6 +134,7 @@ export async function buildLists() {
     const doneToday = checked && !!st && stampedToday(st.step2At);
     if (checked && !doneToday) continue;
     const p = serial ? bySerial.get(norm(serial)) : null;
+    if (forSale(p)) continue;
     plates.push({ curtisRow: i + 1, priority: Number(r[1]) || null, pianoText, serial,
       requested: String(r[2] || ""), curtisNote: String(r[6] || ""),
       mapRow: p ? p.row : null, phase: p ? p.phase || "" : "", plateHw: p ? p.plateHwStatus || "" : "",
@@ -142,7 +147,7 @@ export async function buildLists() {
   for (const p of active) {
     const ph = RETIRED[p.phase] || p.phase || "";
     const idx = PHASES.indexOf(ph);
-    if (idx < FIRST || idx > LAST || !p.serial) continue;
+    if (idx < FIRST || idx > LAST || !p.serial || forSale(p)) continue;
     const plating = task(p.serial, PLATING_TASK);
     const own = task(p.serial, HW_TASK);
     const sent = plating && (plating.step1At || plating.step2At);
