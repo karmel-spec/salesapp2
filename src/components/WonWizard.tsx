@@ -193,8 +193,10 @@ export function WonWizard({ lead, who, initial, resendId, startStep, onClose, on
           {stepKey === "money" && (
             <div className="wonwiz-page">
               <div className="ask">Where does the money stand?</div>
-              {questionsFor(h.branch, "money").map((q) => <QRow key={q.id} q={q} item={h.items[q.id]} onChange={(p) => setItem(q.id, p)} />)}
-              <label className="chk"><input type="checkbox" checked={h.qbo} onChange={(e) => set({ qbo: e.target.checked })} /> Draft the invoice in QuickBooks for admin to send{qbo && !qbo.connected ? <span className="muted"> (QuickBooks isn't connected yet — it will be skipped)</span> : null}</label>
+              {questionsFor(h.branch, "money").map((q) => <QRow key={q.id} q={q} item={h.items[q.id]} onChange={(p) => { setItem(q.id, p); if (q.id === "invoice" && p.v === "made") set({ qbo: false }); if (q.id === "invoice" && p.v && p.v !== "made" && h.items.invoice?.v === "made") set({ qbo: true }); }} />)}
+              {h.items.invoice?.v === "made"
+                ? <p className="muted small" style={{ padding: "8px 0" }}>Invoice already made — no QuickBooks draft will be created.</p>
+                : <label className="chk"><input type="checkbox" checked={h.qbo} onChange={(e) => set({ qbo: e.target.checked })} /> Draft the invoice in QuickBooks for admin to send{qbo && !qbo.connected ? <span className="muted"> (QuickBooks isn't connected yet — it will be skipped)</span> : null}</label>}
             </div>
           )}
 
@@ -230,7 +232,7 @@ export function WonWizard({ lead, who, initial, resendId, startStep, onClose, on
               <div className="wonwiz-to">To: shop@ · info@ · melissa@ &nbsp;·&nbsp; Subject: {preview.subject}</div>
               <pre className="wonwiz-preview">{preview.body}</pre>
               <div className="wonwiz-creates">
-                <b>On send:</b> lead → Won · CRM note + customer tag{h.branch === "shop" ? " · Client Portal project with this handoff pinned on top" : ""}{h.qbo && h.price.v ? " · QuickBooks customer + draft invoice" : ""}{h.branch === "showroom" && h.piano.row ? " · Piano Log row marked Sold" : ""}{h.branch === "shop" ? " · Store Map “piano coming” in the parking lot" : ""}{t.shop.length ? " · task card on the shop manager's board" : ""} · "Got it" links for admin and the shop (reminders every 4h until clicked).
+                <b>On send:</b> lead → Won · CRM note + customer tag{h.branch === "shop" ? " · Client Portal project with this handoff pinned on top" : ""}{h.qbo && h.price.v && h.items.invoice?.v !== "made" ? " · QuickBooks customer + draft invoice" : ""}{h.branch === "showroom" && h.piano.row ? " · Piano Log row marked Sold" : ""}{h.branch === "shop" ? " · Store Map “piano coming” in the parking lot" : ""}{t.shop.length ? " · task card on the shop manager's board" : ""} · "Got it" links for admin and the shop (reminders every 4h until clicked).
               </div>
               {err && <p className="wonwiz-err">{err}</p>}
             </div>

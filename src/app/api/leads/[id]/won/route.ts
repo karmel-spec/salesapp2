@@ -111,7 +111,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     })());
 
     // QuickBooks: customer + DRAFT invoice (admin sends it from QBO after review).
-    if (h.qbo && cents) jobs.push((async () => {
+    if (h.qbo && cents && h.items.invoice?.v !== "made") jobs.push((async () => {
       if (!qboConfigured()) { patch.qbo_status = "not connected"; warn("QuickBooks not connected — invoice not drafted (set QBO_CLIENT_ID/SECRET, then /api/qbo/connect)"); return; }
       try {
         const cust = await withTimeout(findOrCreateCustomer({ name: lead.name, email: contact.email || undefined, phone: contact.phone || undefined, address: lead.address || undefined }), 9000, "QBO customer");
