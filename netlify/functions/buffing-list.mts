@@ -8,17 +8,17 @@
  *   VISIBLE HARDWARE — every active piano past CAP (PRSB - Downbearing through
  *     Refinishing): CAP hands the visible hardware to Korban's queue. Furthest
  *     along first, since QC & Assembly is where it has to be back. A piano
- *     leaves the list when its hardware is shipped for plating (the card's
- *     electroplating task, step 1 "Submitted"), buffed in house (No
- *     electroplating), or marked "Already done" in the one-time cleanup.
+ *     leaves the list when it is marked "Prepped for shipping" (plating),
+ *     "Buffed" (No electroplating) or "Already done" (the one-time cleanup),
+ *     or once the card's electroplating task shows it was sent out.
  *
  *   GET  ?key=…  → {ok, today, plates:[…], hardware:[…]}
  *   POST {key, op, on, serial, by, auth?, …}
  *     op 'screws'  {curtisRow, pianoText, mapRow?, prevHw?} → ticks/unticks
  *                  column N on Curtis's sheet, sets the card's plate hardware
  *                  status to Buffed (or back to prevHw), records the tap
- *     op 'shipped' → electroplating task step 1 "Submitted" on the card
- *     op 'buffed' | 'done' → buffing-list task "Buffed" / "Already done"
+ *     op 'prepped' | 'buffed' | 'done' → buffing-list task "Prepped for
+ *                  shipping" / "Buffed" / "Already done" (Task Status tab)
  *   Every tap can be undone with on:false. Taps from today come back in GET
  *   with done set, so the page can offer undo for the rest of the day.
  *
@@ -144,14 +144,14 @@ export async function buildLists() {
     if (idx < FIRST || idx > LAST || !p.serial) continue;
     const plating = task(p.serial, PLATING_TASK);
     const own = task(p.serial, HW_TASK);
-    const shipped = plating && (plating.step1At || plating.step2At);
     const ownDone = own && own.step2At;
     let done = "";
-    if (shipped) { if (plating!.step1At && stampedToday(plating!.step1At)) done = "Shipped"; else continue; }
-    else if (ownDone) { if (stampedToday(own!.step2At)) done = own!.step2 || "Done"; else continue; }
+    if (ownDone) { if (stampedToday(own!.step2At)) done = own!.step2 || "Done"; else continue; }
+    else if (plating && (plating.step1At || plating.step2At)) continue;   // already sent out for plating
     const finish = String(p.plateFinish || "").trim();
     hardware.push({ serial: p.serial, mapRow: p.row, phase: ph, phaseIdx: idx,
-      label: [String(p.year || "").trim(), String(p.make || "").trim(), "#" + p.serial].filter(x => x && x !== "#").join(" "),
+      // manufacturer and serial are all Korban needs (Walter 10/7)
+      label: [String(p.make || "").trim() || String(p.summary || "").split("/")[0].trim(), "#" + p.serial].filter(Boolean).join(" "),
       summary: String(p.summary || "").slice(0, 80), finish,
       kind: /^no electroplating$/i.test(finish) ? "buff" : finish ? "ship" : "unset", done });
   }
@@ -159,7 +159,7 @@ export async function buildLists() {
   return { ok: true, today: denverDay(), plates, hardware };
 }
 
-const LINK = "https://blpstoremap.netlify.app/#view=buffing";
+const LINK = "https://blpstoremap.netlify.app/#report=buffing";
 
 export async function buffingText(): Promise<string> {
   const L = await buildLists();
@@ -169,14 +169,14 @@ export async function buffingText(): Promise<string> {
   const day = new Date().toLocaleDateString("en-US", { timeZone: "America/Denver", weekday: "short", month: "numeric", day: "numeric" });
   const lines = [`🔧 Korban — buffing priorities, ${day}`];
   if (plates.length) {
-    lines.push("Plate screws (Curtis's order):");
+    lines.push("Plate screws:");
     plates.slice(0, 3).forEach((p: any, i: number) => lines.push(`${i + 1}. ${p.pianoText}`));
     if (plates.length > 3) lines.push(`+${plates.length - 3} more`);
   }
   if (hw.length) {
     lines.push("Visible hardware to prep:");
     hw.slice(0, 3).forEach((h: any, i: number) => lines.push(`${i + 1}. ${h.label} — ${
-      h.kind === "buff" ? "buff only" : h.kind === "ship" ? h.finish : "finish not set"} · ${h.phase}`));
+      h.kind === "buff" ? "buff only" : h.kind === "ship" ? h.finish : "finish not set"}`));
     if (hw.length > 3) lines.push(`+${hw.length - 3} more`);
   }
   lines.push(`Done one? Tap it: ${LINK}`);
@@ -247,7 +247,7 @@ export default async (req: Request) => {
       return json({ ok: true, notes });
     }
     if (!serial) return json({ error: "serial required" }, 400);
-    if (op === "shipped") { await setTask(serial, PLATING_TASK, 1, "Submitted", on, by); return json({ ok: true }); }
+    if (op === "prepped" || op === "shipped") { await setTask(serial, HW_TASK, 2, "Prepped for shipping", on, by); return json({ ok: true }); }
     if (op === "buffed") { await setTask(serial, HW_TASK, 2, "Buffed", on, by); return json({ ok: true }); }
     if (op === "done") { await setTask(serial, HW_TASK, 2, "Already done", on, by); return json({ ok: true }); }
     return json({ error: "unknown op" }, 400);
