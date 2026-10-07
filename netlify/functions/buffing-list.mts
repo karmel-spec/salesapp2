@@ -8,17 +8,18 @@
  *   VISIBLE HARDWARE — every active piano past CAP (PRSB - Downbearing through
  *     Refinishing): CAP hands the visible hardware to Korban's queue. Furthest
  *     along first, since QC & Assembly is where it has to be back. A piano
- *     leaves the list when it is marked "Prepped for shipping" (plating),
+ *     leaves the list when it is marked "Prepped for shipping" (sets the
+ *     card's electroplating task to Submitted — one step, Walter 10/7),
  *     "Buffed" (No electroplating) or "Already done" (the one-time cleanup),
- *     or once the card's electroplating task shows it was sent out.
+ *     or once the card's electroplating task already shows Submitted/Received.
  *
  *   GET  ?key=…  → {ok, today, plates:[…], hardware:[…]}
  *   POST {key, op, on, serial, by, auth?, …}
  *     op 'screws'  {curtisRow, pianoText, mapRow?, prevHw?} → ticks/unticks
  *                  column N on Curtis's sheet, sets the card's plate hardware
  *                  status to Buffed (or back to prevHw), records the tap
- *     op 'prepped' | 'buffed' | 'done' → buffing-list task "Prepped for
- *                  shipping" / "Buffed" / "Already done" (Task Status tab)
+ *     op 'prepped' → the card's electroplating task step 1 "Submitted"
+ *     op 'buffed' | 'done' → buffing-list task "Buffed" / "Already done"
  *   Every tap can be undone with on:false. Taps from today come back in GET
  *   with done set, so the page can offer undo for the rest of the day.
  *
@@ -144,10 +145,11 @@ export async function buildLists() {
     if (idx < FIRST || idx > LAST || !p.serial) continue;
     const plating = task(p.serial, PLATING_TASK);
     const own = task(p.serial, HW_TASK);
+    const sent = plating && (plating.step1At || plating.step2At);
     const ownDone = own && own.step2At;
     let done = "";
-    if (ownDone) { if (stampedToday(own!.step2At)) done = own!.step2 || "Done"; else continue; }
-    else if (plating && (plating.step1At || plating.step2At)) continue;   // already sent out for plating
+    if (sent) { if (plating!.step1At && stampedToday(plating!.step1At)) done = "Prepped for shipping"; else continue; }
+    else if (ownDone) { if (stampedToday(own!.step2At)) done = own!.step2 || "Done"; else continue; }
     const finish = String(p.plateFinish || "").trim();
     hardware.push({ serial: p.serial, mapRow: p.row, phase: ph, phaseIdx: idx,
       // manufacturer and serial are all Korban needs (Walter 10/7)
@@ -247,7 +249,7 @@ export default async (req: Request) => {
       return json({ ok: true, notes });
     }
     if (!serial) return json({ error: "serial required" }, 400);
-    if (op === "prepped" || op === "shipped") { await setTask(serial, HW_TASK, 2, "Prepped for shipping", on, by); return json({ ok: true }); }
+    if (op === "prepped" || op === "shipped") { await setTask(serial, PLATING_TASK, 1, "Submitted", on, by); return json({ ok: true }); }
     if (op === "buffed") { await setTask(serial, HW_TASK, 2, "Buffed", on, by); return json({ ok: true }); }
     if (op === "done") { await setTask(serial, HW_TASK, 2, "Already done", on, by); return json({ ok: true }); }
     return json({ error: "unknown op" }, 400);
