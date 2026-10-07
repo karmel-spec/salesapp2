@@ -232,7 +232,8 @@ export default async (req: Request) => {
       const notes: string[] = ["Curtis's sheet " + (on ? "ticked" : "unticked")];
       if (serial) {
         try { await setTask(serial, SCREW_TASK, 2, "Done", on, by); } catch (e) { notes.push("tap not recorded: " + String((e as Error).message).slice(0, 60)); }
-        if (b.mapRow) {
+        // undo only restores the card when the page knows what it was before
+        if (b.mapRow && (on || b.prevHw != null)) {
           // card's plate hardware status, through the durable relay like the card itself
           const auth = (b.auth && typeof b.auth === "object") ? b.auth : {};
           const r = await fetch(RELAY_URL, { method: "POST", headers: { "content-type": "application/json" },
