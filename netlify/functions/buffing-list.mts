@@ -112,12 +112,12 @@ export async function buildLists() {
   const active = pianos.filter(p => p.active && !p.archived);
   const bySerial = new Map<string, any>();
   active.forEach(p => { if (p.serial) bySerial.set(norm(p.serial), p); });
-  // for-sale and sold pianos are off Korban's list (Walter 10/7): phase For
-  // Sale or Sold, or "For Sale" / "Sold" in the Piano Log STATUS column
-  const forSale = (p: any) => !!p && (/^(for sale|sold)$/i.test(String(p.phase || "").trim())
-    || /\b(for sale|sold)\b/i.test(String(p.status || "")));
-  // pianos in 1st Tuning are off the list too (Walter 10/7)
-  const skipPhase = (p: any) => !!p && /^1st tuning$/i.test(String(p.phase || "").trim());
+  // for-sale, sale-pending and sold pianos are off Korban's list (Walter 10/7):
+  // that phase, or the same words in the Piano Log STATUS column
+  const forSale = (p: any) => !!p && (/^(for sale|sale pending|sold)$/i.test(String(p.phase || "").trim())
+    || /\b(for sale|sale pending|sold)\b/i.test(String(p.status || "")));
+  // pianos in 1st or 2nd Tuning are off the list too (Walter 10/7)
+  const skipPhase = (p: any) => !!p && /^(1st|2nd) tuning$/i.test(String(p.phase || "").trim());
   const task = (serial: string, name: string) =>
     tasks.find(t => norm(t.serial) === norm(serial) && norm(t.task) === norm(name) && !t.part);
 
