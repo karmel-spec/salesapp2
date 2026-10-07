@@ -106,6 +106,8 @@ export function WonWizard({ lead, who, initial, resendId, startStep, onClose, on
   const last = STEPS.length - 1;
   const stepKey = (["branch", "contact", "piano", "deal", "money", "logistics", "team", "send"] as const)[step];
   const missing = { phone: !h.contact.phone.trim(), email: !h.contact.email.trim(), address: !h.contact.address.trim() };
+  const obtain = h.contact.adminObtain || [];
+  const toggleObtain = (k: "phone" | "email" | "address") => set({ contact: { ...h.contact, adminObtain: obtain.includes(k) ? obtain.filter((x) => x !== k) : [...obtain, k] } });
 
   return (
     <div className="wonwiz" role="dialog" aria-modal="true" aria-label="Won handoff">
@@ -141,15 +143,15 @@ export function WonWizard({ lead, who, initial, resendId, startStep, onClose, on
               <div className="ask">How do we reach {lead.firstName || lead.name}?</div>
               {(missing.phone || missing.email || missing.address) ? <p className="small" style={{ color: "#8a6f1a", margin: 0 }}>⚠ Missing on the lead: {[missing.phone && "phone", missing.email && "email", missing.address && "address"].filter(Boolean).join(", ")}. Fill in what you got at the handshake — it saves to the lead and the CRM.</p> : <p className="muted small">All on file. Correct anything that changed.</p>}
               <div className="grid2">
-                <label className="fld">Phone{missing.phone && <span className="miss">missing</span>}<input className="wonwiz-input" placeholder="801-555-1234" value={h.contact.phone} onChange={(e) => set({ contact: { ...h.contact, phone: e.target.value } })} /></label>
-                <label className="fld">Email{missing.email && <span className="miss">missing</span>}<input className="wonwiz-input" type="email" placeholder="name@example.com" value={h.contact.email} onChange={(e) => set({ contact: { ...h.contact, email: e.target.value } })} /></label>
+                <div className="fld">Phone{missing.phone && <span className="miss">missing</span>}<input className="wonwiz-input" placeholder="801-555-1234" value={h.contact.phone} onChange={(e) => set({ contact: { ...h.contact, phone: e.target.value } })} />{missing.phone && <AssignAdmin on={obtain.includes("phone")} onToggle={() => toggleObtain("phone")} />}</div>
+                <div className="fld">Email{missing.email && <span className="miss">missing</span>}<input className="wonwiz-input" type="email" placeholder="name@example.com" value={h.contact.email} onChange={(e) => set({ contact: { ...h.contact, email: e.target.value } })} />{missing.email && <AssignAdmin on={obtain.includes("email")} onToggle={() => toggleObtain("email")} />}</div>
               </div>
-              <label className="fld">{h.branch === "shop" ? "Pickup address (where the piano is now)" : "Customer address"}{missing.address && <span className="miss">missing</span>}<input className="wonwiz-input" placeholder="street, city, state" value={h.contact.address} onChange={(e) => set({ contact: { ...h.contact, address: e.target.value } })} /></label>
+              <div className="fld">{h.branch === "shop" ? "Pickup address (where the piano is now)" : "Customer address"}{missing.address && <span className="miss">missing</span>}<input className="wonwiz-input" placeholder="street, city, state" value={h.contact.address} onChange={(e) => set({ contact: { ...h.contact, address: e.target.value } })} />{missing.address && <AssignAdmin on={obtain.includes("address")} onToggle={() => toggleObtain("address")} />}</div>
               <div className="ask small">{h.branch === "shop" ? "Deliver back to the same address as pickup?" : "Deliver to this address?"}</div>
               <div className="choices">
                 {([["yes", "Yes, same address"], ["no", "No — different address"], ["nd", "Not discussed"]] as const).map(([v, label]) => <label key={v} className={h.delivery.same === v ? "on" : ""}><input type="radio" name="delsame" checked={h.delivery.same === v} onChange={() => set({ delivery: { ...h.delivery, same: v } })} />{label}</label>)}
               </div>
-              {h.delivery.same === "no" && <label className="fld">Delivery address<input className="wonwiz-input" placeholder="street, city, state — stairs, gate code" value={h.delivery.address} onChange={(e) => set({ delivery: { ...h.delivery, address: e.target.value } })} autoFocus /></label>}
+              {h.delivery.same === "no" && <div className="fld">Delivery address<input className="wonwiz-input" placeholder="street, city, state — stairs, gate code" value={h.delivery.address} onChange={(e) => set({ delivery: { ...h.delivery, address: e.target.value } })} autoFocus />{!h.delivery.address.trim() && <AssignAdmin on={Boolean(h.delivery.adminObtain)} onToggle={() => set({ delivery: { ...h.delivery, adminObtain: !h.delivery.adminObtain } })} />}</div>}
             </div>
           )}
 
@@ -245,6 +247,11 @@ export function WonWizard({ lead, who, initial, resendId, startStep, onClose, on
       </div>
     </div>
   );
+}
+
+/** "Assign to admin to obtain" toggle under a missing field — becomes an admin to-do in the handoff. */
+function AssignAdmin({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  return <button type="button" className={`assign-admin${on ? " on" : ""}`} onClick={onToggle} aria-pressed={on}>{on ? "✓ Assigned to admin to obtain" : "Assign to admin to obtain"}</button>;
 }
 
 const DRAFT_KEY = (leadId: string) => `blp_won_draft:${leadId}`;

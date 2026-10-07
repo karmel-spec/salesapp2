@@ -32,9 +32,9 @@ export interface Handoff {
   items: Record<string, Item>;
   upsellAt50: boolean; // shop: put the owner back in Brigham's Top Ten at 50% complete
   /** Contact details confirmed/filled in the wizard — written back to the lead (and so the CRM). */
-  contact: { phone: string; email: string; address: string };
+  contact: { phone: string; email: string; address: string; adminObtain?: ("phone" | "email" | "address")[] };
   /** Delivery address: same as the pickup / customer address, a different one, or not discussed. */
-  delivery: { same: "yes" | "no" | "nd" | ""; address: string };
+  delivery: { same: "yes" | "no" | "nd" | ""; address: string; adminObtain?: boolean };
   contacts: string;
   notes: string;
   qbo: boolean; // create the QBO customer + draft invoice
@@ -142,10 +142,12 @@ export function todos(h: Handoff): { admin: string[]; shop: string[] } {
     shop.push(`Pull ${h.piano.label || "the sold piano"}${h.piano.serial ? ` (serial ${h.piano.serial})` : ""} from the floor when delivery is set`);
   }
   if (h.piano.note) shop.push(`Piano note: ${h.piano.note}`);
-  const missing = [!h.contact?.phone?.trim() && "phone", !h.contact?.email?.trim() && "email", !h.contact?.address?.trim() && "address"].filter(Boolean);
-  if (missing.length) admin.push(`Get the customer's ${missing.join(", ")} (not on the lead)`);
+  const missing = (["phone", "email", "address"] as const).filter((k) => !h.contact?.[k]?.trim());
+  const assigned = missing.filter((k) => h.contact?.adminObtain?.includes(k));
+  if (assigned.length) admin.push(`Obtain the customer's ${assigned.map((k) => (k === "address" && h.branch === "shop" ? "pickup address" : k)).join(", ")} (assigned by ${h.closer || "the rep"})`);
   const d = deliveryAddress(h);
-  if (!d.known && h.items.delivery?.v !== "customer") admin.push(`Confirm the delivery address (${d.text})`);
+  if (h.delivery?.same === "no" && !h.delivery.address.trim() && h.delivery.adminObtain) admin.push(`Obtain the delivery address (different from pickup — assigned by ${h.closer || "the rep"})`);
+  else if (!d.known && h.items.delivery?.v !== "customer") admin.push(`Confirm the delivery address (${d.text})`);
   if (h.contacts.trim()) admin.push(`Other contacts: ${h.contacts.trim()}`);
   return { admin, shop };
 }
@@ -162,8 +164,8 @@ export function renderHandoff(h: Handoff, lead: { name: string; email?: string; 
   L.push(`${kind} closed by ${h.closer || "the rep"} — ${lead.name}`);
   const c = { phone: h.contact?.phone || lead.phone, email: h.contact?.email || lead.email, address: h.contact?.address || lead.address };
   L.push([c.phone, c.email, c.address].filter(Boolean).join(" · ") || "(no contact details on the lead)");
-  const miss = [!c.phone && "phone", !c.email && "email", !c.address && "address"].filter(Boolean);
-  if (miss.length) L.push(`  ⚠ missing: ${miss.join(", ")}`);
+  const miss = (["phone", "email", "address"] as const).filter((k) => !c[k]);
+  if (miss.length) L.push(`  ⚠ missing: ${miss.map((k) => `${k}${h.contact?.adminObtain?.includes(k) ? " (admin to obtain)" : ""}`).join(", ")}`);
   L.push("");
   L.push(`PIANO: ${h.piano.label || "not specified"}${h.piano.serial ? ` · serial ${h.piano.serial}` : h.branch === "shop" ? " · serial not obtained" : ""}${h.piano.note ? `\n  note: ${h.piano.note}` : ""}`);
   L.push(`PRICE: ${price}${h.price.note ? `\n  note: ${h.price.note}` : ""}`);
