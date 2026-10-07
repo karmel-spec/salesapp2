@@ -116,8 +116,8 @@ export async function buildLists() {
   // that phase, or the same words in the Piano Log STATUS column
   const forSale = (p: any) => !!p && (/^(for sale|sale pending|sold)$/i.test(String(p.phase || "").trim())
     || /\b(for sale|sale pending|sold)\b/i.test(String(p.status || "")));
-  // pianos in 1st or 2nd Tuning are off the list too (Walter 10/7)
-  const skipPhase = (p: any) => !!p && /^(1st|2nd) tuning$/i.test(String(p.phase || "").trim());
+  // pianos in 1st or 2nd Tuning or Post Sale QC are off the list too (Walter 10/7)
+  const skipPhase = (p: any) => !!p && /^((1st|2nd) tuning|post sale qc)$/i.test(String(p.phase || "").trim());
   const task = (serial: string, name: string) =>
     tasks.find(t => norm(t.serial) === norm(serial) && norm(t.task) === norm(name) && !t.part);
 
