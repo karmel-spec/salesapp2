@@ -14,7 +14,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   for (const q of tries) {
     try {
       const r = await fetch(`${CRM}/api/clients/resolve?${q}`, { headers: { "x-blp-key": KEY }, cache: "no-store" });
-      if (r.ok) { const j = (await r.json()) as { id: number; client: Record<string, unknown> }; return NextResponse.json({ linked: true, id: j.id, url: `${CRM}/clients/${j.id}`, client: j.client }); }
+      if (r.ok) { const j = (await r.json()) as { id: number; client: Record<string, unknown> }; return NextResponse.json({ linked: true, id: j.id, url: `${CRM}/clients?id=${j.id}`, client: j.client }); }
     } catch { /* try the next key */ }
   }
   return NextResponse.json({ linked: false });
