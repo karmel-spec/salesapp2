@@ -178,7 +178,7 @@ export async function buffingText(): Promise<string> {
   const hw = L.hardware.filter((h: any) => !h.done);
   if (!plates.length && !hw.length) return "";
   const day = new Date().toLocaleDateString("en-US", { timeZone: "America/Denver", weekday: "short", month: "numeric", day: "numeric" });
-  const lines = [`🔧 Korban — buffing priorities, ${day}`];
+  const lines = [`✨ Korban — buffing priorities, ${day}`];
   if (plates.length) {
     lines.push("Plate screws:");
     plates.slice(0, 3).forEach((p: any, i: number) => lines.push(`${i + 1}. ${p.pianoText}`));
