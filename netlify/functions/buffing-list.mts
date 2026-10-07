@@ -119,7 +119,8 @@ export async function buildLists() {
   for (let i = 1; i < curtis.length; i++) {
     const r = curtis[i] || [];
     const a = String(r[0] || "");
-    if (/small\/medium|in store|^-{3,}/i.test(a)) break;   // end of the Plates section
+    if (/^-{3,}\s*plates\s*-{3,}/i.test(a.trim())) continue;   // the section's own banner (row 2)
+    if (/small\/medium|in store|^-{3,}/i.test(a.trim())) break;   // next section — end of the Plates list
     const pianoText = String(r[4] || "").trim();
     if (!pianoText) continue;
     const checked = /^true$/i.test(String(r[13] || "").trim());
