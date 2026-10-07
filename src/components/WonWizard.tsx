@@ -115,7 +115,7 @@ export function WonWizard({ lead, who, initial, resendId, startStep, onClose, on
         <header className="wonwiz-head">
           <div className="wonwiz-title">🏆 Won — {lead.name}</div>
           <ol className="wonwiz-steps">
-            {STEPS.map((s, i) => <li key={s} className={i < step ? "done" : i === step ? "now" : ""} onClick={() => i < step && go(i)}><i>{i < step ? "✓" : i + 1}</i>{s}</li>)}
+            {STEPS.map((s, i) => <li key={s} className={i < step ? "done" : i === step ? "now" : ""}><button type="button" onClick={() => go(i)} aria-current={i === step ? "step" : undefined} title={`Go to ${s}`}><i>{i < step ? "✓" : i + 1}</i>{s}</button></li>)}
           </ol>
           <button className="wonwiz-x" aria-label="Close" onClick={onClose}>✕</button>
         </header>
