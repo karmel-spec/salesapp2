@@ -112,10 +112,10 @@ export async function buildLists() {
   const active = pianos.filter(p => p.active && !p.archived);
   const bySerial = new Map<string, any>();
   active.forEach(p => { if (p.serial) bySerial.set(norm(p.serial), p); });
-  // for-sale pianos are off Korban's list (Walter 10/7): phase For Sale, or
-  // "For Sale" in the Piano Log STATUS column
-  const forSale = (p: any) => !!p && (/^for sale$/i.test(String(p.phase || "").trim())
-    || /\bfor sale\b/i.test(String(p.status || "")));
+  // for-sale and sold pianos are off Korban's list (Walter 10/7): phase For
+  // Sale or Sold, or "For Sale" / "Sold" in the Piano Log STATUS column
+  const forSale = (p: any) => !!p && (/^(for sale|sold)$/i.test(String(p.phase || "").trim())
+    || /\b(for sale|sold)\b/i.test(String(p.status || "")));
   const task = (serial: string, name: string) =>
     tasks.find(t => norm(t.serial) === norm(serial) && norm(t.task) === norm(name) && !t.part);
 
