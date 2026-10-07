@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { config } from "./config";
 import { readRows, writeCells, insertRowTop, canWrite, expandColumns, readCell, moveRow } from "./sheets";
+import { crmUpsertLead, crmNote } from "./crm";
 
 /**
  * Lead domain model over the Leads Log spreadsheet.
@@ -569,6 +570,14 @@ export async function updateLeadFields(
   }));
   if (cells.length) await writeCells(cells);
   invalidateCache();
+  const CONTACT: (keyof typeof COLS)[] = ["firstName", "lastName", "phone", "email", "address", "leadType", "notes"];
+  if (CONTACT.some((k) => k in fields)) {
+    const merged = { ...lead, firstName: fields.firstName ?? lead.firstName, lastName: fields.lastName ?? lead.lastName, phone: fields.phone ?? lead.phone, email: fields.email ?? lead.email, address: fields.address ?? lead.address, leadType: fields.leadType ?? lead.leadType };
+    merged.name = `${merged.firstName} ${merged.lastName}`.trim() || lead.name;
+    merged.emailClean = extractEmail(merged.email) || "";
+    merged.phoneDialable = extractPhone(merged.phone) || "";
+    crmUpsertLead(merged).then((cid) => { if (cid && typeof fields.notes === "string" && fields.notes.trim()) return crmNote(cid, { at: new Date().toISOString(), who: "Sales App", text: fields.notes, leadId: lead.id, type: "note" }); }).catch(() => null);
+  }
 }
 
 const AUTO_COLS: (keyof typeof COLS)[] = ["blpId", "appActivity", "timelineJson", "arnoldDraftJson", "subRep", "openedBy", "closedBy", "address", "briefJson", "watchJson"];
@@ -641,6 +650,9 @@ export async function appendTimeline(
   }
   if (wake) fields.status = "Active (they reached out)";
   await updateLeadFields(lead, s, fields);
+  if (event.kind === "note" && event.who && !/^(app|arnold|plaud|phone)$/i.test(event.who)) {
+    crmUpsertLead(lead).then((cid) => (cid ? crmNote(cid, { at: event.at, who: event.who, text: event.text, leadId: lead.id }) : null)).catch(() => null);
+  }
 }
 
 /** The newest inbound email's Message-ID + subject — replies thread onto it. */
@@ -742,6 +754,8 @@ export async function createLead(input: {
   // New leads go to the TOP of the sheet (row 2), keeping the working area
   // newest-first and the WON/LOST/SNOOZED sections undisturbed at the bottom.
   await insertRowTop(row);
+  // CRM first: every new contact exists in the CRM (find-or-create, additive). Never blocks the lead.
+  crmUpsertLead({ id, name: `${input.firstName || ""} ${input.lastName || ""}`.trim(), firstName: input.firstName || "", lastName: input.lastName || "", email: input.email || "", emailClean: extractEmail(input.email || "") || "", phone: input.phone || "", phoneDialable: extractPhone(input.phone || "") || "", address: input.address || "", leadType: input.leadType || "", source: input.source || "" } as Lead).catch(() => null);
   invalidateCache();
   return id;
 }
