@@ -494,8 +494,21 @@ function rowToLead(row: string[], rowNumber: number, shape: SheetShape, now: Dat
 let cache: { leads: Lead[]; shape: SheetShape; at: number } | null = null;
 const CACHE_MS = 20_000;
 
+// Sheets allows 60 reads/min for the service account. A "force" read that
+// lands within a few seconds of another one reuses it, and concurrent callers
+// share one in-flight read, so bursts (a page load + the streak widget + a
+// sync post) cost one read instead of five.
+const FORCE_REUSE_MS = 4000;
+let inFlight: Promise<{ leads: Lead[]; shape: SheetShape }> | null = null;
 export async function getLeads(force = false): Promise<{ leads: Lead[]; shape: SheetShape }> {
-  if (!force && cache && Date.now() - cache.at < CACHE_MS) return cache;
+  if (cache && Date.now() - cache.at < (force ? FORCE_REUSE_MS : CACHE_MS)) return cache;
+  if (inFlight) return inFlight;
+  inFlight = (async () => {
+    try { return await readLeadsNow(); } finally { inFlight = null; }
+  })();
+  return inFlight;
+}
+async function readLeadsNow(): Promise<{ leads: Lead[]; shape: SheetShape }> {
   const rows = await readRows();
   if (!rows.length) throw new Error("Leads Log sheet is empty");
   const shape = shapeFromHeader(rows[0]);
