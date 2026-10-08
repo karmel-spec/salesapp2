@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Lead, DraftMessage } from "@/lib/leads";
+import { crmFullAddress } from "@/lib/crm-shared";
 import { api, getWho, useRoster, LEAD_SOURCES, INQUIRY_METHODS } from "@/lib/client";
 import { Linkify, StaleBadge, StatusBadge, fmtDays } from "@/components/ui";
 import { Thread } from "@/components/Thread";
@@ -56,7 +57,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
   const [geo, setGeo] = useState<LeadGeo | null>(null);
   const [error, setError] = useState("");
   const [flash, setFlash] = useState("");
-  const [crm, setCrm] = useState<{ linked: boolean; id?: number; url?: string } | null>(null);
+  const [crm, setCrm] = useState<{ linked: boolean; id?: number; url?: string; client?: import("@/lib/crm-shared").CrmCard; synced?: string[] } | null>(null);
   const [asking, setAsking] = useState(false);
   const [note, setNote] = useState("");
   const [noteKind, setNoteKind] = useState("note");
@@ -66,13 +67,6 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
   useEffect(() => {
     try { if (new URLSearchParams(window.location.search).get("compose") === "sms") setCompose("sms"); } catch {}
   }, []);
-  // Ask the CRM which client this lead is (lookup only). Linked → contact fields lock and point at the CRM.
-  useEffect(() => {
-    if (!lead?.id) return;
-    let alive = true;
-    fetch(`/api/leads/${encodeURIComponent(lead.id)}/crm`).then((r) => r.json()).then((j) => { if (alive) setCrm(j); }).catch(() => { if (alive) setCrm({ linked: false }); });
-    return () => { alive = false; };
-  }, [lead?.id]);
   const typeOptions = useLeadTypeOptions();
   const roster = useRoster();
   const router = useRouter();
@@ -125,6 +119,21 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
     load();
   }, [load]);
 
+  // Ask the CRM which client this lead is (lookup only). Linked → contact
+  // fields lock, display the CRM's values, and the lookup refreshes the sheet
+  // mirror — when that changed anything, reload so the whole page agrees.
+  const crmSyncedOnce = useRef(false);
+  useEffect(() => {
+    if (!lead?.id) return;
+    let alive = true;
+    fetch(`/api/leads/${encodeURIComponent(lead.id)}/crm`).then((r) => r.json()).then((j) => {
+      if (!alive) return;
+      setCrm(j);
+      if (j?.synced?.length && !crmSyncedOnce.current) { crmSyncedOnce.current = true; loadSoon(); }
+    }).catch(() => { if (alive) setCrm({ linked: false }); });
+    return () => { alive = false; };
+  }, [lead?.id, loadSoon]);
+
   async function askArnold() {
     setAsking(true);
     setFlash("");
@@ -170,7 +179,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
       <div className="swipe-hint">‹ swipe to move between leads ›</div>
       <div className="page-head">
         <Link href="/leads" className="muted">← Leads</Link>
-        {crm?.linked ? <h1 title="Name comes from the CRM">{lead.name}</h1> : <EditableName lead={lead} onFlash={setFlash} onDone={loadSoon} />}
+        {crm?.linked ? <h1 title="Name comes from the CRM">{crm.client?.display_name || lead.name}</h1> : <EditableName lead={lead} onFlash={setFlash} onDone={loadSoon} />}
         {crm?.linked && <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>Contact details come from the CRM · <a href={crm.url} target="_blank" rel="noreferrer">Edit in the CRM ↗</a></div>}
         <StatusBadge lead={lead} />
         <StaleBadge lead={lead} />
@@ -284,7 +293,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
                 <><dt>Closed by</dt><dd><InlineSelect lead={lead} field="closedBy" value={lead.closedBy} options={[...roster]} emptyLabel="— who closed the sale?" onFlash={setFlash} onDone={loadSoon} /></dd></>
               )}
               <dt>Phone</dt><dd>
-                {crm?.linked ? <span>{lead.phone || <span className="muted">—</span>} <a className="muted" style={{ fontSize: 11.5 }} href={crm.url} target="_blank" rel="noreferrer">edit in CRM ↗</a></span> : <InlineText
+                {crm?.linked ? <span>{(crm.client?.phones?.length ? crm.client.phones.join(", ") : lead.phone) || <span className="muted">—</span>} <a className="muted" style={{ fontSize: 11.5 }} href={crm.url} target="_blank" rel="noreferrer">edit in CRM ↗</a></span> : <InlineText
                   lead={lead}
                   field="phone"
                   value={lead.phone}
@@ -304,9 +313,9 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
                   </div>
                 )}
               </dd>
-              <dt>Email</dt><dd>{crm?.linked ? <span>{lead.email || <span className="muted">—</span>}</span> : <InlineText lead={lead} field="email" value={lead.email} onFlash={setFlash} onDone={loadSoon} />}</dd>
+              <dt>Email</dt><dd>{crm?.linked ? <span>{(crm.client?.emails?.length ? crm.client.emails.join(", ") : lead.email) || <span className="muted">—</span>}</span> : <InlineText lead={lead} field="email" value={lead.email} onFlash={setFlash} onDone={loadSoon} />}</dd>
               <dt>Social handle</dt><dd><InlineText lead={lead} field="social" value={lead.social} onFlash={setFlash} onDone={loadSoon} /></dd>
-              <dt>Address</dt><dd>{crm?.linked ? <span>{lead.address || <span className="muted">—</span>}</span> : <InlineText lead={lead} field="address" value={lead.address} hint={lead.address ? "" : " — with City, ST it pins on the US Sales Map"} onFlash={setFlash} onDone={loadSoon} />}</dd>
+              <dt>Address</dt><dd>{crm?.linked ? <span>{(crm.client ? crmFullAddress(crm.client) : "") || lead.address || <span className="muted">—</span>}</span> : <InlineText lead={lead} field="address" value={lead.address} hint={lead.address ? "" : " — with City, ST it pins on the US Sales Map"} onFlash={setFlash} onDone={loadSoon} />}</dd>
               <dt>Type of lead</dt><dd><InlineSelect lead={lead} field="leadType" value={lead.leadType} options={typeOptions} addNew onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Piano</dt><dd><InlineText lead={lead} field="pianoType" value={lead.pianoType} onFlash={setFlash} onDone={loadSoon} /></dd>
               <dt>Source of business</dt><dd><InlineSelect lead={lead} field="source" value={lead.source} options={LEAD_SOURCES} onFlash={setFlash} onDone={loadSoon} /></dd>

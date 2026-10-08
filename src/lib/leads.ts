@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { config } from "./config";
 import { readRows, writeCells, insertRowTop, canWrite, expandColumns, readCell, moveRow } from "./sheets";
-import { crmUpsertLead, crmNote } from "./crm";
+import { crmUpsertLead, crmNote, crmFullAddress, type CrmCard } from "./crm";
 import { getStore } from "@netlify/blobs";
 import { gzipSync, gunzipSync } from "node:zlib";
 
@@ -602,7 +602,8 @@ async function ensureRowCurrent(lead: Lead, shape: SheetShape): Promise<Lead> {
 export async function updateLeadFields(
   lead: Lead,
   shape: SheetShape,
-  fields: Partial<Record<keyof typeof COLS, string>>
+  fields: Partial<Record<keyof typeof COLS, string>>,
+  opts: { skipCrmPush?: boolean } = {}
 ): Promise<void> {
   // Auto-create any app-managed columns being written (e.g. "Sub Rep").
   if (Object.keys(fields).some((k) => shape.col[k as keyof typeof COLS] < 0)) {
@@ -617,13 +618,60 @@ export async function updateLeadFields(
   if (cells.length) await writeCells(cells);
   invalidateCache();
   const CONTACT: (keyof typeof COLS)[] = ["firstName", "lastName", "phone", "email", "address", "leadType", "notes"];
-  if (CONTACT.some((k) => k in fields)) {
+  if (!opts.skipCrmPush && CONTACT.some((k) => k in fields)) {
     const merged = { ...lead, firstName: fields.firstName ?? lead.firstName, lastName: fields.lastName ?? lead.lastName, phone: fields.phone ?? lead.phone, email: fields.email ?? lead.email, address: fields.address ?? lead.address, leadType: fields.leadType ?? lead.leadType };
     merged.name = `${merged.firstName} ${merged.lastName}`.trim() || lead.name;
     merged.emailClean = extractEmail(merged.email) || "";
     merged.phoneDialable = extractPhone(merged.phone) || "";
     crmUpsertLead(merged).then((cid) => { if (cid && typeof fields.notes === "string" && fields.notes.trim()) return crmNote(cid, { at: new Date().toISOString(), who: "Sales App", text: fields.notes, leadId: lead.id, type: "note" }); }).catch(() => null);
   }
+}
+
+/**
+ * CRM-first contact data: make this lead's sheet row agree with the CRM's
+ * contact card. The CRM is the master (Brigham 9/26); the sheet copy only
+ * exists so lists, search, the map and Arnold — which all read the sheet —
+ * see the same person. Conservative: a field is rewritten only when its
+ * value genuinely differs, and never cleared just because the CRM is blank.
+ * Returns the names of the fields it changed.
+ */
+export async function mirrorCrmContact(leadId: string, card: CrmCard): Promise<string[]> {
+  const found = await getLead(leadId, true);
+  if (!found) return [];
+  const { lead, shape } = found;
+  const norm = (s: string | null | undefined) => String(s || "").toLowerCase().replace(/[^a-z0-9@]+/g, " ").trim();
+  const d10 = (s: string | null | undefined) => { const d = String(s || "").replace(/\D/g, ""); return d.length >= 10 ? d.slice(-10) : d; };
+  const fields: Partial<Record<keyof typeof COLS, string>> = {};
+
+  // Name: the CRM's display name wins. Split via first/last when it has them.
+  const crmName = String(card.display_name || "").trim();
+  if (crmName && norm(crmName) !== norm(lead.name)) {
+    const parts = crmName.split(/\s+/);
+    fields.firstName = String(card.first_name || parts.slice(0, -1).join(" ") || parts[0] || "").trim();
+    fields.lastName = String(card.last_name || (parts.length > 1 ? parts[parts.length - 1] : "") || "").trim();
+  }
+
+  // Phones/emails: compare as sets; the sheet cell is rewritten only when the
+  // actual numbers/addresses differ (a rewrite loses any hand-typed labels,
+  // so agreement in substance means leave the cell alone).
+  const crmPhones = (card.phones || []).map(String).filter(Boolean);
+  if (crmPhones.length) {
+    const a = new Set(crmPhones.map(d10).filter((x) => x.length === 10));
+    const b = new Set(lead.phones.map((p) => d10(p.dialable)).filter((x) => x.length === 10));
+    if (a.size && (a.size !== b.size || [...a].some((x) => !b.has(x)))) fields.phone = crmPhones.join(", ");
+  }
+  const crmEmails = (card.emails || []).map((e) => String(e).toLowerCase()).filter(Boolean);
+  if (crmEmails.length) {
+    const sheetEmails = new Set((String(lead.email || "").toLowerCase().match(/[\w.+-]+@[\w-]+\.[\w.-]+/g) || []));
+    if (crmEmails.length !== sheetEmails.size || crmEmails.some((e) => !sheetEmails.has(e))) fields.email = crmEmails.join(", ");
+  }
+
+  const full = crmFullAddress(card);
+  if (full && norm(full) !== norm(lead.address)) fields.address = full;
+
+  if (!Object.keys(fields).length) return [];
+  await updateLeadFields(lead, shape, fields, { skipCrmPush: true }); // mirror only — never echo back
+  return Object.keys(fields);
 }
 
 const AUTO_COLS: (keyof typeof COLS)[] = ["blpId", "appActivity", "timelineJson", "arnoldDraftJson", "subRep", "openedBy", "closedBy", "address", "briefJson", "watchJson"];

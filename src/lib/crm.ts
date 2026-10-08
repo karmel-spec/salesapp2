@@ -7,8 +7,12 @@
  */
 import type { Lead } from "./leads";
 
-const CRM = process.env.CRM_URL || "https://brighamlarsonpianos.org";
-const KEY = process.env.BLP_INTEGRATION_KEY || process.env.BLP_APP_ACCESS_KEY || "";
+export const CRM_URL = process.env.CRM_URL || "https://brighamlarsonpianos.org";
+export const CRM_KEY = process.env.BLP_INTEGRATION_KEY || process.env.BLP_APP_ACCESS_KEY || "pianoman";
+const CRM = CRM_URL;
+const KEY = CRM_KEY;
+
+export { crmFullAddress, type CrmCard } from "./crm-shared";
 
 /** Lead type → CRM tag (category "Lead"). */
 export function crmTagFor(leadType: string): string | null {
