@@ -155,15 +155,25 @@ export function todos(h: Handoff): { admin: string[]; shop: string[] } {
 export interface HandoffLinks { lead?: string; crm?: string; portal?: string; qbo?: string; storemap?: string; ackAdmin?: string; ackShop?: string }
 
 /** The email body (plain text with [label](url) links — the mailer renders both parts). Also the wizard's preview. */
-export function renderHandoff(h: Handoff, lead: { name: string; email?: string; phone?: string; address?: string }, links: HandoffLinks = {}, addendum?: { since: string; changes: { label: string; from: string; to: string }[] }): { subject: string; body: string } {
+export type Audience = "admin" | "shop";
+const MONEY_IDS = new Set(["deposit", "payment", "received", "invoice"]);
+const stripMoney = (text: string) => text.replace(/\$\s?\d[\d,]*(?:\.\d+)?k?/gi, "[price — admin only]");
+
+/**
+ * The handoff email. `audience` "shop" (Brigham, 10/7: prices are never shared with the shop manager)
+ * drops the price, the money section, admin to-dos and the admin acknowledgment link.
+ */
+export function renderHandoff(h: Handoff, lead: { name: string; email?: string; phone?: string; address?: string }, links: HandoffLinks = {}, addendum?: { since: string; changes: { label: string; from: string; to: string }[] }, audience: Audience = "admin"): { subject: string; body: string } {
+  const shop = audience === "shop";
   const kind = h.branch === "shop" ? "Shop project" : "Showroom sale";
   const price = h.price.v?.trim() || "price not specified";
-  const subject = `${addendum ? "ADDENDUM · " : ""}WON · ${lead.name} · ${kind} · ${price}`;
+  const subject = `${addendum ? "ADDENDUM · " : ""}WON · ${lead.name} · ${kind}${shop ? "" : ` · ${price}`}`;
   const t = todos(h);
   const L: string[] = [];
   if (addendum) {
     L.push(`ADDENDUM — this replaces the handoff sent ${addendum.since}. What changed:`);
-    L.push(...(addendum.changes.length ? addendum.changes.map((c) => `  • ${c.label}: ${c.from} → ${c.to}`) : ["  (no answers changed — re-sent as a reminder)"]));
+    const ch = shop ? addendum.changes.filter((c) => !/price|payment|deposit|invoice|received/i.test(c.label)).map((c) => ({ ...c, from: stripMoney(c.from), to: stripMoney(c.to) })) : addendum.changes;
+    L.push(...(ch.length ? ch.map((c) => `  • ${c.label}: ${c.from} → ${c.to}`) : ["  (no answers changed — re-sent as a reminder)"]));
     L.push("");
     L.push("Full updated handoff below.");
     L.push("");
@@ -175,15 +185,16 @@ export function renderHandoff(h: Handoff, lead: { name: string; email?: string; 
   if (miss.length) L.push(`  ⚠ missing: ${miss.map((k) => `${k}${h.contact?.adminObtain?.includes(k) ? " (admin to obtain)" : ""}`).join(", ")}`);
   L.push("");
   L.push(`PIANO: ${h.piano.label || "not specified"}${h.piano.serial ? ` · serial ${h.piano.serial}` : h.branch === "shop" ? " · serial not obtained" : ""}${h.piano.note ? `\n  note: ${h.piano.note}` : ""}`);
-  L.push(`PRICE: ${price}${h.price.note ? `\n  note: ${h.price.note}` : ""}`);
-  L.push("");
-  L.push("ADMIN TO-DO (info@ / Melissa):");
-  L.push(...(t.admin.length ? t.admin.map((x) => `  ☐ ${x}`) : ["  (nothing — all settled)"]));
-  L.push("");
+  if (!shop) { L.push(`PRICE: ${price}${h.price.note ? `\n  note: ${h.price.note}` : ""}`); L.push(""); }
+  if (!shop) {
+    L.push("ADMIN TO-DO (info@ / Melissa):");
+    L.push(...(t.admin.length ? t.admin.map((x) => `  ☐ ${x}`) : ["  (nothing — all settled)"]));
+    L.push("");
+  }
   L.push("SHOP MANAGER TO-DO (Mark):");
   L.push(...(t.shop.length ? t.shop.map((x) => `  ☐ ${x}`) : ["  (nothing)"]));
   L.push("");
-  const steps: Question["step"][] = ["deal", "money", "logistics", "team"];
+  const steps: Question["step"][] = shop ? ["deal", "logistics", "team"] : ["deal", "money", "logistics", "team"];
   const names: Record<Question["step"], string> = { deal: "THE DEAL", money: "MONEY", logistics: "LOGISTICS", team: "FOR THE TEAM" };
   for (const s of steps) {
     const qs = questionsFor(h.branch, s);
@@ -191,31 +202,34 @@ export function renderHandoff(h: Handoff, lead: { name: string; email?: string; 
     for (const q of qs) {
       const it = h.items[q.id];
       if (!it || (!it.v && !it.note)) continue;
+      if (shop && MONEY_IDS.has(q.id)) continue;
       const val = q.choices.length ? CHOICE_LABEL(q, it.v) : it.note || "";
-      lines.push(`  ${q.label}: ${val}${q.choices.length && it.note ? ` — ${it.note}` : ""}`);
+      const line = `  ${q.label}: ${val}${q.choices.length && it.note ? ` — ${it.note}` : ""}`;
+      lines.push(shop ? stripMoney(line) : line);
     }
     if (s === "logistics") lines.push(`  Delivery address: ${deliveryAddress(h).text}`);
     if (s === "team") {
       if (h.branch === "shop") lines.push(`  Brigham's 50% upsell call: ${h.upsellAt50 ? "YES — back into his Top Ten at 50%" : "no"}`);
       if (h.contacts.trim()) lines.push(`  Other contacts: ${h.contacts.trim()}`);
-      if (h.notes.trim()) lines.push(`  Notes: ${h.notes.trim()}`);
+      if (h.notes.trim()) lines.push(`  Notes: ${shop ? stripMoney(h.notes.trim()) : h.notes.trim()}`);
     }
     if (lines.length) { L.push(`${names[s]}:`); L.push(...lines); L.push(""); }
   }
-  const skipped = questionsFor(h.branch).filter((q) => q.choices.length && !h.items[q.id]?.v).map((q) => q.label);
+  const skipped = questionsFor(h.branch).filter((q) => q.choices.length && !h.items[q.id]?.v && !(shop && MONEY_IDS.has(q.id))).map((q) => q.label);
   if (skipped.length) { L.push(`Not answered (ask if it matters): ${skipped.join(" · ")}`); L.push(""); }
   const refs: string[] = [];
-  if (links.qbo) refs.push(`[QuickBooks invoice (draft, ready to send)](${links.qbo})`);
+  if (links.qbo && !shop) refs.push(`[QuickBooks invoice (draft, ready to send)](${links.qbo})`);
   if (links.portal) refs.push(`[Client Portal project](${links.portal})`);
   if (links.crm) refs.push(`[CRM client](${links.crm})`);
   if (links.lead) refs.push(`[Sales App lead](${links.lead})`);
   if (links.storemap) refs.push(`[Store Map](${links.storemap})`);
   if (refs.length) { L.push("LINKS: " + refs.join(" · ")); L.push(""); }
-  if (links.ackAdmin || links.ackShop) {
+  if ((links.ackAdmin && !shop) || links.ackShop) {
     L.push("Please acknowledge so the sales side knows it's in good hands:");
-    if (links.ackAdmin) L.push(`  Admin: [Got it, I'm on it](${links.ackAdmin})`);
+    if (links.ackAdmin && !shop) L.push(`  Admin: [Got it, I'm on it](${links.ackAdmin})`);
     if (links.ackShop) L.push(`  Shop manager: [Got it, I'm on it](${links.ackShop})`);
   }
+  if (shop) L.push("", "(Pricing and payment details are kept with admin and are not included in the shop copy.)");
   return { subject, body: L.join("\n") };
 }
 
@@ -251,18 +265,21 @@ export function diffHandoff(prev: Handoff, next: Handoff): { label: string; from
 }
 
 /** Compact one-paragraph version for the lead timeline / CRM note. */
-export function summarize(h: Handoff): string {
+export function summarize(h: Handoff, audience: Audience = "admin"): string {
+  const shop = audience === "shop";
   const parts: string[] = [];
-  parts.push(`${h.branch === "shop" ? "Shop project" : "Showroom sale"} · ${h.price.v || "price n/a"}`);
+  parts.push(`${h.branch === "shop" ? "Shop project" : "Showroom sale"}${shop ? "" : ` · ${h.price.v || "price n/a"}`}`);
   if (h.piano.label) parts.push(`${h.piano.label}${h.piano.serial ? ` #${h.piano.serial}` : ""}`);
   for (const q of questionsFor(h.branch)) {
     const it = h.items[q.id];
     if (!it || (!it.v && !it.note)) continue;
-    parts.push(`${q.label.replace(/\?$/, "")}: ${q.choices.length ? CHOICE_LABEL(q, it.v) : it.note}${q.choices.length && it.note ? ` (${it.note})` : ""}`);
+    if (shop && MONEY_IDS.has(q.id)) continue;
+    const line = `${q.label.replace(/\?$/, "")}: ${q.choices.length ? CHOICE_LABEL(q, it.v) : it.note}${q.choices.length && it.note ? ` (${it.note})` : ""}`;
+    parts.push(shop ? stripMoney(line) : line);
   }
   if (h.branch === "shop") parts.push(`50% upsell call: ${h.upsellAt50 ? "yes" : "no"}`);
   if (h.contacts.trim()) parts.push(`contacts: ${h.contacts.trim()}`);
-  if (h.notes.trim()) parts.push(`notes: ${h.notes.trim()}`);
+  if (h.notes.trim()) parts.push(`notes: ${shop ? stripMoney(h.notes.trim()) : h.notes.trim()}`);
   return parts.join(" · ");
 }
 
@@ -270,7 +287,7 @@ export function summarize(h: Handoff): string {
 
 export interface HandoffRow {
   id: string; created_at: string; updated_at: string; lead_id: string; lead_name: string; closed_by: string; branch: Branch;
-  serial: string | null; piano: string | null; piano_type: string | null; price_cents: number | null; answers: Handoff; summary_text: string | null;
+  serial: string | null; piano: string | null; piano_type: string | null; price_cents: number | null; answers: Handoff; summary_text: string | null; summary_shop: string | null;
   client_email: string | null; client_phone: string | null; crm_client_id: number | null; portal_project_id: string | null;
   qbo_customer_id: string | null; qbo_invoice_id: string | null; qbo_invoice_url: string | null; qbo_status: string | null;
   email_sent_at: string | null; email_to: string | null; admin_ack_at: string | null; admin_ack_by: string | null; shop_ack_at: string | null; shop_ack_by: string | null;

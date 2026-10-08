@@ -15,7 +15,9 @@ const PORTAL = process.env.CLIENT_PORTAL_URL || "https://blpclientportal.netlify
 const KEY = process.env.BLP_INTEGRATION_KEY || process.env.BLP_APP_ACCESS_KEY || "pianoman";
 const BRIDGE_URL = process.env.BLP_BRIDGE_URL || "https://script.google.com/macros/s/AKfycbxY4BKnr_Tr0iCTc9itCWhNYLvgszmkI1IoYSkbBWpyAqRtWI-yaUkJQjcVdgG58KXt/exec";
 const BRIDGE_PIN = process.env.BLP_BRIDGE_PIN || "";
-const HANDOFF_TO = (process.env.WON_HANDOFF_TO || "shop@brighamlarsonpianos.com, info@brighamlarsonpianos.com, melissa@brighamlarsonpianos.com").split(",").map((s) => s.trim()).filter(Boolean);
+// Two copies: admin gets everything; the shop copy never carries prices or payment details (Brigham, 10/7).
+const ADMIN_TO = (process.env.WON_ADMIN_TO || "info@brighamlarsonpianos.com, melissa@brighamlarsonpianos.com").split(",").map((s) => s.trim()).filter(Boolean);
+const SHOP_TO = (process.env.WON_SHOP_TO || "shop@brighamlarsonpianos.com").split(",").map((s) => s.trim()).filter(Boolean);
 const SHOP_MANAGER = process.env.WON_SHOP_MANAGER || "Mark Hales";
 const SB_URL = process.env.SUPABASE_URL || "";
 const SB_KEY = process.env.SUPABASE_SERVICE_KEY || "";
@@ -85,7 +87,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     let row: HandoffRow | null = null;
     if (handoffStoreReady()) {
       try {
-        const base: Partial<HandoffRow> = { status: "sent", lead_id: lead.id, lead_name: lead.name, closed_by: h.closer, branch: h.branch, serial: h.piano.serial || null, piano: h.piano.label || null, piano_type: h.piano.type || lead.pianoType || null, price_cents: cents, answers: h, summary_text: summarize(h), client_email: contact.email || null, client_phone: contact.phone || null, upsell_followup: h.branch === "shop" && h.upsellAt50 };
+        const base: Partial<HandoffRow> = { status: "sent", lead_id: lead.id, lead_name: lead.name, closed_by: h.closer, branch: h.branch, serial: h.piano.serial || null, piano: h.piano.label || null, piano_type: h.piano.type || lead.pianoType || null, price_cents: cents, answers: h, summary_text: summarize(h), summary_shop: summarize(h, "shop"), client_email: contact.email || null, client_phone: contact.phone || null, upsell_followup: h.branch === "shop" && h.upsellAt50 };
         row = body.resend ? await patchHandoff(hid, base) : await insertHandoff({ id: hid, ...base });
       } catch (e) { warn(`Handoff record not saved: ${e instanceof Error ? e.message : String(e)}`); }
     } else warn("Supabase not configured — handoff record not saved (email still goes out)");
@@ -151,20 +153,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     // 4. The email — one message, three audiences, with signed "Got it" links.
     const ack = row ? { ackAdmin: `${config.publicBaseUrl}/api/won/ack?id=${hid}&role=admin&t=${await ackToken(hid, "admin")}`, ackShop: `${config.publicBaseUrl}/api/won/ack?id=${hid}&role=shop&t=${await ackToken(hid, "shop")}` } : {};
-    const mail = renderHandoff(h, contact, { ...links, ...ack }, addendum);
-    try {
-      await sendEmail(HANDOFF_TO.join(", "), mail.subject, mail.body);
-      patch.email_sent_at = new Date().toISOString(); patch.email_to = HANDOFF_TO.join(", ");
-    } catch (e) { warn(`Email: ${e instanceof Error ? e.message : String(e)}`); }
+    const adminMail = renderHandoff(h, contact, { ...links, ...ack }, addendum, "admin");
+    const shopMail = renderHandoff(h, contact, { lead: links.lead, portal: links.portal, storemap: links.storemap, ackShop: ack.ackShop }, addendum, "shop");
+    const sentTo: string[] = [];
+    try { await sendEmail(ADMIN_TO.join(", "), adminMail.subject, adminMail.body); sentTo.push(...ADMIN_TO); } catch (e) { warn(`Admin email: ${e instanceof Error ? e.message : String(e)}`); }
+    if (t.shop.length || h.branch === "shop") { try { await sendEmail(SHOP_TO.join(", "), shopMail.subject, shopMail.body); sentTo.push(...SHOP_TO); } catch (e) { warn(`Shop email: ${e instanceof Error ? e.message : String(e)}`); } }
+    if (sentTo.length) { patch.email_sent_at = new Date().toISOString(); patch.email_to = sentTo.join(", "); }
 
     // 5. Lead timeline (kind "handoff" so it isn't double-pushed to the CRM) + handoff record.
     const fresh = await getLead(id, true);
-    await appendTimeline(fresh?.lead || lead, found.shape, { at: new Date().toISOString(), who: h.closer, kind: "handoff", text: `🏆 WON handoff${addendum ? ` ADDENDUM (${addendum.changes.length} change${addendum.changes.length === 1 ? "" : "s"}: ${addendum.changes.map((c) => c.label).join(", ") || "none"})` : ""} ${patch.email_sent_at ? `sent to ${HANDOFF_TO.map((a) => a.split("@")[0]).join("/")}` : "NOT emailed"} — ${summarize(h)}${links.portal ? ` · Portal: ${links.portal}` : ""}${links.qbo ? ` · QBO draft invoice: ${links.qbo}` : ""}${warnings.length ? ` · Warnings: ${warnings.join("; ")}` : ""}` });
+    await appendTimeline(fresh?.lead || lead, found.shape, { at: new Date().toISOString(), who: h.closer, kind: "handoff", text: `🏆 WON handoff${addendum ? ` ADDENDUM (${addendum.changes.length} change${addendum.changes.length === 1 ? "" : "s"}: ${addendum.changes.map((c) => c.label).join(", ") || "none"})` : ""} ${patch.email_sent_at ? `sent to ${(patch.email_to || "").split(", ").map((a) => a.split("@")[0]).join("/")}` : "NOT emailed"} — ${summarize(h)}${links.portal ? ` · Portal: ${links.portal}` : ""}${links.qbo ? ` · QBO draft invoice: ${links.qbo}` : ""}${warnings.length ? ` · Warnings: ${warnings.join("; ")}` : ""}` });
     if (row && addendum) Object.assign(patch, { admin_ack_at: null, admin_ack_by: null, shop_ack_at: null, shop_ack_by: null, nudge_count: 0, nudged_at: null });
     if (row) { await patchHandoff(hid, patch).catch(() => null); for (const w of warnings) await logHandoff(row, w, false); await logHandoff(row, `Handoff ${body.resend ? "re-sent" : "sent"} by ${who}`); }
     if (handoffStoreReady()) await deleteDraft(lead.id).catch(() => null); // the autosaved draft is done with
 
-    return NextResponse.json({ ok: true, id: hid, links, warnings, emailed: Boolean(patch.email_sent_at), to: HANDOFF_TO });
+    return NextResponse.json({ ok: true, id: hid, links, warnings, emailed: Boolean(patch.email_sent_at), to: (patch.email_to || "").split(", ").filter(Boolean) });
   } catch (err) {
     return jsonError(err);
   }

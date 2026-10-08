@@ -26,14 +26,16 @@ export async function GET(req: NextRequest) {
       if (!r.admin_ack_at) roles.push("admin");
       if (!r.shop_ack_at && todos(r.answers).shop.length) roles.push("shop");
       if (!roles.length) continue;
-      const to = roles.map((x) => TO[x]).join(", ");
       if (!dry) {
-        const ack: Record<string, string> = {};
-        for (const role of roles) ack[role === "admin" ? "ackAdmin" : "ackShop"] = `${config.publicBaseUrl}/api/won/ack?id=${r.id}&role=${role}&t=${await ackToken(r.id, role)}`;
-        const mail = renderHandoff(r.answers, { name: r.lead_name, email: r.client_email || undefined, phone: r.client_phone || undefined }, { lead: `${config.publicBaseUrl}/leads/${encodeURIComponent(r.lead_id)}`, portal: r.portal_project_id ? `${process.env.CLIENT_PORTAL_URL || "https://blpclientportal.netlify.app"}/admin/projects/${r.portal_project_id}` : undefined, qbo: r.qbo_invoice_url || undefined, ...ack });
         const hours = Math.round((Date.now() - Date.parse(r.email_sent_at!)) / 3600e3);
+        const base = { lead: `${config.publicBaseUrl}/leads/${encodeURIComponent(r.lead_id)}`, portal: r.portal_project_id ? `${process.env.CLIENT_PORTAL_URL || "https://blpclientportal.netlify.app"}/admin/projects/${r.portal_project_id}` : undefined };
         try {
-          await sendEmail(to, `Reminder ${r.nudge_count + 1}: ${mail.subject}`, `Nobody has pressed "Got it, I'm on it" for this handoff yet (sent ${hours}h ago). Please take a look and acknowledge so ${r.closed_by || "the rep"} knows it's covered.\n\n${mail.body}`);
+          // One reminder per role: the shop copy never carries prices.
+          for (const role of roles) {
+            const ackUrl = `${config.publicBaseUrl}/api/won/ack?id=${r.id}&role=${role}&t=${await ackToken(r.id, role)}`;
+            const mail = renderHandoff(r.answers, { name: r.lead_name, email: r.client_email || undefined, phone: r.client_phone || undefined }, role === "admin" ? { ...base, qbo: r.qbo_invoice_url || undefined, ackAdmin: ackUrl } : { ...base, ackShop: ackUrl }, undefined, role);
+            await sendEmail(TO[role], `Reminder ${r.nudge_count + 1}: ${mail.subject}`, `Nobody has pressed "Got it, I'm on it" for this handoff yet (sent ${hours}h ago). Please take a look and acknowledge so ${r.closed_by || "the rep"} knows it's covered.\n\n${mail.body}`);
+          }
           await patchHandoff(r.id, { nudged_at: new Date().toISOString(), nudge_count: r.nudge_count + 1 });
           await logHandoff(r, `Reminder ${r.nudge_count + 1} sent to ${roles.join(" + ")}`);
         } catch (e) { await logHandoff(r, `Reminder failed: ${e instanceof Error ? e.message : String(e)}`, false); continue; }
