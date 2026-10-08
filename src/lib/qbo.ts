@@ -138,3 +138,39 @@ export async function createInvoice(a: { customerId: string; email?: string; lin
   const r = await q<{ Invoice: { Id: string; DocNumber?: string } }>("invoice", { method: "POST", body: JSON.stringify(body) });
   return { Id: r.Invoice.Id, DocNumber: r.Invoice.DocNumber, url: `${APP}/app/invoice?txnId=${r.Invoice.Id}` };
 }
+
+// ---------------------------------------------------------------- read-only lookups (agents, admin)
+
+export interface QboCustomerHit { id: string; name: string; email?: string; phone?: string; balance?: number }
+export interface QboInvoiceSummary { id: string; number?: string; date: string; due?: string; total: number; balance: number; memo?: string; lines: string[]; url: string }
+export interface QboPaymentSummary { id: string; date: string; amount: number; method?: string; ref?: string }
+
+/** Customers whose display name or email matches (case-insensitive contains). Never creates anything. */
+export async function searchCustomers(query: string, max = 8): Promise<QboCustomerHit[]> {
+  const qq = esc(query.trim());
+  if (!qq) return [];
+  const byName = await q<{ QueryResponse: { Customer?: Record<string, unknown>[] } }>(`query?query=${encodeURIComponent(`select Id, DisplayName, PrimaryEmailAddr, PrimaryPhone, Balance from Customer where DisplayName like '%${qq}%' maxresults ${max}`)}`);
+  let list = byName.QueryResponse.Customer || [];
+  if (!list.length && qq.includes("@")) {
+    const byEmail = await q<{ QueryResponse: { Customer?: Record<string, unknown>[] } }>(`query?query=${encodeURIComponent(`select Id, DisplayName, PrimaryEmailAddr, PrimaryPhone, Balance from Customer where PrimaryEmailAddr = '${qq}' maxresults ${max}`)}`);
+    list = byEmail.QueryResponse.Customer || [];
+  }
+  return list.map((c) => ({ id: String(c.Id), name: String(c.DisplayName || ""), email: (c.PrimaryEmailAddr as { Address?: string } | undefined)?.Address, phone: (c.PrimaryPhone as { FreeFormNumber?: string } | undefined)?.FreeFormNumber, balance: typeof c.Balance === "number" ? c.Balance : undefined }));
+}
+
+/** A customer's invoices, newest first (open and paid). */
+export async function customerInvoices(customerId: string, max = 20): Promise<QboInvoiceSummary[]> {
+  const r = await q<{ QueryResponse: { Invoice?: Record<string, unknown>[] } }>(`query?query=${encodeURIComponent(`select * from Invoice where CustomerRef = '${esc(customerId)}' orderby TxnDate desc maxresults ${max}`)}`);
+  return (r.QueryResponse.Invoice || []).map((i) => ({
+    id: String(i.Id), number: i.DocNumber ? String(i.DocNumber) : undefined, date: String(i.TxnDate || ""), due: i.DueDate ? String(i.DueDate) : undefined,
+    total: Number(i.TotalAmt || 0), balance: Number(i.Balance || 0), memo: (i.CustomerMemo as { value?: string } | undefined)?.value,
+    lines: ((i.Line as Record<string, unknown>[]) || []).filter((l) => l.DetailType === "SalesItemLineDetail").map((l) => `${String(l.Description || (l.SalesItemLineDetail as { ItemRef?: { name?: string } })?.ItemRef?.name || "item")} ${Number(l.Amount || 0).toLocaleString("en-US", { style: "currency", currency: "USD" })}`).slice(0, 12),
+    url: `${APP}/app/invoice?txnId=${i.Id}`,
+  }));
+}
+
+/** A customer's payments, newest first. */
+export async function customerPayments(customerId: string, max = 20): Promise<QboPaymentSummary[]> {
+  const r = await q<{ QueryResponse: { Payment?: Record<string, unknown>[] } }>(`query?query=${encodeURIComponent(`select * from Payment where CustomerRef = '${esc(customerId)}' orderby TxnDate desc maxresults ${max}`)}`);
+  return (r.QueryResponse.Payment || []).map((p) => ({ id: String(p.Id), date: String(p.TxnDate || ""), amount: Number(p.TotalAmt || 0), method: (p.PaymentMethodRef as { name?: string } | undefined)?.name, ref: p.PaymentRefNum ? String(p.PaymentRefNum) : undefined }));
+}
