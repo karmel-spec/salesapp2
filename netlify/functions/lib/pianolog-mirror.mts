@@ -83,18 +83,38 @@ export async function readSheet(): Promise<{ values: string[][]; roster: string[
   return { values, roster, ms: Date.now() - t0 };
 }
 
-/** Serials with a bridge_queue write still queued — their mirror rows are left alone this run. */
-async function openQueueSerials(): Promise<Set<string>> {
-  const out = new Set<string>();
+/** Queued (not yet landed) bridge writes, by serial: the sheet does not hold
+ *  these values yet, so the fresh sheet row is synced with each queued op's
+ *  absolute value re-applied on top — row order, queue numbers and every
+ *  other column stay current while the pending change is not undone. */
+async function openQueueOps(): Promise<Map<string, Array<{ action: string; payload: Record<string, unknown> }>>> {
+  const out = new Map<string, Array<{ action: string; payload: Record<string, unknown> }>>();
   try {
-    const r = await fetch(`${SB()}/rest/v1/bridge_queue?status=eq.queued&select=payload`, { headers: sbHeaders(), signal: AbortSignal.timeout(10000) });
+    const r = await fetch(`${SB()}/rest/v1/bridge_queue?status=eq.queued&select=action,payload&order=created.asc`, { headers: sbHeaders(), signal: AbortSignal.timeout(10000) });
     if (!r.ok) return out;
-    for (const row of (await r.json()) as Array<{ payload?: { serial?: unknown } }>) {
+    for (const row of (await r.json()) as Array<{ action?: string; payload?: Record<string, unknown> }>) {
       const s = parser.normSerial(row.payload?.serial).toLowerCase();
-      if (s) out.add(s);
+      if (!s) continue;
+      if (!out.has(s)) out.set(s, []);
+      out.get(s)!.push({ action: String(row.action || ""), payload: row.payload || {} });
     }
-  } catch { /* no skip list — every row syncs */ }
+  } catch { /* no queue list — every row syncs as the sheet holds it */ }
   return out;
+}
+
+function applyQueued(rec: Record<string, unknown>, ops: Array<{ action: string; payload: Record<string, unknown> }>): boolean {
+  let applied = false;
+  for (const op of ops) {
+    const p = patchForAction(op.action, op.payload);
+    if (!p) continue;
+    applied = true;
+    for (const [k, v] of Object.entries(p.cols)) rec[k] = v;
+    if (rec.sm) Object.assign(rec.sm as Record<string, unknown>, p.sm);
+    if (rec.pl) Object.assign(rec.pl as Record<string, unknown>, p.pl);
+    Object.assign(rec.raw as Record<string, unknown>, p.raw);
+  }
+  if (applied) rec.hash = String(rec.hash) + "+q";   // content differs from the plain sheet row
+  return applied;
 }
 
 export interface SyncResult {
@@ -109,7 +129,7 @@ export async function runSync(source: string): Promise<SyncResult> {
   if (run == null) return { ok: true, skippedRun: true, run: null, totalMs: Date.now() - t0 };
   let rows = 0, changed = 0, skipped = 0;
   try {
-    const [{ values, roster, ms }, skipSerials] = await Promise.all([readSheet(), openQueueSerials()]);
+    const [{ values, roster, ms }, queued] = await Promise.all([readSheet(), openQueueOps()]);
     if (values.length < 10) throw new Error("sheet read returned " + values.length + " rows — not syncing");
     const parsed = parser.parseAll(values);
     rows = parsed.rows.length;
@@ -117,7 +137,8 @@ export async function runSync(source: string): Promise<SyncResult> {
     const upserts: unknown[] = [];
     for (const rec of parsed.rows) {
       seen.push(rec.key);
-      if (rec.serial && skipSerials.has(rec.serial.toLowerCase())) { skipped++; continue; }
+      const ops = rec.serial ? queued.get(rec.serial.toLowerCase()) : undefined;
+      if (ops && applyQueued(rec as unknown as Record<string, unknown>, ops)) skipped++;   // "skipped" = synced with a queued write re-applied
       upserts.push(deepClean(rec));
     }
     for (let i = 0; i < upserts.length; i += CHUNK) {
