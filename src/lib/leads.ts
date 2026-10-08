@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { config } from "./config";
 import { readRows, writeCells, insertRowTop, canWrite, expandColumns, readCell, moveRow } from "./sheets";
-import { crmUpsertLead, crmNote, crmFullAddress, type CrmCard } from "./crm";
+import { crmUpsertLead, crmNote, crmCorrectContact, crmFullAddress, type CrmCard } from "./crm";
 import { getStore } from "@netlify/blobs";
 import { gzipSync, gunzipSync } from "node:zlib";
 
@@ -603,7 +603,7 @@ export async function updateLeadFields(
   lead: Lead,
   shape: SheetShape,
   fields: Partial<Record<keyof typeof COLS, string>>,
-  opts: { skipCrmPush?: boolean } = {}
+  opts: { skipCrmPush?: boolean; who?: string } = {}
 ): Promise<void> {
   // Auto-create any app-managed columns being written (e.g. "Sub Rep").
   if (Object.keys(fields).some((k) => shape.col[k as keyof typeof COLS] < 0)) {
@@ -623,7 +623,7 @@ export async function updateLeadFields(
     merged.name = `${merged.firstName} ${merged.lastName}`.trim() || lead.name;
     merged.emailClean = extractEmail(merged.email) || "";
     merged.phoneDialable = extractPhone(merged.phone) || "";
-    crmUpsertLead(merged).then((cid) => { if (cid && typeof fields.notes === "string" && fields.notes.trim()) return crmNote(cid, { at: new Date().toISOString(), who: "Sales App", text: fields.notes, leadId: lead.id, type: "note" }); }).catch(() => null);
+    crmCorrectContact(lead, merged, opts.who || "Sales App").then((cid) => { if (cid && typeof fields.notes === "string" && fields.notes.trim()) return crmNote(cid, { at: new Date().toISOString(), who: opts.who || "Sales App", text: fields.notes, leadId: lead.id, type: "note" }); }).catch(() => null);
   }
 }
 

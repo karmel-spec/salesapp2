@@ -53,7 +53,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (!Object.keys(fields).length) {
       return NextResponse.json({ error: "No editable fields provided" }, { status: 400 });
     }
-    await updateLeadFields(found.lead, found.shape, fields);
+    await updateLeadFields(found.lead, found.shape, fields, { who: body.who || "Sales App" });
     await appendTimeline(found.lead, found.shape, {
       at: new Date().toISOString(),
       who: body.who || "app",
