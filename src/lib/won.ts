@@ -187,7 +187,7 @@ export function renderHandoff(h: Handoff, lead: { name: string; email?: string; 
   L.push(`PIANO: ${h.piano.label || "not specified"}${h.piano.serial ? ` · serial ${h.piano.serial}` : h.branch === "shop" ? " · serial not obtained" : ""}${h.piano.note ? `\n  note: ${h.piano.note}` : ""}`);
   if (!shop) { L.push(`PRICE: ${price}${h.price.note ? `\n  note: ${h.price.note}` : ""}`); L.push(""); }
   if (!shop) {
-    L.push("ADMIN TO-DO (info@ / Melissa):");
+    L.push("ADMIN TO-DO (Melissa):");
     L.push(...(t.admin.length ? t.admin.map((x) => `  ☐ ${x}`) : ["  (nothing — all settled)"]));
     L.push("");
   }
@@ -291,7 +291,7 @@ export interface HandoffRow {
   client_email: string | null; client_phone: string | null; crm_client_id: number | null; portal_project_id: string | null;
   qbo_customer_id: string | null; qbo_invoice_id: string | null; qbo_invoice_url: string | null; qbo_status: string | null;
   email_sent_at: string | null; email_to: string | null; admin_ack_at: string | null; admin_ack_by: string | null; shop_ack_at: string | null; shop_ack_by: string | null;
-  nudged_at: string | null; nudge_count: number; upsell_followup: boolean; upsell_triggered_at: string | null; upsell_lead_id: string | null; arrived_at: string | null;
+  nudged_at: string | null; nudge_count: number; admin_nudged_at?: string | null; shop_nudged_at?: string | null; admin_nudges?: number; shop_nudges?: number; upsell_followup: boolean; upsell_triggered_at: string | null; upsell_lead_id: string | null; arrived_at: string | null;
   log: { at: string; text: string; ok?: boolean }[];
   /** "draft" = autosaved wizard in progress (one per lead); "sent" = a real handoff. */
   status: "draft" | "sent"; draft_step: number | null; draft_by: string | null;

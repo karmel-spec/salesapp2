@@ -16,7 +16,7 @@ const KEY = process.env.BLP_INTEGRATION_KEY || process.env.BLP_APP_ACCESS_KEY ||
 const BRIDGE_URL = process.env.BLP_BRIDGE_URL || "https://script.google.com/macros/s/AKfycbxY4BKnr_Tr0iCTc9itCWhNYLvgszmkI1IoYSkbBWpyAqRtWI-yaUkJQjcVdgG58KXt/exec";
 const BRIDGE_PIN = process.env.BLP_BRIDGE_PIN || "";
 // Two copies: admin gets everything; the shop copy never carries prices or payment details (Brigham, 10/7).
-const ADMIN_TO = (process.env.WON_ADMIN_TO || "info@brighamlarsonpianos.com, melissa@brighamlarsonpianos.com").split(",").map((s) => s.trim()).filter(Boolean);
+const ADMIN_TO = (process.env.WON_ADMIN_TO || "melissa@brighamlarsonpianos.com").split(",").map((s) => s.trim()).filter(Boolean); // Brigham 10/8: melissa@, not info@
 const SHOP_TO = (process.env.WON_SHOP_TO || "shop@brighamlarsonpianos.com").split(",").map((s) => s.trim()).filter(Boolean);
 const SHOP_MANAGER = process.env.WON_SHOP_MANAGER || "Mark Hales";
 const SB_URL = process.env.SUPABASE_URL || "";

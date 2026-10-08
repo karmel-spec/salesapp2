@@ -1717,7 +1717,7 @@ function HandoffStatus({ lead, onFlash, onDone }: { lead: Lead; onFlash: (s: str
             {row.price_cents ? <span>· ${(row.price_cents / 100).toLocaleString()}</span> : null}
           </div>
           <div className="row">
-            <span className={`ack ${row.admin_ack_at ? "yes" : "no"}`}>{row.admin_ack_at ? `✓ Admin: ${row.admin_ack_by || "got it"} ${when(row.admin_ack_at)}` : "⏳ Admin hasn't acknowledged"}</span>
+            <span className={`ack ${row.admin_ack_at ? "yes" : "no"}`}>{row.admin_ack_at ? `✓ Melissa: ${row.admin_ack_by || "got it"} ${when(row.admin_ack_at)}` : "⏳ Melissa hasn't acknowledged"}</span>
             <span className={`ack ${row.shop_ack_at ? "yes" : "no"}`}>{row.shop_ack_at ? `✓ Shop: ${row.shop_ack_by || "got it"} ${when(row.shop_ack_at)}` : "⏳ Shop hasn't acknowledged"}</span>
             {row.nudge_count > 0 && <span className="muted">{row.nudge_count} reminder{row.nudge_count === 1 ? "" : "s"} sent</span>}
           </div>

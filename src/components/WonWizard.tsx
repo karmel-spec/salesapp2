@@ -229,10 +229,10 @@ export function WonWizard({ lead, who, initial, resendId, startStep, onClose, on
           {stepKey === "send" && (
             <div className="wonwiz-page">
               <div className="ask">{resendId ? "This addendum is what the team gets" : "This is what the team gets"}</div>
-              <div className="wonwiz-to">Admin copy (with prices) → info@ · melissa@ &nbsp;·&nbsp; Shop copy (no prices, shop to-dos only) → shop@ &nbsp;·&nbsp; Subject: {preview.subject}</div>
+              <div className="wonwiz-to">Admin copy (with prices) → melissa@ &nbsp;·&nbsp; Shop copy (no prices, shop to-dos only) → shop@ &nbsp;·&nbsp; Subject: {preview.subject}</div>
               <pre className="wonwiz-preview">{preview.body}</pre>
               <div className="wonwiz-creates">
-                <b>On send:</b> lead → Won · CRM note + customer tag{h.branch === "shop" ? " · Client Portal project with this handoff pinned on top" : ""}{h.qbo && h.price.v && h.items.invoice?.v !== "made" ? " · QuickBooks customer + draft invoice" : ""}{h.branch === "showroom" && h.piano.row ? " · Piano Log row marked Sold" : ""}{h.branch === "shop" ? " · Store Map “piano coming” in the parking lot" : ""}{t.shop.length ? " · task card on the shop manager's board" : ""} · "Got it" links for admin and the shop (reminders every 4h until clicked).
+                <b>On send:</b> lead → Won · CRM note + customer tag{h.branch === "shop" ? " · Client Portal project with this handoff pinned on top" : ""}{h.qbo && h.price.v && h.items.invoice?.v !== "made" ? " · QuickBooks customer + draft invoice" : ""}{h.branch === "showroom" && h.piano.row ? " · Piano Log row marked Sold" : ""}{h.branch === "shop" ? " · Store Map “piano coming” in the parking lot" : ""}{t.shop.length ? " · task card on the shop manager's board" : ""} · "Got it" links for Melissa and the shop (one reminder per business day to whoever hasn't clicked).
               </div>
               {err && <p className="wonwiz-err">{err}</p>}
             </div>
