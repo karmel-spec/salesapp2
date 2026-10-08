@@ -14,6 +14,8 @@
  * Only resend-safe ops belong here: everything whitelisted sets absolute
  * values, so a retry after an ambiguous timeout cannot double-apply.
  */
+import { patchMirror, triggerSync } from "./lib/pianolog-mirror.mts";
+
 const BRIDGE_URL =
   "https://script.google.com/macros/s/AKfycbxY4BKnr_Tr0iCTc9itCWhNYLvgszmkI1IoYSkbBWpyAqRtWI-yaUkJQjcVdgG58KXt/exec";
 const ALLOW = ["https://blpstoremap.netlify.app", "http://localhost:8641"];
@@ -104,6 +106,13 @@ export default async (req: Request) => {
       method: "PATCH", headers: sbHeaders(),
       body: JSON.stringify({ status: "done", result: fw.body, attempts: 1, updated: new Date().toISOString() }),
     }).catch(() => {});
+    // read mirror (10/7): patch the Supabase copy with the bridge's real
+    // result so both apps show the change now, then kick a full sync
+    const body = (fw.body || {}) as Record<string, unknown>;
+    if (!body.error) {
+      await patchMirror(action, payload, body);
+      await triggerSync("write");
+    }
     return new Response(JSON.stringify(fw.body), { headers });
   }
   if (humanOnly) {
@@ -117,6 +126,9 @@ export default async (req: Request) => {
     method: "PATCH", headers: sbHeaders(),
     body: JSON.stringify({ attempts: 1, last_error: fw.err || fw.kind, updated: new Date().toISOString() }),
   }).catch(() => {});
-  // 3. still queued — honest ack: saved durably, applying shortly
+  // 3. still queued — honest ack: saved durably, applying shortly. The read
+  //    mirror gets the absolute value now (the queue will land the same
+  //    value); the sync skips this serial until the queued write is done.
+  await patchMirror(action, payload);
   return new Response(JSON.stringify({ ok: true, queued: true, qid }), { headers });
 };

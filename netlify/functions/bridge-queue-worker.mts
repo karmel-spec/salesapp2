@@ -8,6 +8,7 @@
  * The 5-minute cron runs bridge-queue-worker-background (30 s per row).
  */
 import { forwardToBridge } from "./pianolog-write.mts";
+import { patchMirror, triggerSync } from "./lib/pianolog-mirror.mts";
 
 const MAX_ATTEMPTS = 40;
 
@@ -59,6 +60,10 @@ export async function drainQueue(budgetMs: number, limit: number) {
       patch.status = "done";
       patch.result = fw.body;
       drained++;
+      // read mirror (10/7): the bridge's real answer is the truth for this
+      // serial now — patch the Supabase copy; a full sync follows the drain
+      const body = (fw.body || {}) as Record<string, unknown>;
+      if (!body.error && !body.stale) await patchMirror(String(pl.action || ""), row.payload as Record<string, unknown>, body);
     } else {
       patch.last_error = fw.err || fw.kind;
     }
@@ -66,6 +71,7 @@ export async function drainQueue(budgetMs: number, limit: number) {
       method: "PATCH", headers: sbHeaders(), body: JSON.stringify(patch),
     }).catch(() => {});
   }
+  if (drained) await triggerSync("queue");   // mirror catches up with every landed write
   return { drained, gaveUp, stillQueued: rows.length - drained - gaveUp };
 }
 
