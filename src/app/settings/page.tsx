@@ -39,9 +39,9 @@ const INTEGRATIONS: { key: string; name: string; desc: string; env: string }[] =
   },
   {
     key: "arnoldWebhook",
-    name: "Arnold — Hermes webhook",
-    desc: "Pings Arnold's gateway for drafts; he answers on /api/arnold/draft with his draft-only key.",
-    env: "ARNOLD_WEBHOOK_URL, ARNOLD_WEBHOOK_SECRET, BLP_ARNOLD_ACCESS_KEY",
+    name: "Arnold — event webhook (Agent Console → Grok Bot)",
+    desc: "Posts lead events to the Agent Console, which wakes Arnold's Grok Bot; he answers on /api/arnold/draft with his draft-only key.",
+    env: "ARNOLD_WEBHOOK_URL, ARNOLD_WEBHOOK_SECRET, BLP_ARNOLD_ACCESS_KEY, BLP_AGENTS_KEY",
   },
   {
     key: "telegram",
@@ -58,7 +58,7 @@ const INTEGRATIONS: { key: string; name: string; desc: string; env: string }[] =
   {
     key: "claudeFallback",
     name: "Claude API fallback drafts",
-    desc: "Lets the app write drafts in Arnold's voice when his gateway is unreachable.",
+    desc: "Lets the app write drafts in Arnold's voice when the Agent Console is unreachable.",
     env: "ANTHROPIC_API_KEY",
   },
 ];

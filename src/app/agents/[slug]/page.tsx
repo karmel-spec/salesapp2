@@ -13,6 +13,7 @@ import { getAgent } from "@/lib/agents";
 
 type ArnoldStatus = {
   tunnelUp: boolean;
+  engine?: string;
   webhookConfigured: boolean;
   claudeFallback: boolean;
   pendingDrafts: number;
@@ -38,10 +39,10 @@ function ArnoldWidgets() {
         <div className={`card tile ${status && !brainLive ? "alert" : ""}`}>
           <div className="label">Brain</div>
           <div className="value" style={{ fontSize: 22, marginTop: 10 }}>
-            {!status ? "…" : brainLive ? "● Online" : status.tunnelUp ? "◐ Tunnel up" : "○ Unreachable"}
+            {!status ? "…" : brainLive ? "● Online" : status.tunnelUp ? "◐ Engine up" : "○ Unreachable"}
           </div>
           <div className="hint">
-            {!status ? "checking the tunnel" : brainLive ? "full Hermes Arnold, via his tunnel" : status.claudeFallback ? "falls back to Claude-as-Arnold" : "Mac asleep or tunnel down"}
+            {!status ? "checking the Agent Console" : brainLive ? (status.engine === "grokbot" ? "Arnold's Grok Bot, via the Agent Console" : "Arnold on the Agent Console runner") : status.claudeFallback ? "falls back to Claude-as-Arnold" : "Agent Console unreachable or events route unset"}
           </div>
         </div>
         <Link href="/leads?drafts=1&all=1" className="card tile linky">

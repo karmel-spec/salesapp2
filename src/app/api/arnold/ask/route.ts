@@ -9,8 +9,8 @@ export const maxDuration = 120;
 
 /**
  * "Ask Arnold" — request AI draft suggestions for a lead.
- * Prefers Arnold's Hermes webhook (drafts arrive async via /api/arnold/draft);
- * falls back to direct Claude API generation in Arnold's voice.
+ * Prefers Arnold's event webhook on the Agent Console (his Grok Bot drafts and
+ * posts back via /api/arnold/draft); falls back to direct Claude API generation in Arnold's voice.
  */
 export async function POST(req: NextRequest) {
   const guard = requireSession(req);

@@ -8,7 +8,7 @@ import { jsonError } from "@/lib/api";
 export const dynamic = "force-dynamic";
 
 /**
- * Arnold's inbound webhook: the Hermes agent pushes AI-drafted outreach here.
+ * Arnold's inbound webhook: his agent (Grok Bot via the Agent Console; Hermes before 2026-10-08) pushes AI-drafted outreach here.
  * Auth: draft-only key in `x-blp-key` (required). If an HMAC signature is
  * also sent in `x-blp-signature`, it must verify. This key can ONLY set
  * drafts — it is rejected for every send/update endpoint.

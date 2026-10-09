@@ -18,8 +18,10 @@ export const config = {
   // by setting BLP_APP_ACCESS_KEY if you want a different value in production.
   accessKey: process.env.BLP_APP_ACCESS_KEY || "pianoman",
 
-  // Arnold — Chief Sales Agent (Hermes profile `arnold`, Telegram @arnoldlarsonbot)
-  arnoldWebhookUrl: process.env.ARNOLD_WEBHOOK_URL || "", // Hermes gateway endpoint
+  // Arnold — Chief Sales Agent (Grok Bot via the Agent Console since 2026-10-08; Telegram @arnoldlarsonbot)
+  arnoldWebhookUrl: process.env.ARNOLD_WEBHOOK_URL || "", // https://blpagents.netlify.app/api/agents/arnold/events (was the Hermes gateway)
+  agentsUrl: (process.env.BLP_AGENTS_URL || "https://blpagents.netlify.app").replace(/\/$/, ""), // the Agent Console
+  agentsKey: process.env.BLP_AGENTS_KEY || "", // the console's team passcode, for its engine-status probe
   arnoldWebhookSecret: process.env.ARNOLD_WEBHOOK_SECRET || "", // HMAC shared secret
   arnoldDraftKey: process.env.BLP_ARNOLD_ACCESS_KEY || "", // draft-only key Arnold uses to call US
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || "", // @arnoldlarsonbot token (for team notifications)

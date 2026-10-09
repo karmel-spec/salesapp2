@@ -1,7 +1,7 @@
 /** Diagnostic relay: re-send (or test) a signed webhook from Netlify to Arnold's
- *  Hermes gateway, exactly the way the console does it. Returns what the
- *  gateway answered, so a failing Netlify → Cloudflare → gateway path is
- *  visible instead of silent.
+ *  event endpoint (the Agent Console's /api/agents/arnold/events since
+ *  2026-10-08; his Hermes gateway before), exactly the way the app does it.
+ *  Returns what the endpoint answered, so a failing path is visible instead of silent.
  *  POST /.netlify/functions/arnold-relay?key=<BLP app key>  body = the JSON event to send */
 import * as crypto from "node:crypto";
 

@@ -10,9 +10,9 @@ Built with Next.js 15 + TypeScript, styled after brighamlarsonpianos.com (deep c
 - **Assignment rules** — new leads default to **Brigham**; any open lead with **30+ days since last contact** is assigned to **Arnold**, the AI Chief Sales Agent. The rule shows live everywhere, and the Dashboard's "Run Arnold stale sweep" persists it to the sheet (and pings the team on Telegram).
 - **Arnold AI drafts with human approval** — for each lead, Arnold suggests the next **text** and **email**. A human reviews/edits in the Approvals queue, and only on approval does the app actually send — texts via **Twilio**, emails from **info@brighamlarsonpianos.com** via SMTP. Every send is logged to the lead's timeline and bumps Date of Last Contact.
 - **Arnold integration, three ways**
-  1. **Hermes webhook** — "Ask Arnold" pings `ARNOLD_WEBHOOK_URL` (HMAC-signed); Arnold answers by POSTing drafts to `/api/arnold/draft` using his **draft-only** key (rejected for anything else).
+  1. **Event webhook** — "Ask Arnold" posts to `ARNOLD_WEBHOOK_URL` (HMAC-signed), the Agent Console's `/api/agents/arnold/events`, which wakes Arnold's Grok Bot (Hermes until 2026-10-08); Arnold answers by POSTing drafts to `/api/arnold/draft` using his **draft-only** key (rejected for anything else).
   2. **Telegram** — humans chat with Arnold at [@arnoldlarsonbot](https://t.me/arnoldlarsonbot); the app posts new-lead and stale-sweep notifications via the bot.
-  3. **Claude API fallback** — with `ANTHROPIC_API_KEY` set, the app writes drafts in Arnold's voice itself when the Hermes gateway is unreachable.
+  3. **Claude API fallback** — with `ANTHROPIC_API_KEY` set, the app writes drafts in Arnold's voice itself when the Agent Console is unreachable.
 - **Lead management** — searchable/filterable lead table, full detail view with editable fields, activity timeline (readable `App Activity` text + structured `timeline_data_json`, same schema as the BLP Mega App), dedupe-guarded lead creation.
 
 ## Run it
@@ -31,7 +31,7 @@ npm run dev                  # http://localhost:8790
 | Team login | Set `BLP_APP_ACCESS_KEY` to the shared passcode |
 | Text sending | Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` |
 | Email sending | Create an app password for info@brighamlarsonpianos.com, set `SMTP_PASS` |
-| Arnold (Hermes) | Set `ARNOLD_WEBHOOK_URL`, `ARNOLD_WEBHOOK_SECRET`, `BLP_ARNOLD_ACCESS_KEY` |
+| Arnold (Grok Bot via the Agent Console) | Set `ARNOLD_WEBHOOK_URL` (= the console events route), `ARNOLD_WEBHOOK_SECRET`, `BLP_ARNOLD_ACCESS_KEY`, `BLP_AGENTS_KEY` |
 | Telegram pings | Set `TELEGRAM_BOT_TOKEN` (@arnoldlarsonbot) + `TELEGRAM_CHAT_ID` |
 | AI fallback drafts | Set `ANTHROPIC_API_KEY` |
 

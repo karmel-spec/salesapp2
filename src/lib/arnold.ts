@@ -7,14 +7,16 @@ import type { Lead, DraftMessage } from "./leads";
  * Arnold — Chief Sales Agent for Brigham Larson Pianos.
  *
  * Three integration paths, used in this order:
- *  1. Hermes webhook (ARNOLD_WEBHOOK_URL + HMAC secret): the app pings
- *     Arnold's gateway; Arnold works the lead and POSTs drafts back to
+ *  1. Event webhook (ARNOLD_WEBHOOK_URL + HMAC secret): the app posts the
+ *     event to the BLP Agent Console (https://blpagents.netlify.app/api/agents/arnold/events),
+ *     which wakes Arnold's Grok Bot (since 2026-10-08; it was his Hermes
+ *     gateway on the Mac). Arnold works the lead and POSTs drafts back to
  *     /api/arnold/draft using his draft-only key.
  *  2. Telegram: humans chat with Arnold directly at t.me/arnoldlarsonbot;
  *     the app can post team notifications via the bot API.
  *  3. Claude API fallback (ANTHROPIC_API_KEY): the app generates drafts in
  *     Arnold's voice directly, so the approval queue works even when the
- *     Hermes gateway is unreachable.
+ *     console is unreachable.
  */
 
 export const ARNOLD_TELEGRAM_URL = "https://t.me/arnoldlarsonbot";
@@ -31,7 +33,7 @@ export function hmacVerify(body: string, signature: string | null, secret: strin
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-/** Ping Arnold's Hermes gateway (e.g. ask him to draft outreach for a lead). */
+/** Send Arnold an event through the Agent Console (e.g. ask him to draft outreach for a lead). */
 export async function notifyArnoldWebhook(payload: {
   event: string;
   lead?: Partial<Lead>;
@@ -52,7 +54,7 @@ export async function notifyArnoldWebhook(payload: {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      // Hermes validates GitHub-style HMAC signatures.
+      // The console (and the old Hermes gateway) validate GitHub-style HMAC signatures.
       "X-Hub-Signature-256": `sha256=${hmacSign(body, config.arnoldWebhookSecret)}`,
     },
     body,

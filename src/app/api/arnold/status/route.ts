@@ -11,14 +11,21 @@ export async function GET(req: NextRequest) {
   const guard = requireSession(req);
   if (guard) return guard;
   try {
-    // Is his brain reachable (tunnel + gateway on the Mac)?
+    // Is his brain reachable? Since 2026-10-08 that's the Agent Console's engine
+    // status (Grok Bot relay or the in-app runner), not a tunnel to the Mac.
     let tunnelUp = false;
+    let engine = "";
     try {
-      const res = await fetch("https://arnold.brighamlarsonpianos.com/health", {
-        signal: AbortSignal.timeout(5000),
+      const res = await fetch(`${config.agentsUrl}/api/agents/live`, {
+        headers: { "x-blp-key": config.agentsKey },
+        signal: AbortSignal.timeout(6000),
         cache: "no-store",
       });
-      tunnelUp = res.ok;
+      if (res.ok) {
+        const j = (await res.json()) as { agents?: Record<string, { up?: boolean; engine?: string }> };
+        tunnelUp = Boolean(j.agents?.arnold?.up);
+        engine = j.agents?.arnold?.engine || "";
+      }
     } catch {
       tunnelUp = false;
     }
@@ -43,6 +50,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       tunnelUp,
+      engine,
       webhookConfigured: Boolean(config.arnoldWebhookUrl),
       claudeFallback: integrationStatus().claudeFallback,
       pendingDrafts,

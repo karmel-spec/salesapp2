@@ -6,8 +6,9 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 /**
- * Assign Arnold a free-form task from the console. Delivered to his Hermes
- * brain via the signed webhook; he reports back in the BLP Sales Team group.
+ * Assign Arnold a free-form task from the console. Delivered to his Grok Bot
+ * through the Agent Console's events route (signed webhook); he reports back
+ * in the BLP Sales Team group.
  */
 export async function POST(req: NextRequest) {
   const guard = requireSession(req);
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
     });
     if (!ping.ok) {
       return NextResponse.json(
-        { error: `Arnold's brain is unreachable right now (${ping.detail}). His Mac may be asleep — you can also message @arnoldlarsonbot on Telegram.` },
+        { error: `Arnold's brain is unreachable right now (${ping.detail}). The Agent Console may be down or ARNOLD_WEBHOOK_URL unset — you can also message @arnoldlarsonbot on Telegram.` },
         { status: 502 }
       );
     }
