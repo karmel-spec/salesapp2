@@ -61,6 +61,63 @@ export async function forwardToBridge(payload: unknown, budgetMs: number): Promi
   }
 }
 
+/* Did a Delivered change land anyway? (Walter 10/13) The bridge often finishes
+ * moving the row after the relay stopped waiting, and the card then told Mark
+ * the Bechstein 21174 Delivered "did not confirm" when it had. Reads the Piano
+ * Log through the service account: landed = a row with this serial BELOW the
+ * SOLD divider whose CURRENT PHASE is Delivered. null = couldn't tell. */
+const PIANO_LOG_ID = "1ZunbPKygpQlcXfTyPowDHdUE9spJ3uV1XA4iX1eoKRc";
+let saTok: { token: string; exp: number } | null = null;
+async function saToken(): Promise<string> {
+  const crypto = await import("node:crypto");
+  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || "";
+  const key = (process.env.GOOGLE_PRIVATE_KEY || "").replace(/\\n/g, "\n");
+  if (!email || !key) throw new Error("service account env not set");
+  const now = Math.floor(Date.now() / 1000);
+  if (saTok && saTok.exp > now + 60) return saTok.token;
+  const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
+  const head = b64({ alg: "RS256", typ: "JWT" });
+  const claims = b64({ iss: email, scope: "https://www.googleapis.com/auth/spreadsheets.readonly",
+    aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 3600 });
+  const signer = crypto.createSign("RSA-SHA256");
+  signer.update(`${head}.${claims}`);
+  const sig = signer.sign(key).toString("base64url");
+  const r = await fetch("https://oauth2.googleapis.com/token", { method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: `${head}.${claims}.${sig}` }) });
+  if (!r.ok) throw new Error("token " + r.status);
+  const j = (await r.json()) as { access_token: string; expires_in: number };
+  saTok = { token: j.access_token, exp: now + j.expires_in };
+  return j.access_token;
+}
+const colA1 = (n: number) => { let x = ""; while (n > 0) { const m = (n - 1) % 26; x = String.fromCharCode(65 + m) + x; n = Math.floor((n - 1) / 26); } return x; };
+export async function deliveredLanded(serial: string): Promise<boolean | null> {
+  try {
+    const t = await saToken();
+    const get = async (ranges: string[]) => {
+      const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${PIANO_LOG_ID}/values:batchGet?` +
+        ranges.map(x => "ranges=" + encodeURIComponent(x)).join("&"), { headers: { Authorization: "Bearer " + t } });
+      if (!r.ok) throw new Error("sheets " + r.status);
+      return ((await r.json()) as { valueRanges: Array<{ values?: string[][] }> }).valueRanges.map(v => v.values || []);
+    };
+    const [hdr, bc] = await get(["'Piano Log'!A2:ZZ2", "'Piano Log'!B1:C6000"]);
+    const pIdx = (hdr[0] || []).findIndex(h => String(h).trim().toUpperCase() === "CURRENT PHASE");
+    if (pIdx < 0) return null;
+    const [ph] = await get([`'Piano Log'!${colA1(pIdx + 1)}1:${colA1(pIdx + 1)}6000`]);
+    const want = serial.trim().toLowerCase();
+    let sold = 0;
+    for (let i = 0; i < bc.length; i++) {
+      if (String(bc[i]?.[0] || "").trim().toUpperCase() === "SOLD" && !String(bc[i]?.[1] || "").trim()) { sold = i + 1; break; }
+    }
+    if (!sold) return null;
+    for (let i = sold; i < bc.length; i++) {
+      if (String(bc[i]?.[1] || "").trim().toLowerCase() === want
+          && /^delivered$/i.test(String(ph[i]?.[0] || "").trim())) return true;
+    }
+    return false;
+  } catch { return null; }
+}
+
 export default async (req: Request) => {
   const headers = cors(req.headers.get("origin"));
   if (req.method === "OPTIONS") return new Response("", { headers });
@@ -100,7 +157,9 @@ export default async (req: Request) => {
 
   // 2. inline attempt — most of the time Google behaves and the caller
   //    gets the bridge's true result (bumped lists, done flags, …)
-  const fw = await forwardToBridge(payload, 8000);
+  // Delivered gets a longer wait (Walter 10/13): it moves a whole row, and it is
+  // never retried later, so the inline answer is the only answer
+  const fw = await forwardToBridge(payload, humanOnly ? 16000 : 8000);   // + up to ~7 s of checking, inside the ~26 s limit
   if (fw.kind === "real") {
     await fetch(`${SB}/rest/v1/bridge_queue?id=eq.${qid}`, {
       method: "PATCH", headers: sbHeaders(),
@@ -116,6 +175,19 @@ export default async (req: Request) => {
     return new Response(JSON.stringify(fw.body), { headers });
   }
   if (humanOnly) {
+    // before saying it failed, look: the bridge may have finished after we
+    // stopped waiting. Two looks, 3 s apart, inside the function's time limit.
+    const serial = String((payload as { serial?: unknown }).serial || "");
+    let landed: boolean | null = serial ? await deliveredLanded(serial) : null;
+    if (landed === false && serial) { await new Promise(r => setTimeout(r, 3000)); landed = await deliveredLanded(serial); }
+    if (landed) {
+      await fetch(`${SB}/rest/v1/bridge_queue?id=eq.${qid}`, {
+        method: "PATCH", headers: sbHeaders(),
+        body: JSON.stringify({ status: "done", attempts: 1, last_error: "confirmed from the Piano Log after a slow bridge answer", updated: new Date().toISOString() }),
+      }).catch(() => {});
+      return new Response(JSON.stringify({ ok: true, phase: "Delivered", movedToSold: true, verified: true,
+        note: "confirmed from the Piano Log" }), { headers });
+    }
     await fetch(`${SB}/rest/v1/bridge_queue?id=eq.${qid}`, {
       method: "PATCH", headers: sbHeaders(),
       body: JSON.stringify({ status: "failed", attempts: 1, last_error: "not queued: Delivered is inline-only (" + (fw.err || fw.kind) + ")", updated: new Date().toISOString() }),
