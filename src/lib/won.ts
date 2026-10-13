@@ -160,8 +160,23 @@ const MONEY_IDS = new Set(["deposit", "payment", "received", "invoice"]);
 const stripMoney = (text: string) => text.replace(/\$\s?\d[\d,]*(?:\.\d+)?k?/gi, "[price — admin only]");
 
 /**
+ * Shop scheduling gate (Karmel, 10/13). The Won Wizard shop question "$1,000 queue deposit"
+ * (`items.deposit` = "collected") is the collection signal: QuickBooks only drafts an invoice,
+ * and there is no separate deposit record. Collected → Mark can prep to schedule. Anything else
+ * (assigned to admin, not discussed, or skipped) → he holds. The line is shop-copy only; the
+ * money section stays off that copy, so omitting it would leave him with no yes/no.
+ */
+const SHOP_PREP_TO_SCHEDULE = "Prep to Schedule -- $1000 down payment collected";
+const SHOP_HOLD_SCHEDULING = "Down payment not yet collected -- hold scheduling";
+export function shopDepositChecklistLine(h: Handoff): string | null {
+  if (h.branch !== "shop") return null;
+  return h.items.deposit?.v === "collected" ? SHOP_PREP_TO_SCHEDULE : SHOP_HOLD_SCHEDULING;
+}
+
+/**
  * The handoff email. `audience` "shop" (Brigham, 10/7: prices are never shared with the shop manager)
  * drops the price, the money section, admin to-dos and the admin acknowledgment link.
+ * The one shop-copy exception is the $1000 queue-deposit scheduling line above — no other amounts.
  */
 export function renderHandoff(h: Handoff, lead: { name: string; email?: string; phone?: string; address?: string }, links: HandoffLinks = {}, addendum?: { since: string; changes: { label: string; from: string; to: string }[] }, audience: Audience = "admin"): { subject: string; body: string } {
   const shop = audience === "shop";
@@ -192,7 +207,9 @@ export function renderHandoff(h: Handoff, lead: { name: string; email?: string; 
     L.push("");
   }
   L.push("SHOP MANAGER TO-DO (Mark):");
-  L.push(...(t.shop.length ? t.shop.map((x) => `  ☐ ${x}`) : ["  (nothing)"]));
+  // Admin copy keeps the shared shop list unchanged. The scheduling gate is shop-copy only.
+  const mark = shop ? [shopDepositChecklistLine(h), ...t.shop].filter((x): x is string => Boolean(x)) : t.shop;
+  L.push(...(mark.length ? mark.map((x) => `  ☐ ${x}`) : ["  (nothing)"]));
   L.push("");
   const steps: Question["step"][] = shop ? ["deal", "logistics", "team"] : ["deal", "money", "logistics", "team"];
   const names: Record<Question["step"], string> = { deal: "THE DEAL", money: "MONEY", logistics: "LOGISTICS", team: "FOR THE TEAM" };
