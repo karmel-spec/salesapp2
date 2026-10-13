@@ -57,12 +57,16 @@ export async function drainQueue(budgetMs: number, limit: number) {
     const fw = await forwardToBridge({ ...(row.payload as object), replayOf: row.id, queuedAt: row.created || "" }, budgetMs);
     const patch: Record<string, unknown> = { updated: new Date().toISOString() };
     if (fw.kind === "real") {
-      patch.status = "done";
-      patch.result = fw.body;
-      drained++;
       // read mirror (10/7): the bridge's real answer is the truth for this
       // serial now — patch the Supabase copy; a full sync follows the drain
       const body = (fw.body || {}) as Record<string, unknown>;
+      // a real answer can still be a refusal ("serial not found above the SOLD
+      // section") — a failure the app should hear about, not "done" (Hunter
+      // 10/9, 100926rawlings10: moves that said "Saved" never landed)
+      patch.status = body.error ? "failed" : "done";
+      patch.result = fw.body;
+      if (body.error) patch.last_error = String(body.error).slice(0, 200);
+      drained++;
       if (!body.error && !body.stale) await patchMirror(String(pl.action || ""), row.payload as Record<string, unknown>, body);
     } else {
       patch.last_error = fw.err || fw.kind;

@@ -26,6 +26,7 @@ function cors(origin: string | null) {
   return {
     "access-control-allow-origin": o,
     "access-control-allow-headers": "content-type",
+    "access-control-allow-methods": "GET,POST,OPTIONS",
     "content-type": "application/json",
   };
 }
@@ -121,6 +122,22 @@ export async function deliveredLanded(serial: string): Promise<boolean | null> {
 export default async (req: Request) => {
   const headers = cors(req.headers.get("origin"));
   if (req.method === "OPTIONS") return new Response("", { headers });
+  // GET ?qid=&key= — where a queued write stands, so the app can follow up a
+  // "⏳ Saved" with ✓ landed or ✗ failed (Hunter 10/9, 100926rawlings10)
+  if (req.method === "GET") {
+    const u = new URL(req.url);
+    if ((u.searchParams.get("key") || "") !== (process.env.BLP_APP_ACCESS_KEY || "")) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers });
+    }
+    const qid = Number(u.searchParams.get("qid") || 0);
+    if (!qid || !process.env.SUPABASE_URL) return new Response(JSON.stringify({ error: "qid required" }), { status: 400, headers });
+    const r = await fetch(`${process.env.SUPABASE_URL}/rest/v1/bridge_queue?id=eq.${qid}&select=status,last_error,result,attempts`, { headers: sbHeaders() });
+    const row = r.ok ? ((await r.json()) as Array<Record<string, unknown>>)[0] : null;
+    if (!row) return new Response(JSON.stringify({ error: "not found" }), { status: 404, headers });
+    const res = (row.result || {}) as Record<string, unknown>;
+    return new Response(JSON.stringify({ ok: true, status: row.status, error: row.status === "failed" ? (row.last_error || res.error || "failed") : null,
+      location: res.location ?? null, stale: !!res.stale, noop: !!res.noop }), { headers });
+  }
   const SB = process.env.SUPABASE_URL || "";
   if (!SB || !process.env.SUPABASE_SERVICE_KEY) {
     return new Response(JSON.stringify({ error: "relay not configured" }), { status: 503, headers });
