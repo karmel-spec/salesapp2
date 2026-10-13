@@ -153,6 +153,16 @@ export default async (req: Request) => {
     + "Add/adjust bottlenecks entries when notes reveal blockers — every bottlenecks entry MUST be a two-element array [title, body] (never a plain string); per-piano reconciliation notes belong in reportOverrides, not bottlenecks. Distinguish one-off adjustments (apply them, "
     + "list in changes) from standing rules ('always', 'never', 'from now on', 'remember') which also go in "
     + "rules_extracted. Do not invent work that wasn't asked for. "
+    // Walter 10/13: Garrett's "add this note to calendar event" text was reworded,
+    // fused into a "NEW per Brigham's note" sentence the calendar filter drops, and
+    // put on Wednesday only — the bridge passes [CAL: …] through verbatim.
+    + "CALENDAR NOTES: when a note asks for words to appear on the calendar ('add this note to the calendar event', "
+    + "'call out in calendar', 'add to calendar descriptions', 'put on his events', and the like), copy those words EXACTLY "
+    + "as written — same wording, spelling, capitalization and order; no paraphrase, no attribution, no added conditions — "
+    + "into a segment [CAL: the exact words] at the very START of the note of EVERY block that note covers (every day of "
+    + "that assignment, not just the first). Separate several lines inside one segment with ' / '. Never put ']' inside "
+    + "the segment. Your own remarks (NEW, per Brigham's note, day counts) go after the segment, outside the brackets. "
+    + "Only use [CAL: …] for words a note asked to put on the calendar. "
     + "You also get each technician's WEEKLY REPORT (their own account of this week, per piano: DONE / CONTINUE NEXT WEEK "
     + "(with days to finish) / NOT STARTED). When a note asks you to re-check a report or redo a tech's week from it, rebuild "
     + "that tech's days from the report: CONTINUE NEXT WEEK items first with their days-to-finish, then NOT STARTED items, "
