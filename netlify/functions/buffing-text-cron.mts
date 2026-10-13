@@ -1,6 +1,6 @@
 /**
- * Korban's buffing text (Walter 10/7) — workdays at 11:00 AM Denver, when his
- * 8–11 tunings end and buffing starts:
+ * Korban's buffing text (Walter 10/7) — MONDAYS at 11:00 AM Denver (Korban
+ * asked for once a week, 10/13), when his 8–11 tunings end and buffing starts:
  * the top plate screws (Curtis's order) and the top visible hardware to prep
  * (furthest along first), with a link to the buffing list in the Store Map.
  *
@@ -22,7 +22,7 @@ export default async () => {
     hour: "2-digit", weekday: "short" }).formatToParts(now);
   const hour = Number(parts.find(x => x.type === "hour")?.value || -1);
   const wd = parts.find(x => x.type === "weekday")?.value || "";
-  if (hour !== 11 || wd === "Sat" || wd === "Sun") return;
+  if (hour !== 11 || wd !== "Mon") return;   // once a week (Korban, 10/13)
   let st: Record<string, string> = {};
   try { st = (await loadSettings()).settings; } catch { return; }   // no settings → never guess "on"
   if (/^(off|no|false|0)$/i.test(String(st.buffing_text || "").trim())) return;   // paused in Settings
@@ -39,4 +39,4 @@ export default async () => {
   }
 };
 
-export const config = { schedule: "0 17,18 * * 1-5" };
+export const config = { schedule: "0 17,18 * * 1" };
