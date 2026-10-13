@@ -82,3 +82,16 @@ export function normalizeBottlenecks(list: unknown): string[][] {
   }
   return out;
 }
+
+/** Pianos whose plate is out and not yet refinished (Scheduling Rule 94, Walter 10/13):
+ * card PLATE STATUS Removed / Plate storage — BEFORE / At Curtis Harper. The weekly
+ * draft gave Alex "Steinway 3536 - Restringing" with its plate still in BEFORE storage;
+ * the Planner never saw plate status. Approve holds such blocks too. "" if unreadable. */
+export async function plateHoldText(): Promise<string> {
+  try {
+    const r = await fetch("https://blpstoremap.netlify.app/api/data", { signal: AbortSignal.timeout(20000) });
+    const d = await r.json() as { pianos?: { make?: string; serial?: string; phase?: string; plateStatus?: string }[] };
+    const held = (d.pianos || []).filter(p => p.serial && /^(removed|plate storage\s*\W*\s*before|at curtis)/i.test(String(p.plateStatus || "").trim()));
+    return held.map(p => `${String(p.make || "").trim()} ${p.serial} (${p.phase || "no phase"}): ${String(p.plateStatus).trim()}`).join("\n");
+  } catch { return ""; }
+}

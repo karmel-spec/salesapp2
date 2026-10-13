@@ -18,7 +18,7 @@
 import * as crypto from "node:crypto";
 import { getStore } from "@netlify/blobs";
 import { logAdjustment, denverStamp } from "./lib/adjust-log";
-import { normalizeBottlenecks } from "./_blp-sched-lib.mts";
+import { normalizeBottlenecks, plateHoldText } from "./_blp-sched-lib.mts";
 
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
 const RULES_TAB = "Scheduling Rules";
@@ -128,6 +128,7 @@ export default async (req: Request) => {
 
   const rules = await readRules().catch(() => [] as string[]);
   const reports = await readWeekReports().catch(() => null);
+  const plateHolds = await plateHoldText();
   const notesTxt = Object.entries(body.notes || {})
     .filter(([, v]) => String(v || "").trim())
     .map(([k, v]) => `${k}: ${String(v).trim()}`).join("\n");
@@ -163,6 +164,10 @@ export default async (req: Request) => {
     + "that assignment, not just the first). Separate several lines inside one segment with ' / '. Never put ']' inside "
     + "the segment. Your own remarks (NEW, per Brigham's note, day counts) go after the segment, outside the brackets. "
     + "Only use [CAL: …] for words a note asked to put on the calendar. "
+    + "PLATES (Scheduling Rule 94): a piano listed under PLATES NOT READY has its plate out and not yet refinished — never "
+    + "schedule its Restringing (or any stringing) until the card says Plate storage — AFTER or Back in piano; give that tech "
+    + "other work instead and say so in changes. If a note asks for it anyway, keep the block and add a question. Approve "
+    + "also holds such blocks. "
     + "You also get each technician's WEEKLY REPORT (their own account of this week, per piano: DONE / CONTINUE NEXT WEEK "
     + "(with days to finish) / NOT STARTED). When a note asks you to re-check a report or redo a tech's week from it, rebuild "
     + "that tech's days from the report: CONTINUE NEXT WEEK items first with their days-to-finish, then NOT STARTED items, "
@@ -172,6 +177,7 @@ export default async (req: Request) => {
     : "TECH WEEKLY REPORTS: (none found on the year tab)\n\n";
   const userMsg = `STANDING RULES:\n${rules.map(r => "- " + r).join("\n") || "(none yet)"}\n\n`
     + reportsTxt
+    + (plateHolds ? `PLATES NOT READY (plate out, not yet refinished — do not schedule stringing):\n${plateHolds}\n\n` : "")
     + `BRIGHAM'S NOTES THIS WEEK:\n${globalTxt ? "GLOBAL: " + globalTxt + "\n" : ""}${notesTxt}\n\n`
     + `CURRENT PLAN JSON:\n${JSON.stringify(plan)}`;
 
