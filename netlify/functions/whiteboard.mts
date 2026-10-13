@@ -2,7 +2,7 @@
  * Shop whiteboard — the wall board's digital twin, shared by the tech app
  * and the Shop Manager. Three columns (Parts / Supplies / Tools) of
  * ordering requests on the report sheet's "Whiteboard" tab:
- * Column | Item | Note | Added by | Added | Arrived | Arrived at/by | Ordered | Ordered at/by.
+ * Column | Item | Note | Added by | Added | Arrived | Arrived at/by | Ordered | Ordered at/by | Removed at/by.
  * Lifecycle: requested → Ordered (waiting area) → Arrived.
  *
  *   GET  →                                     {rows:[…], fetchedAt}
@@ -10,6 +10,9 @@
  *   POST {action:"ordered", row, on, by}       mark ordered / un-mark
  *   POST {action:"arrived", row, on, by}       mark arrived ("done" = alias)
  *   POST {action:"note", row, note, by}        edit an item's note
+ *   POST {action:"remove", row, item, on?, by} take a request off the board (Alex 10/13,
+ *                                              101326martin02) — a stamp in column J, not a
+ *                                              deleted row, so it can be undone with on:false
  *
  * Auth: verified Google ID token (shop/map client; company, admin, or
  * technician *.blp@gmail accounts) or BLP_APP_ACCESS_KEY.
@@ -116,14 +119,15 @@ export default async (req: Request) => {
     if (req.method === "GET") {
       const key = new URL(req.url).searchParams.get("key") || "";
       if (!authed(key)) return fail(401, "shop password required");
-      const out = await sheets(`/values/${encodeURIComponent(`'${TAB}'!A2:I2000`)}?majorDimension=ROWS`);
+      const out = await sheets(`/values/${encodeURIComponent(`'${TAB}'!A2:J2000`)}?majorDimension=ROWS`);
       const rows = ((out.values as string[][]) || []).map((r, i) => ({
         row: i + 2,
         column: (r[0] || "").trim(), item: (r[1] || "").trim(), note: (r[2] || "").trim(),
         by: (r[3] || "").trim(), added: (r[4] || "").trim(),
         arrived: (r[5] || "").trim() === "TRUE", arrivedAt: (r[6] || "").trim(),
         ordered: (r[7] || "").trim() === "TRUE", orderedAt: (r[8] || "").trim(),
-      })).filter((x) => x.item);
+        removed: (r[9] || "").trim(),
+      })).filter((x) => x.item && !x.removed);
       return new Response(JSON.stringify({ rows, fetchedAt: new Date().toISOString() }), { headers });
     }
 
@@ -145,6 +149,17 @@ export default async (req: Request) => {
           `/values/${encodeURIComponent(`'${TAB}'!A1`)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
           { method: "POST", body: JSON.stringify({ values: [[column, item, String(body.note || "").slice(0, 200), who, today, "FALSE", "", "FALSE", ""]] }) }
         );
+        return new Response(JSON.stringify({ ok: true }), { headers });
+      }
+      if (body.action === "remove") {
+        const row = Math.floor(Number(body.row || 0));
+        if (row < 2 || row > 5000) return fail(400, "bad row");
+        // the row must still hold the item the person saw — rows never move, but be sure
+        const cur = await sheets(`/values/${encodeURIComponent(`'${TAB}'!B${row}`)}`);
+        const now = String(cur.values?.[0]?.[0] || "").trim();
+        if (body.item && now !== String(body.item).trim()) return fail(409, "that row changed — refresh the board");
+        await sheets(`/values/${encodeURIComponent(`'${TAB}'!J${row}`)}?valueInputOption=RAW`,
+          { method: "PUT", body: JSON.stringify({ values: [[body.on === false ? "" : stamp]] }) });
         return new Response(JSON.stringify({ ok: true }), { headers });
       }
       if (["done", "arrived", "ordered", "note"].includes(body.action || "")) {
