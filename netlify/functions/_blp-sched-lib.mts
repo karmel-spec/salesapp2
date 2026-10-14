@@ -102,8 +102,15 @@ export async function plateHoldText(): Promise<string> {
  * open tuning slots after chip tunings and card-phase tunings. "" if unreadable. */
 export async function tuningQueueText(): Promise<string> {
   try {
-    const r = await fetch("https://blpstoremap.netlify.app/api/data?scope=active", { signal: AbortSignal.timeout(20000) });
-    const d = await r.json() as { tuningQueue?: { rank: number; serial: string; piano: string; spot: string; asap: boolean; note: string }[] };
+    type TQ = { tuningQueue?: { rank: number; serial: string; piano: string; spot: string; asap: boolean; note: string }[]; tuningQueuePending?: string };
+    let d: TQ = {};
+    // a freshly started data instance answers before the tuning calendar is in — ask again
+    for (let a = 0; a < 3; a++) {
+      const r = await fetch("https://blpstoremap.netlify.app/api/data?scope=active", { signal: AbortSignal.timeout(20000) });
+      d = await r.json() as TQ;
+      if (d.tuningQueue || !d.tuningQueuePending) break;
+      await new Promise(res => setTimeout(res, 15000));
+    }
     return (d.tuningQueue || []).map(q => `${q.rank}. ${q.asap ? "⚡ ASAP " : ""}${q.piano} #${q.serial} (spot ${q.spot || "?"})${q.note ? " — " + q.note : ""}`).join("\n");
   } catch { return ""; }
 }
