@@ -21,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               "document.body.appendChild(Object.assign(document.createElement('div'),{id:'blp-dock',className:'helper-dock'}));",
           }}
         />
-        {/* AI assistants (Clara/Arnold/Chris) — docked first, then the 💡 */}
+        {/* AI assistants (Clarence/Arnold/Chris — slug clara stays) — docked first, then the 💡 */}
         <script
           src="https://blpagents.netlify.app/assistant.js"
           defer
