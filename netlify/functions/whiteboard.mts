@@ -14,6 +14,10 @@
  *                                              101326martin02) — a stamp in column J, not a
  *                                              deleted row, so it can be undone with on:false
  *
+ * Arrived also stamps column K with the exact time (cleared when un-marked);
+ * whiteboard-arrived-cron texts the person who added the request once it has
+ * stayed Arrived for 15 minutes, and records that in column L (Walter 10/14).
+ *
  * Auth: verified Google ID token (shop/map client; company, admin, or
  * technician *.blp@gmail accounts) or BLP_APP_ACCESS_KEY.
  */
@@ -172,7 +176,11 @@ export default async (req: Request) => {
             ? [{ range: `'${TAB}'!H${row}`, values: [[off ? "FALSE" : "TRUE"]] },
                { range: `'${TAB}'!I${row}`, values: [[off ? "" : stamp]] }]
             : [{ range: `'${TAB}'!F${row}`, values: [[off ? "FALSE" : "TRUE"]] },  // arrived ("done" alias)
-               { range: `'${TAB}'!G${row}`, values: [[off ? "" : stamp]] }];
+               { range: `'${TAB}'!G${row}`, values: [[off ? "" : stamp]] },
+               // exact time for the 15-minute "it's here" text; un-marking clears it,
+               // so an accidental tap undone in time never texts anyone
+               { range: `'${TAB}'!K${row}`, values: [[off ? "" : new Date().toISOString()]] },
+               { range: `'${TAB}'!K1:L1`, values: [["Arrived (exact)", "Arrival texted"]] }];
         await sheets(`/values:batchUpdate`, {
           method: "POST",
           body: JSON.stringify({ valueInputOption: "RAW", data }),
