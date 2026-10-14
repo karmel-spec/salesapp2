@@ -126,8 +126,12 @@ function parseStoreMap(rows, today) {
     const head = col(1);
     const capsBanner = !col(4) && !col(5) && !col(6) && head && !head.includes('\n')
       && head.length < 60 && /[A-Z]/.test(head) && !/[a-z]/.test(head);
+    // a customer whose piano isn't here yet (no serial, no piano) is NOT a section
+    // header: section labels never carry a phone number, email or second line
+    // (Walter 10/14 — Jodie Lierd's row filed 15 shop pianos under her note)
+    const customerRow = head.includes('\n') || /@|\(?\d{3}\)?[\s.-]*\d{3}[\s.-]*\d{4}/.test(head);
     if (!serial && (!summary || capsBanner)) {
-      if (head) {
+      if (head && !customerRow) {   // skip the row either way; only a real label changes the section
         section = head;
         if (head.trim().toUpperCase() === 'SOLD') soldZone = true;
       }
