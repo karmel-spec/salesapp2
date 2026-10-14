@@ -86,7 +86,11 @@ export default async (req: Request, context: { waitUntil?: (p: Promise<unknown>)
     } else if (op === "del" || op === "archive") {
       await sb("tb_cards?id=eq." + encodeURIComponent(id), "PATCH", { col: "archived", done_at: nowIso, updated_at: nowIso });
     } else if (op === "reassign") {
-      await sb("tb_cards?id=eq." + encodeURIComponent(id), "PATCH", { owner: String(p.owner || ""), col: "todo", updated_at: nowIso });
+      // back:1 = "Done" on a card someone else sent — it returns to them in ✅ Back to you
+      // (Mark 10/14); from_who = who handed it over, so the chip and the reply
+      // notifications know the other side of the conversation
+      await sb("tb_cards?id=eq." + encodeURIComponent(id), "PATCH", { owner: String(p.owner || ""), col: p.back ? "back" : "todo",
+        ...(p.from ? { from_who: String(p.from).slice(0, 30) } : {}), ord: -(Date.now() / 1e6), updated_at: nowIso });
     } else if (op === "note") {
       // notes concatenation needs the current value — bridge stays authoritative
       // for the mirrored copy; here we just append optimistically via RPC-less read
