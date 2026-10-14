@@ -18,6 +18,8 @@ import { REPORT_SHEET, KEY, SITE, googleToken, sheetGet } from "./_blp-sched-lib
 const TAB = "Whiteboard";
 const WAIT_MS = 15 * 60000;
 const STALE_MS = 3 * 86400000;   // a K time older than this (cron was down) is not texted
+// these get the text in Spanish (Walter 10/14) — matched by first name
+const SPANISH = ["doris", "lupita", "marcelo", "carlos", "carolina"];
 
 async function stampL(updates: { row: number; v: string }[]) {
   if (!updates.length) return;
@@ -62,9 +64,12 @@ export default async () => {
       // never repeated every 5 minutes
       await stampL(items.map(it => ({ row: it.row, v: "sending " + stampNow })));
       const first = name.split(/\s+/)[0];
+      const es = SPANISH.includes(first.toLowerCase());
       const msg = items.length === 1
-        ? `📬 ${first}, your whiteboard request has arrived: ${items[0].text}`
-        : `📬 ${first}, your whiteboard requests have arrived:\n` + items.map(it => "• " + it.text).join("\n");
+        ? (es ? `📬 ${first}, tu pedido del pizarrón ya llegó: ${items[0].text}`
+              : `📬 ${first}, your whiteboard request has arrived: ${items[0].text}`)
+        : (es ? `📬 ${first}, tus pedidos del pizarrón ya llegaron:\n`
+              : `📬 ${first}, your whiteboard requests have arrived:\n`) + items.map(it => "• " + it.text).join("\n");
       let res = "";
       try {
         const r = await fetch(SITE + "/.netlify/functions/request-notify", { method: "POST",
