@@ -19,6 +19,10 @@
  * - A double-click race (two writes in flight) is collapsed after the write:
  *   the cell is re-read and a repeated copy of the text is removed.
  *
+ * Cleanup (Walter 10/14): POST {action:"replace", key, tech, date, expectMd5, text}
+ * overwrites that cell — app key only, and only when the cell's current
+ * content still hashes to expectMd5, so it can never clobber a newer edit.
+ *
  * Auth: a verified Google ID token (Shop or Store Map client, company /
  * admin / *.blp@gmail accounts) or BLP_APP_ACCESS_KEY; a call with neither is
  * accepted only from the Shop app or Store Map origins, matching the old
@@ -130,7 +134,7 @@ export default async (req: Request) => {
   if (req.method !== "POST") return reply({ ok: false, error: "POST only" }, 405);
 
   try {
-    const body = (await req.json()) as { key?: string; tech?: string; date?: string; text?: string };
+    const body = (await req.json()) as { key?: string; tech?: string; date?: string; text?: string; action?: string; expectMd5?: string };
     const bearer = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
     const googleUser = bearer ? await verifyGoogle(bearer) : null;
     const appKey = process.env.BLP_APP_ACCESS_KEY || "";
@@ -181,6 +185,14 @@ export default async (req: Request) => {
 
     const a1 = colLetter(col) + row;
     const read = async () => String(((await sheets(`/values/${q(a1)}`)).values?.[0]?.[0]) || "");
+    if (body.action === "replace") {
+      if (!appKey || body.key !== appKey) return reply({ ok: false, error: "replace needs the app key" }, 401);
+      const cur = await read();
+      const md5 = crypto.createHash("md5").update(cur, "utf8").digest("hex");
+      if (!body.expectMd5 || md5 !== body.expectMd5) return reply({ ok: false, error: "cell changed since it was read", md5 }, 409);
+      await sheets(`/values/${q(a1)}?valueInputOption=RAW`, { method: "PUT", body: JSON.stringify({ values: [[text]] }) });
+      return reply({ ok: true, replaced: true, row, col, label, was: cur.length, now: text.length });
+    }
     const existing = (await read()).trim();
     if (existing && norm(existing).includes(norm(text))) {
       return reply({ ok: true, duplicate: true, row, col, label });   // already there — a resend
