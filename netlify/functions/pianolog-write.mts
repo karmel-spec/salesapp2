@@ -19,6 +19,7 @@
  * values, so a retry after an ambiguous timeout cannot double-apply.
  */
 import { patchMirror, triggerSync } from "./lib/pianolog-mirror.mts";
+import { directWrite } from "./lib/pianolog-direct.mts";
 
 const BRIDGE_URL =
   "https://script.google.com/macros/s/AKfycbxY4BKnr_Tr0iCTc9itCWhNYLvgszmkI1IoYSkbBWpyAqRtWI-yaUkJQjcVdgG58KXt/exec";
@@ -190,8 +191,32 @@ export default async (req: Request) => {
   }
   const qid = ((await ins.json()) as Array<{ id: number }>)[0]?.id;
 
-  // 2. inline attempt — most of the time Google behaves and the caller
-  //    gets the bridge's true result (bumped lists, done flags, …)
+  // 2a. DIRECT (step 2, 10/14): the plain cell-setting writes go straight to
+  //     the sheet through the Sheets API in ~1 s — same cells, same activity
+  //     log line, same result shape as the bridge (lib/pianolog-direct.mts).
+  //     null = this one is the bridge's (Delivered, Exit Prep, a missing
+  //     column, an unverifiable caller); a thrown Sheets error = bridge too.
+  if (!humanOnly) {
+    let d: Record<string, unknown> | null = null;
+    try { d = await directWrite(action, payload); }
+    catch (e) { console.warn("pianolog-direct failed, using the bridge:", action, String((e as Error).message || e).slice(0, 160)); }
+    if (d) {
+      const failed = !!d.error;
+      await fetch(`${SB}/rest/v1/bridge_queue?id=eq.${qid}`, {
+        method: "PATCH", headers: sbHeaders(),
+        body: JSON.stringify({ status: failed ? "failed" : "done", result: d, attempts: 1,
+          last_error: failed ? String(d.error).slice(0, 200) : "direct", updated: new Date().toISOString() }),
+      }).catch(() => {});
+      if (!failed) {
+        await patchMirror(action, payload, d);
+        await triggerSync("write");
+      }
+      return new Response(JSON.stringify(d), { headers });
+    }
+  }
+
+  // 2b. inline attempt at the bridge — when Google behaves the caller gets
+  //     the bridge's true result (bumped lists, done flags, …)
   // Delivered gets a longer wait (Walter 10/13): it moves a whole row, and it is
   // never retried later, so the inline answer is the only answer
   const fw = await forwardToBridge(payload, humanOnly ? 16000 : 8000);   // + up to ~7 s of checking, inside the ~26 s limit
