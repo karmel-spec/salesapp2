@@ -95,3 +95,15 @@ export async function plateHoldText(): Promise<string> {
     return held.map(p => `${String(p.make || "").trim()} ${p.serial} (${p.phase || "no phase"}): ${String(p.plateStatus).trim()}`).join("\n");
   } catch { return ""; }
 }
+
+/** The Tuning Queue (Walter 10/14): pianos Korban marked "Needs tuning" on the
+ * Showroom Tuning Check that nobody has booked — computed by the Store Map's
+ * /api/data (tuningQueue), ⚡ ASAP first, then walk order. They fill Korban's
+ * open tuning slots after chip tunings and card-phase tunings. "" if unreadable. */
+export async function tuningQueueText(): Promise<string> {
+  try {
+    const r = await fetch("https://blpstoremap.netlify.app/api/data?scope=active", { signal: AbortSignal.timeout(20000) });
+    const d = await r.json() as { tuningQueue?: { rank: number; serial: string; piano: string; spot: string; asap: boolean; note: string }[] };
+    return (d.tuningQueue || []).map(q => `${q.rank}. ${q.asap ? "⚡ ASAP " : ""}${q.piano} #${q.serial} (spot ${q.spot || "?"})${q.note ? " — " + q.note : ""}`).join("\n");
+  } catch { return ""; }
+}
