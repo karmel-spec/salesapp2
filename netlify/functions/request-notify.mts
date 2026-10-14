@@ -5,6 +5,10 @@
  * never sees numbers.
  *
  *   POST {key, name, message} → {ok, sent}
+ *   replyTo (optional, Walter 10/14): the person this text is really from
+ *   (a card text sent from a computer). A delivered text opens a reply
+ *   thread in bridge_queue (action sms-thread) so sms-inbound can hand the
+ *   recipient's reply to replyTo's phone instead of to the command parser.
  */
 import * as crypto from "node:crypto";
 import { loadSettings } from "./app-settings.mts";
@@ -48,6 +52,18 @@ export default async (req: Request) => {
   // Brigham/Karmel sweep summaries run long — 320 was cutting the link off
   const message = String(body.message || "").trim().slice(0, 1200);
   if (!name || !message) return json({ error: "name and message required" }, 400);
+  const replyTo = String(body.replyTo || "").trim().slice(0, 60);
+  const openThread = async () => {
+    if (!replyTo || !process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) return;
+    try {
+      await fetch(`${process.env.SUPABASE_URL}/rest/v1/bridge_queue`, {
+        method: "POST",
+        headers: { apikey: process.env.SUPABASE_SERVICE_KEY, Authorization: "Bearer " + process.env.SUPABASE_SERVICE_KEY,
+          "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ action: "sms-thread", status: "thread-open",
+          payload: { name, replyTo, card: String(body.thread || "").slice(0, 120), at: new Date().toISOString() } }) });
+    } catch { /* the text still went; a reply just falls back to the manager forward */ }
+  };
 
   const t = await googleToken();
   const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(`'${PHONES_TAB}'!A2:B60`)}`,
@@ -98,7 +114,7 @@ export default async (req: Request) => {
       headers: { apikey: process.env.SUPABASE_SERVICE_KEY, Authorization: "Bearer " + process.env.SUPABASE_SERVICE_KEY,
         "Content-Type": "application/json", Prefer: "return=minimal" },
       body: JSON.stringify({ action: "sms", status: "sms-queued", payload: { name, message } }) });
-    if (qr.ok) return json({ ok: true, sent: false, queued: true, sendAt: "next 10:00 AM Denver" });
+    if (qr.ok) { await openThread(); return json({ ok: true, sent: false, queued: true, sendAt: "next 10:00 AM Denver" }); }
     // queue unreachable — never drop a message: fall through and send now
   }
   let sendAt = "";
@@ -132,8 +148,10 @@ export default async (req: Request) => {
       headers: { Authorization: "Basic " + Buffer.from(`${sid}:${tok}`).toString("base64"),
         "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ To: to, From: from, Body: message }) });
+    if (tw2.status < 300) await openThread();
     return json({ ok: tw2.status < 300, sent: tw2.status < 300, scheduleFailed: true });
   }
+  if (tw.status < 300) await openThread();
   return json({ ok: tw.status < 300, sent: tw.status < 300,
     ...(sendAt ? { scheduled: true, sendAt } : {}) });
 };

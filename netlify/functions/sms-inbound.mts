@@ -141,9 +141,15 @@ export default async (req: Request) => {
     return new Response("PASS", { headers: { "x-sms-pass": "1" } });
   }
 
-  // conversational noise (replies to reminder texts) — stay silent
+  // a reply to a card text someone sent from a computer (Walter 10/14): the
+  // text came from the shop number, so the answer lands here — hand it to
+  // the person who sent the card text instead of treating it as a command.
+  const thread = await openThreadFor(who);
+
+  // conversational noise (replies to reminder texts) — stay silent, unless it
+  // answers a card text ("ok" / "yes" is a real answer there)
   if (!nMedia && (body.length < 4 || /^(ok|okay|thanks|thank you|got it|yes|no|k|sure)[.!]?$/i.test(body))) {
-    return twiml();
+    return thread ? forwardToSender(thread, who, from, body, nMedia) : twiml();
   }
 
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -215,10 +221,11 @@ export default async (req: Request) => {
   } catch (e) {
     // Walter 9/9: a text the gateway can't read is still a person talking —
     // forward it instead of dropping it
-    return forwardToManager(who, from, body, nMedia);
+    return thread ? forwardToSender(thread, who, from, body, nMedia) : forwardToManager(who, from, body, nMedia);
   }
 
   if (parsed.name === "clarify") return twiml(parsed.input.question.slice(0, 300));
+  if (thread && (parsed.name === "message" || parsed.name === "unsupported")) return forwardToSender(thread, who, from, body, nMedia);
   if (parsed.name === "unsupported") return twiml(parsed.input.reply.slice(0, 300));
   if (parsed.name === "message") return forwardToManager(who, from, body, nMedia);
 
@@ -334,6 +341,38 @@ async function forwardToManager(who: string, from: string, body: string, nMedia:
   return twiml(delivered
     ? `Passed along to ${first.join(" & ")} - they'll follow up with you directly. (This number only takes piano updates like "38930 phase 9".)`
     : "Couldn't pass that along right now - please text or tell Karmel directly. (This number only takes piano updates like \"38930 phase 9\".)");
+}
+
+/* ---------- card-text reply threads (Walter 10/14) ---------- */
+type Thread = { replyTo: string; card: string; at: string };
+const THREAD_MS = 48 * 3600000;   // a reply within two days of the card text
+async function openThreadFor(who: string): Promise<Thread | null> {
+  const SB = process.env.SUPABASE_URL || "", K = process.env.SUPABASE_SERVICE_KEY || "";
+  if (!SB || !K) return null;
+  try {
+    const q = `${SB}/rest/v1/bridge_queue?action=eq.sms-thread&status=eq.thread-open`
+      + `&payload->>name=eq.${encodeURIComponent(who)}&order=id.desc&limit=1`;
+    const rows = (await (await fetch(q, { headers: { apikey: K, Authorization: "Bearer " + K } })).json()) as
+      Array<{ payload: { replyTo?: string; card?: string; at?: string } }>;
+    const t = rows && rows[0] && rows[0].payload;
+    if (!t || !t.replyTo || !t.at || Date.now() - Date.parse(t.at) > THREAD_MS) return null;
+    return { replyTo: t.replyTo, card: t.card || "", at: t.at };
+  } catch { return null; }
+}
+async function forwardToSender(thread: Thread, who: string, from: string, body: string, nMedia: number) {
+  const first = thread.replyTo.split(/\s+/)[0];
+  const text = `💬 ${who} replied${thread.card ? ` (re: "${thread.card.slice(0, 60)}")` : ""}: "${body.slice(0, 600)}"`
+    + (nMedia ? ` [+${nMedia} photo${nMedia === 1 ? "" : "s"}]` : "") + " — reply to them from your phone.";
+  let ok = false;
+  try {
+    const r = await fetch("https://blpsalesapp.netlify.app/.netlify/functions/request-notify", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ key: process.env.BLP_APP_ACCESS_KEY || "pianoman", name: thread.replyTo, message: text, now: true }) });
+    const j = (await r.json()) as { sent?: boolean; queued?: boolean };
+    ok = !!(j.sent || j.queued);
+  } catch { /* fall through */ }
+  if (!ok) return forwardToManager(who, from, body, nMedia);
+  return twiml(`Passed on to ${first}.`);
 }
 
 export const config = { path: "/.netlify/functions/sms-inbound" };
