@@ -8,8 +8,12 @@
  *   2. tries the bridge inline with a short budget — a REAL bridge
  *      result marks the row done and is returned verbatim,
  *   3. if Google misroutes (generic ping), times out, or errors, the op
- *      stays queued and the client gets {ok:true, queued:true} — the
- *      worker (bridge-queue-worker) retries until the bridge confirms.
+ *      stays queued and the client gets {ok:true, queued:true, qid} — and a
+ *      background drain is kicked AT ONCE (10/14), so the row normally lands
+ *      within ~15–30 s instead of at the next 5-minute cron (measured Oct
+ *      9–13: 0 of 40 writes confirmed inline, every one landed 2–4 min later
+ *      while the card said "the bridge is slow"). The worker keeps retrying
+ *      until the bridge confirms; GET ?qid= reports where a write stands.
  *
  * Only resend-safe ops belong here: everything whitelisted sets absolute
  * values, so a retry after an ambiguous timeout cannot double-apply.
@@ -18,6 +22,7 @@ import { patchMirror, triggerSync } from "./lib/pianolog-mirror.mts";
 
 const BRIDGE_URL =
   "https://script.google.com/macros/s/AKfycbxY4BKnr_Tr0iCTc9itCWhNYLvgszmkI1IoYSkbBWpyAqRtWI-yaUkJQjcVdgG58KXt/exec";
+const SITE = "https://blpsalesapp.netlify.app";
 const ALLOW = ["https://blpstoremap.netlify.app", "http://localhost:8641"];
 const RELAY_OK = /^(set[a-z]+|move|unmarkduplicate|tempresolve)$/;
 
@@ -59,6 +64,19 @@ export async function forwardToBridge(payload: unknown, budgetMs: number): Promi
     return { kind: "fail", err: String((e as Error).message || e).slice(0, 120) };
   } finally {
     clearTimeout(t);
+  }
+}
+
+/** Start the background queue drain now (10/14): returns once Netlify has
+ *  accepted the job (202, ~0.2 s). The 5-minute cron stays as the safety net. */
+export async function kickDrain(reason: string): Promise<boolean> {
+  try {
+    const qs = new URLSearchParams({ key: process.env.BLP_APP_ACCESS_KEY || "", reason });
+    const r = await fetch(`${SITE}/.netlify/functions/bridge-queue-worker-background?${qs}`, { method: "POST", signal: AbortSignal.timeout(2500) });
+    return r.status === 202 || r.ok;
+  } catch (e) {
+    console.warn("queue drain kick failed:", String((e as Error).message || e).slice(0, 120));
+    return false;
   }
 }
 
@@ -217,7 +235,9 @@ export default async (req: Request) => {
   }).catch(() => {});
   // 3. still queued — honest ack: saved durably, applying shortly. The read
   //    mirror gets the absolute value now (the queue will land the same
-  //    value); the sync skips this serial until the queued write is done.
+  //    value); the sync re-applies it on top of the sheet row until the queued
+  //    write is done. The drain starts NOW, not at the next cron (10/14).
   await patchMirror(action, payload);
+  await kickDrain("write");
   return new Response(JSON.stringify({ ok: true, queued: true, qid }), { headers });
 };

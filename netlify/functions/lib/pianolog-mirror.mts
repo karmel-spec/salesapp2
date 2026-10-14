@@ -90,7 +90,9 @@ export async function readSheet(): Promise<{ values: string[][]; roster: string[
 async function openQueueOps(): Promise<Map<string, Array<{ action: string; payload: Record<string, unknown> }>>> {
   const out = new Map<string, Array<{ action: string; payload: Record<string, unknown> }>>();
   try {
-    const r = await fetch(`${SB()}/rest/v1/bridge_queue?status=eq.queued&select=action,payload&order=created.asc`, { headers: sbHeaders(), signal: AbortSignal.timeout(10000) });
+    // queued, or claimed by a drain that is forwarding it right now (sending)
+    // — neither is in the sheet yet
+    const r = await fetch(`${SB()}/rest/v1/bridge_queue?status=in.(queued,sending)&select=action,payload&order=created.asc`, { headers: sbHeaders(), signal: AbortSignal.timeout(10000) });
     if (!r.ok) return out;
     for (const row of (await r.json()) as Array<{ action?: string; payload?: Record<string, unknown> }>) {
       const s = parser.normSerial(row.payload?.serial).toLowerCase();
