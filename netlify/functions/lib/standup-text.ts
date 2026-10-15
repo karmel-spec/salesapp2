@@ -76,6 +76,14 @@ async function sheetGet(range: string): Promise<string[][]> {
   return ((await res.json()).values as string[][]) || [];
 }
 
+async function sheetPut(range: string, rows: string[][]): Promise<void> {
+  const token = await googleToken();
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${REPORT_SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
+    { method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ values: rows }) }
+  );
+  if (!res.ok) throw new Error(`Sheets update failed (${res.status})`);
+}
 async function sheetAppend(range: string, rows: string[][]): Promise<void> {
   const token = await googleToken();
   const res = await fetch(
@@ -252,9 +260,24 @@ export async function runStandupText(): Promise<string> {
   if (!test && holiday) return `skip: ${holiday} (${now.iso}) — no standup text`;
 
   // one send per day, even though two crons fire
-  const log = await sheetGet(`'${LOG_TAB}'!A1:D2000`).catch(() => [] as string[][]);
+  const log = await sheetGet(`'${LOG_TAB}'!A1:E2000`).catch(() => [] as string[][]);
   if (!test && log.some((r) => (r[0] || "") === now.iso)) {
     return `skip: standup text for ${now.iso} already sent`;
+  }
+  // …and even when the scheduler starts this twice at the same moment (10/1 and
+  // 10/15 went out twice, seconds apart — both runs read the log before either
+  // wrote it): claim the day FIRST, re-read, and only the earliest claim sends.
+  const claim = `claim-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  let claimRow = -1;
+  if (!test) {
+    await sheetAppend(`'${LOG_TAB}'!A1`, [[now.iso, new Date().toISOString(), "sending…", "", claim]]);
+    await new Promise((r) => setTimeout(r, 1500));   // let a twin's claim land too
+    const again = await sheetGet(`'${LOG_TAB}'!A1:E2000`).catch(() => [] as string[][]);
+    const todays = again.map((r, i) => ({ r, i })).filter((x) => (x.r[0] || "") === now.iso);
+    if (!todays.length || (todays[0].r[4] || "") !== claim) {
+      return `skip: standup text for ${now.iso} claimed by another run`;
+    }
+    claimRow = todays[0].i + 1;   // 1-based sheet row of our claim
   }
 
   // the digest comes from the bridge, so it matches the emailed brief
@@ -284,10 +307,10 @@ export async function runStandupText(): Promise<string> {
   }
 
   try {
-    await sheetAppend(`'${LOG_TAB}'!A1`, [[
-      now.iso, new Date().toISOString(), sent.join(", "), failed.join("; "),
-    ]]);
-  } catch { /* the log is a convenience; a failed append must not resend */ }
+    const row = [now.iso, new Date().toISOString(), sent.join(", "), failed.join("; "), claim];
+    if (claimRow > 0) await sheetPut(`'${LOG_TAB}'!A${claimRow}:E${claimRow}`, [row]);   // fill in our claim row
+    else await sheetAppend(`'${LOG_TAB}'!A1`, [row]);
+  } catch { /* the log is a convenience; a failed write must not resend */ }
 
   return `standup text ${now.iso}: sent to ${sent.join(", ") || "nobody"}`
     + (failed.length ? ` | failed: ${failed.join("; ")}` : "");
