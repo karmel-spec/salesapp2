@@ -94,8 +94,7 @@ export async function absencePlan(day: string, hour: number): Promise<{ plan: Pl
       if (!last || iso(last) !== iso(D)) continue;
       if (weekOf(D) !== weekOf(T)) { notes.push(`${name}: out all of the week of ${md(T)} — Thursday nudge only`); continue; }
       plan.push({ kind: "heads-up", name, thursday: iso(T), why,
-        message: `📝 Heads-up, ${fn}: you're out Thursday ${md(T)}, the day weekly reports are due. `
-          + `Please submit your weekly report before you leave today if you can — it takes a couple of minutes from your phone: ${LINK}  Thanks!` });
+        message: `Heads-up, ${fn}: You’re out Thursday ${md(T)}, the day weekly reports are due. Please submit your weekly report before you leave today if you can: ${LINK}` });
     } else {
       plan.push({ kind: "thursday", name, thursday: iso(T), why,
         message: `📝 ${fn}, you're out today — just a reminder your weekly report is due by 6 PM. You can submit it from your phone: ${LINK}  Thanks!` });
