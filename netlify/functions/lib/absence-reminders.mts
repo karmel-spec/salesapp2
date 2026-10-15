@@ -3,8 +3,10 @@
  * due (Walter 10/15, option C). Hunter and Myrrhanda were both off on
  * Thursday 10/15 and the only reminder was the 6 PM sweep.
  *
- *  - 2 PM on a person's LAST WORKDAY before that Thursday: the Wednesday for a
- *    Thursday-only absence, the Friday before for someone out all week.
+ *  - 2 PM on a person's LAST WORKDAY before that Thursday, when it falls in
+ *    the same week (Mon–Wed): the Shop app files a report under the week it
+ *    is sent in, so a heads-up the Friday before a whole week off can't be
+ *    acted on — those people get only the Thursday nudge.
  *  - 10 AM Thursday: anyone out that day whose report still isn't in (also
  *    catches time off approved after the 2 PM heads-up).
  *
@@ -90,9 +92,9 @@ export async function absencePlan(day: string, hour: number): Promise<{ plan: Pl
       let last: Date | null = null;
       for (let x = addDays(T, -1); x >= D; x = addDays(x, -1)) { if (works(name, x)) { last = x; break; } }
       if (!last || iso(last) !== iso(D)) continue;
-      const nextWeek = (T.getTime() - D.getTime()) / 86400000 > 6 || dow === 5;
+      if (weekOf(D) !== weekOf(T)) { notes.push(`${name}: out all of the week of ${md(T)} — Thursday nudge only`); continue; }
       plan.push({ kind: "heads-up", name, thursday: iso(T), why,
-        message: `📝 Heads-up, ${fn}: you're out ${nextWeek ? "next " : ""}Thursday ${md(T)}, the day weekly reports are due. `
+        message: `📝 Heads-up, ${fn}: you're out Thursday ${md(T)}, the day weekly reports are due. `
           + `Please submit your weekly report before you leave today if you can — it takes a couple of minutes from your phone: ${LINK}  Thanks!` });
     } else {
       plan.push({ kind: "thursday", name, thursday: iso(T), why,
