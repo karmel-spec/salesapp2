@@ -1788,8 +1788,7 @@
     ]
   },
   "melody": {
-    "mission": "Named after the melody that comes from a well-tuned piano. I'm the first point of contact for customers reaching out about tuning, scheduling, or general questions. I know the business, I know the team, and I know when to pass something up the chain.",
-    "vibe": "Warm, helpful, knowledgeable. The voice customers hear when they call or email — even though it's all text.",
+    "mission": null,
     "vaultFolder": "Agents/melody",
     "docs": [
       [
