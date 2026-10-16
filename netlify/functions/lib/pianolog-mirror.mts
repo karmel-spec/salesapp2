@@ -231,6 +231,11 @@ export function patchForAction(action: string, payload: Record<string, unknown>,
     }
     case "setkeystatus": { const v = s(payload.value); p.sm.keytopStatus = v.slice(0, 40); p.raw["KEYTOP STATUS"] = v; break; }
     case "setplatestatus": { const v = s(payload.plateStatus); p.sm.plateStatus = v; p.raw["PLATE STATUS"] = v; break; }
+    case "setplatehw": {   // status dropdown (plateHwStatus) or hardware location box (value)
+      if (payload.plateHwStatus != null) { const v = s(payload.plateHwStatus); p.sm.plateHwStatus = v; p.raw["PLATE HARDWARE STATUS"] = v; }
+      else { const v = s(payload.value); p.sm.plateHw = v.slice(0, 80); p.raw["PLATE HW LOCATION"] = v; }
+      break;
+    }
     case "setplatetemp": { const v = s(payload.value); p.sm.plateTemp = v.slice(0, 90); p.raw["PLATE TEMP SPOT"] = v; break; }
     case "setcabinetry": { const v = s(payload.cabinetry); p.sm.cabinetry = v; p.raw["CABINETRY"] = v; break; }
     case "setclientreports": { const v = payload.enabled ? "✓" : ""; p.sm.clientReports = v; p.raw["CLIENT REPORTS"] = v; break; }

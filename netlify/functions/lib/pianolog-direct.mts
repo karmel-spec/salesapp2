@@ -67,6 +67,8 @@ const CARD_FIELDS: Record<string, { header: string; values: string[]; label: str
   plateFinish: { header: "PLATE HARDWARE FINISH", values: ["", "Brass", "Nickel", "Copper", "No electroplating"], label: "Plate hardware finish" },
   keytopMaterial: { header: "KEYTOP MATERIAL", values: ["", "White Acrylic", "Off-white Acrylic", "Ivory - clean & leave as is", "Ivory - replace damaged keys", "Ivory", "No key service"], label: "Keytop material" },
 };
+// mirrors the bridge's PLATE_HW_STATUSES ('' = not tracked)
+const PLATE_HW_STATUSES = ["", "Needs buffing", "In buffing queue", "Buffing", "Buffed", "Installed"];
 const PLATE_STATUSES = ["", "In piano", "Removed", "Plate storage — BEFORE", "At Curtis Harper", "Plate storage — AFTER", "Back in piano"];
 const KEYTOP_STATES = ["Evaluate", "In Key Queue", "In Progress", "Done"];
 const TRACK_VALUES = ["Rebuild", "Hybrid", "Refurbish", "Refinish", "Technology", "Old Player", "Storage", "Misc"];
@@ -259,6 +261,16 @@ function plan(action: string, p: Payload, sh: Sheet, rowNum: number, row: string
       return { writes: [{ col: c, value: val }], logs: [[who, "Cabinetry location", piano, val || "(cleared)"]], result: { ...base, cabinetry: val } };
     }
     case "setplatehw": {
+      // ONE action name, two card fields (Walter 10/16): the Plate hardware
+      // STATUS dropdown sends plateHwStatus, the hardware LOCATION box sends
+      // value. Treating every setplatehw as a location wiped the location and
+      // dropped the status (Wick 29908 / Steinway 160095 "Buffed", 10/16).
+      if (p.plateHwStatus != null) {
+        const val = s(p.plateHwStatus).trim();
+        if (!PLATE_HW_STATUSES.includes(val)) return { writes: [], logs: [], result: { error: "bad plate hardware status: " + val } };
+        const c = need("PLATE HARDWARE STATUS"); if (!c) return null;
+        return { writes: [{ col: c, value: val }], logs: [[who, "Plate hardware", piano, val || "(cleared)"]], result: { ...base, plateHwStatus: val } };
+      }
       const c = need("PLATE HW LOCATION"); if (!c) return null;
       const val = s(p.value).trim().slice(0, 80);
       return { writes: [{ col: c, value: val }], logs: [[who, "Plate hardware location", piano, val || "(cleared)"]], result: { ...base, plateHw: val } };
