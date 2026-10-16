@@ -138,16 +138,22 @@ export default async (req: Request) => {
 
   const tools = [{
     name: "revised_schedule",
-    description: "Return the fully revised plan plus a change log and any standing rules to remember.",
+    description: "Return ONLY the technicians you changed (each one complete), the bottleneck list if it changed, a change log and any standing rules to remember.",
     input_schema: { type: "object", properties: {
-      plan: { type: "object", description: "The COMPLETE revised plan JSON, same shape as the input plan" },
+      // Walter 10/16: returning the COMPLETE plan (~75k chars, 17 techs) ran the model
+      // out of output room on a big week — Mark's notes came back "malformed" twice.
+      // Only the touched techs come back now; everything else is kept as it is.
+      changed_techs: { type: "array", items: { type: "object" }, description: "Every technician you changed, each as the COMPLETE tech object exactly as in the input plan (name, hours, who, days = 5 arrays of [start,end,kind,title,note], and any other fields it had). Omit technicians you did not change — they are kept as they are." },
+      bottlenecks: { type: "array", items: { type: "array", items: { type: "string" } }, description: "ONLY if you changed the bottlenecks: the complete new list of [title, body] pairs. Omit to keep the current list." },
+      reportOverrides: { type: "array", items: { type: "string" }, description: "ONLY if you changed them: the complete new reportOverrides list. Omit to keep the current one." },
       changes: { type: "array", items: { type: "string" }, description: "Plain-English list of every adjustment made" },
       rules_extracted: { type: "array", items: { type: "string" }, description: "Standing rules to remember for ALL future weeks (only genuinely reusable rules, rephrased crisply; empty if none)" },
       questions: { type: "array", items: { type: "string" }, description: "Anything ambiguous that needs Brigham's clarification" },
-    }, required: ["plan", "changes", "rules_extracted"] },
+    }, required: ["changed_techs", "changes", "rules_extracted"] },
   }];
   const sys = "You revise the weekly technician schedule for Brigham Larson Pianos (piano restoration shop). "
     + "You get the current proposal plan JSON, Brigham's per-technician notes, and the standing scheduling rules. "
+    + "Return ONLY the technicians your changes touch (each one complete, same shape as in the plan); untouched technicians are kept exactly as they are. "
     + "Apply the notes faithfully: move/resize/replace blocks, keep the JSON shape EXACTLY (days = 5 arrays of "
     + "[start,end,kind,title,note]; times are shop-clock 12h without am/pm where 7-11=morning, 12-6=afternoon; "
     + "kind must be an existing colors key). Keep every tech's hours realistic and keep the Friday 2:30-3:30 "
@@ -198,6 +204,24 @@ export default async (req: Request) => {
   const tu = (aj.content || []).find((c: any) => c.type === "tool_use");
   if (!tu) return finish({ error: "AI revision failed: " + (aj.error?.message || "no output") }, 502);
   const out = tu.input;
+  // merge the returned techs into the current plan (by name, case-insensitive);
+  // a full `plan` from the model is still accepted as before
+  if (!out.plan && Array.isArray(out.changed_techs)) {
+    const merged = JSON.parse(JSON.stringify(plan));
+    merged.techs = Array.isArray(merged.techs) ? merged.techs : [];
+    const key = (n: unknown) => String(n || "").trim().toLowerCase();
+    const first = (n: unknown) => key(n).split(/\s+/)[0];
+    for (const t of out.changed_techs) {
+      if (!t || typeof t !== "object" || !t.name) continue;
+      // "Myrrhanda Lamping" from the model is the plan's "Myrrhanda" — exact name first, then first name
+      let i = merged.techs.findIndex((x: any) => key(x.name) === key(t.name));
+      if (i < 0) i = merged.techs.findIndex((x: any) => first(x.name) === first(t.name));
+      if (i >= 0) merged.techs[i] = { ...merged.techs[i], ...t, name: merged.techs[i].name }; else merged.techs.push(t);
+    }
+    if (Array.isArray(out.bottlenecks)) merged.bottlenecks = out.bottlenecks;
+    if (Array.isArray(out.reportOverrides)) merged.reportOverrides = out.reportOverrides;
+    out.plan = merged;
+  }
   // The model sometimes returns `plan` as a JSON STRING instead of an object
   // (9/18: Mark's second notes pass). JSON.stringify of that string double-
   // encoded the plan, the bridge accepted the valid string literal, and every
@@ -211,7 +235,7 @@ export default async (req: Request) => {
   if (!okPlan) {
     await logAdjustment({ by: String(body.by || "Brigham"), kind: "schedule notes",
       input: (globalTxt ? "GLOBAL: " + globalTxt + "\n" : "") + notesTxt,
-      outcome: "AI returned a malformed plan (not an object with technicians) — NOTHING was saved; the previous proposal stands. Re-apply the notes.",
+      outcome: "AI returned a malformed plan (not an object with technicians) — NOTHING was saved; the previous proposal stands. Re-apply the notes." + (aj.stop_reason ? " [stop_reason: " + aj.stop_reason + "]" : ""),
       rules: [], questions: [], saved: false, saveErr: "malformed plan from the model" });
     return finish({ error: "The AI revision came back malformed, so nothing was saved — the current proposal is untouched. Tap Apply adjustments once more." }, 502);
   }
