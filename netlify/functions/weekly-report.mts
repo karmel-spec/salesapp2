@@ -19,6 +19,13 @@
  * - A double-click race (two writes in flight) is collapsed after the write:
  *   the cell is re-read and a repeated copy of the text is removed.
  *
+ * Resubmit (Walter 10/16): the Shop app sends `replaces` = the text it last
+ * submitted for that person and week. If the cell still holds that exact text,
+ * it is swapped for the new report instead of the new one being added below —
+ * Avery fixed one status and the cell ended up with both versions. Text typed
+ * into the cell by hand is never touched; if the old text isn't found, the new
+ * report is added below as before.
+ *
  * Cleanup (Walter 10/14): POST {action:"replace", key, tech, date, expectMd5, text}
  * overwrites that cell — app key only, and only when the cell's current
  * content still hashes to expectMd5, so it can never clobber a newer edit.
@@ -134,7 +141,7 @@ export default async (req: Request) => {
   if (req.method !== "POST") return reply({ ok: false, error: "POST only" }, 405);
 
   try {
-    const body = (await req.json()) as { key?: string; tech?: string; date?: string; text?: string; action?: string; expectMd5?: string };
+    const body = (await req.json()) as { key?: string; tech?: string; date?: string; text?: string; action?: string; expectMd5?: string; replaces?: string };
     const bearer = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
     const googleUser = bearer ? await verifyGoogle(bearer) : null;
     const appKey = process.env.BLP_APP_ACCESS_KEY || "";
@@ -198,6 +205,12 @@ export default async (req: Request) => {
       return reply({ ok: true, duplicate: true, row, col, label });   // already there — a resend
     }
     const isPlaceholder = existing === "" || /^n\/?a$/i.test(existing);
+    const prev = String(body.replaces || "").trim();
+    if (prev && prev !== text && existing.includes(prev)) {
+      const swapped = existing.replace(prev, text);
+      await sheets(`/values/${q(a1)}?valueInputOption=RAW`, { method: "PUT", body: JSON.stringify({ values: [[swapped]] }) });
+      return reply({ ok: true, updated: true, row, col, label });   // earlier submission replaced
+    }
     const next = isPlaceholder ? text : existing + "\n\n" + text;
     await sheets(`/values/${q(a1)}?valueInputOption=RAW`, { method: "PUT", body: JSON.stringify({ values: [[next]] }) });
 
