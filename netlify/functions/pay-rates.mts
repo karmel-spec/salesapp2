@@ -1,9 +1,12 @@
 /**
  * Loaded pay rates for Shop Board job costing — reads the "Pay Rates" tab of
- * the report sheet (Name | Loaded $/h | Notes). Rates are entered by Brigham /
- * Karmel; anyone blank falls back to the blended rate typed in the Shop Board.
+ * the report sheet. Layout since 10/20 (Brigham): Name (as on the clock) |
+ * Hourly rate (base wage) | Effective (yyyy-mm-dd) | Source | Note, plus one row
+ * named BURDEN whose rate column is the employer-tax multiplier (0.079 = 7.9%).
+ * Loaded $/h = base × (1 + burden); a person with several rows gets the latest
+ * effective one. Anyone blank falls back to the blended rate typed in the board.
  *
- *   GET ?key=<app key> → {ok, rates: {"first name lowercased": 62.5, …}}
+ *   GET ?key=<app key> → {ok, rates: {"first name lowercased": 21.58, …}, burden}
  *
  * Only the first-name key is returned (never the raw rows), matching how the
  * board canonicalizes names. Simple GET with query key — no CORS preflight.
@@ -42,16 +45,24 @@ export default async (req: Request) => {
   if ((u.searchParams.get("key") || "") !== APP_KEY) return json({ error: "unauthorized" }, 403);
   try {
     const t = await token();
-    const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(`'${TAB}'!A2:B100`)}`,
+    const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(`'${TAB}'!A2:C200`)}`,
       { headers: { Authorization: `Bearer ${t}` } });
     const rows = (((await r.json()).values as string[][]) || []);
-    const rates: Record<string, number> = {};
+    let burden = 0;
+    const latest: Record<string, { rate: number; eff: string }> = {};
     for (const row of rows) {
-      const first = String(row[0] || "").trim().split(/\s+/)[0].toLowerCase();
+      const name = String(row[0] || "").trim();
       const rate = parseFloat(String(row[1] || "").replace(/[^0-9.]/g, ""));
-      if (first && !first.startsWith("—") && isFinite(rate) && rate > 0) rates[first] = rate;
+      if (!name || !isFinite(rate) || rate <= 0) continue;
+      if (name.toUpperCase() === "BURDEN") { burden = rate; continue; }
+      const first = name.split(/\s+/)[0].toLowerCase();
+      if (first.startsWith("—")) continue;
+      const eff = String(row[2] || "").trim().slice(0, 10);
+      if (!latest[first] || eff >= latest[first].eff) latest[first] = { rate, eff };
     }
-    return json({ ok: true, rates });
+    const rates: Record<string, number> = {};
+    for (const [first, v] of Object.entries(latest)) rates[first] = Math.round(v.rate * (1 + burden) * 100) / 100;
+    return json({ ok: true, rates, burden });
   } catch (e: any) {
     return json({ error: String(e?.message || e) }, 502);
   }
