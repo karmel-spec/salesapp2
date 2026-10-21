@@ -5,7 +5,7 @@ import { config } from "@/lib/config";
 import { crmUpsertLead, crmNote } from "@/lib/crm";
 import { sendEmail } from "@/lib/comms";
 import { qboConfigured, findOrCreateCustomer, createInvoice } from "@/lib/qbo";
-import { type Handoff, type HandoffRow, renderHandoff, summarize, todos, handoffLines, diffHandoff, getHandoff, priceCents, newHandoffId, insertHandoff, patchHandoff, handoffsForLead, pushShopScope, handoffStoreReady, ackToken, logHandoff, getDraft, deleteDraft } from "@/lib/won";
+import { type Handoff, type HandoffRow, renderHandoff, summarize, todos, handoffLines, diffHandoff, getHandoff, priceCents, newHandoffId, insertHandoff, patchHandoff, handoffsForLead, pushShopScope, shopScopeLines, scopeReviewNeeded, handoffStoreReady, ackToken, logHandoff, getDraft, deleteDraft } from "@/lib/won";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 26;
@@ -148,6 +148,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const hrow = row;
     if (h.branch === "shop" && hrow) jobs.push((async () => {
       try {
+        // the first 10 from 10/21 wait for Mark's review (Mark 10/21) — listed in
+        // his morning brief; /api/won/scope-review writes what he approves
+        const lines = shopScopeLines(h, hrow.created_at).lines;
+        if (lines.length && (await scopeReviewNeeded(hrow.created_at || new Date().toISOString()).catch(() => true))) {
+          await logHandoff(hrow, `Shop notes waiting for Mark's review: ${lines.join(" | ")}`);
+          return;
+        }
         const res = await pushShopScope({ ...hrow, answers: h }, { url: BRIDGE_URL, pin: BRIDGE_PIN });
         if (res.skipped) return;
         if (res.ok) await logHandoff(hrow, `Shop notes on the piano card — Piano Log row ${res.row}${res.added ? ` (${res.added} line${res.added === 1 ? "" : "s"})` : " (already there)"}`);

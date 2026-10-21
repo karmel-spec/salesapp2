@@ -3,7 +3,7 @@ import { requireSession, jsonError } from "@/lib/api";
 import { config } from "@/lib/config";
 import { createLead, getLeads, appendTimeline } from "@/lib/leads";
 import { getPianos, findBySerial, describe } from "@/lib/pianolog";
-import { listHandoffs, patchHandoff, handoffStoreReady, logHandoff, pushShopScope, shopScopeLines, SCOPE_DONE_RE } from "@/lib/won";
+import { listHandoffs, patchHandoff, handoffStoreReady, logHandoff, pushShopScope, shopScopeLines, SCOPE_DONE_RE, SCOPE_REVIEW_RE } from "@/lib/won";
 
 const BRIDGE_URL = process.env.BLP_BRIDGE_URL || "https://script.google.com/macros/s/AKfycbxY4BKnr_Tr0iCTc9itCWhNYLvgszmkI1IoYSkbBWpyAqRtWI-yaUkJQjcVdgG58KXt/exec";
 const BRIDGE_PIN = process.env.BLP_BRIDGE_PIN || "";
@@ -85,7 +85,7 @@ async function scopeSweep(dry: boolean) {
   const rows = await listHandoffs(`branch=eq.shop&status=eq.sent&created_at=gte.${since}&order=created_at.asc`);
   const done: string[] = [], waiting: string[] = [], plan: { lead: string; row?: number; adding?: string[] }[] = [];
   for (const r of rows) {
-    if ((r.log || []).some((l) => SCOPE_DONE_RE.test(l.text))) continue;
+    if ((r.log || []).some((l) => SCOPE_DONE_RE.test(l.text) || SCOPE_REVIEW_RE.test(l.text))) continue;   // done, or held for Mark
     if (!shopScopeLines(r.answers, r.created_at).lines.length) continue;
     const res = await pushShopScope(r, { url: BRIDGE_URL, pin: BRIDGE_PIN }, dry).catch((e) => ({ ok: false, error: e instanceof Error ? e.message : String(e) } as { ok: boolean; error?: string; row?: number; added?: number; adding?: string[] }));
     if (dry) { plan.push({ lead: r.lead_name, row: res.row, adding: res.adding || (res.error ? [`✗ ${res.error}`] : []) }); continue; }

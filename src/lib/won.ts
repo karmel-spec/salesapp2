@@ -387,6 +387,15 @@ export async function ackToken(id: string, role: "admin" | "shop"): Promise<stri
  * by serial, else by the client's name; a piano with no Piano Log row yet is
  * retried by the daily WON sweep once its Coming Soon row is added. */
 export const SCOPE_DONE_RE = /^Shop notes on the piano card/;
+/** Mark reviews the card notes of the first 10 shop handoffs from 10/21 on
+ *  (training what techs need to see) — held here until he approves them. */
+export const SCOPE_REVIEW_RE = /^Shop notes waiting for Mark's review/;
+export const SCOPE_REVIEW_FROM = "2026-10-21T06:00:00Z";
+export const SCOPE_REVIEW_COUNT = 10;
+export async function scopeReviewNeeded(createdAt: string): Promise<boolean> {
+  const earlier = await listHandoffs(`select=id&branch=eq.shop&status=eq.sent&created_at=gte.${SCOPE_REVIEW_FROM}&created_at=lt.${encodeURIComponent(createdAt)}&limit=${SCOPE_REVIEW_COUNT}`);
+  return earlier.length < SCOPE_REVIEW_COUNT;
+}
 export function shopScopeLines(h: Handoff, createdAt?: string): { header: string; lines: string[] } {
   const lines: string[] = [];
   const svc = h.items.service?.note?.trim();
@@ -401,8 +410,11 @@ export async function pushShopScope(
   row: { id: string; lead_name: string; serial: string | null; piano: string | null; answers: Handoff; created_at?: string },
   bridge: { url: string; pin: string },
   dry = false,
+  override?: string[], // Mark's reviewed lines replace the handoff's own
 ): Promise<{ ok: boolean; skipped?: string; row?: number; added?: number; error?: string; adding?: string[] }> {
-  const { header, lines } = shopScopeLines(row.answers, row.created_at);
+  const built = shopScopeLines(row.answers, row.created_at);
+  const header = built.header;
+  const lines = override ? override.map((l) => l.trim()).filter(Boolean) : built.lines;
   if (!lines.length) return { ok: true, skipped: "nothing for the card" };
   if (!bridge.pin) return { ok: false, error: "BLP_BRIDGE_PIN is not set on the sales app" };
   const body = { pin: bridge.pin, action: "wonscope", serial: row.serial || row.answers.piano.serial || "", row: row.answers.piano.row || "",
