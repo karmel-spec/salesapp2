@@ -64,9 +64,10 @@ export default async () => {
     text = head + (uniq.length ? "\n\nPlease consider before approving:\n" + uniq.map((s, i) => `${i + 1}) ${s}`).join("\n") : "\n\nNo review flags found.") + "\n\nWeek at a glance: " + glance + "\n\nIf it looks ready, click Approve in the Planner (no PIN needed). — Claude";
     if (text.length > 1550) text = text.slice(0, 1540) + "…";
   }
-  const r1 = await notify("Brigham", text);
-  const r2 = await notify("Karmel", "📋 Copy of the Friday schedule status text just sent to Brigham:\n\n" + text);
-  try { await sheetAppend(REPORT_SHEET, "App Updates", [new Date().toISOString(), `📅 Friday schedule status texted to Brigham (copy Karmel): ${state}${r1.sent ? "" : " — TEXT FAILED: " + (r1.reason || "")}`, "Claude (Netlify scheduled)", "(log only)"]); } catch { /* log best-effort */ }
+  // Brigham 10/21: Karmel only — Brigham gets no automated texts
+  const r1 = await notify("Karmel", text);
+  const r2 = { sent: true, reason: "no copy — Karmel is the only recipient" };
+  try { await sheetAppend(REPORT_SHEET, "App Updates", [new Date().toISOString(), `📅 Friday schedule status texted to Karmel: ${state}${r1.sent ? "" : " — TEXT FAILED: " + (r1.reason || "")}`, "Claude (Netlify scheduled)", "(log only)"]); } catch { /* log best-effort */ }
   console.log("friday-approval-nudge", state, r1, r2);
   return new Response(JSON.stringify({ ok: true, state, brigham: r1, karmel: r2 }), { headers: { "content-type": "application/json" } });
 };

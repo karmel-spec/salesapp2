@@ -57,7 +57,7 @@ export default async () => {
   const verdict = missing.length ? `🔴 SCHEDULING NOT GO YET — missing: ${missing.join(", ")}. (The Planner falls back to their last week's report, so scheduling can still proceed if needed.)`
     : "🟢 SCHEDULING IS GO — all technician reports in.";
   const summary = `${verdict}\n\nWeek column: ${col >= 0 ? header[col] : "not created yet (expected " + labels[1] + ")"} · required: ${required.length}\nSubmitted: ${submitted.join(", ") || "—"}\nReminded tonight: ${reminded.join(", ") || "—"}${failed.length ? "\nCould not text: " + failed.join("; ") : ""}\n— Claude (Thursday sweep)`;
-  const b = await notify("Brigham", summary); const k = await notify("Karmel", summary);
+  const b = { sent: false, reason: "Brigham gets no automated texts (10/21)" }; const k = await notify("Karmel", summary);
   try { await sheetAppend(REPORT_SHEET, "App Updates", [new Date().toISOString(), `⏰ Thursday report sweep: ${missing.length ? "missing " + missing.join(", ") : "all in"}; reminded ${reminded.length}; verdict texted to Brigham + Karmel.`, "Claude (Netlify scheduled)", "(log only)"]); } catch { /* best-effort */ }
   console.log("thursday-report-sweep", { required, submitted, missing, reminded, failed, b, k });
   return new Response(JSON.stringify({ ok: true, required, submitted, missing, reminded, failed }), { headers: { "content-type": "application/json" } });

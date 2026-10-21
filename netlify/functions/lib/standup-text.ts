@@ -1,7 +1,7 @@
 /**
  * 7:50 AM standup text — the morning shop brief, condensed, to the managers.
  *
- * Mark, Brigham, Karmel, Matthew and Jacob get a short text ten minutes
+ * Mark, Karmel, Matthew and Jacob get a short text ten minutes
  * before the 8:00 standup: today's birthdays / anniversaries / new faces,
  * yesterday's clock leader, the safety minute, the standard of the day, and
  * a link to last night's full brief (already archived as a Google Doc).
@@ -30,7 +30,7 @@ const BRIDGE_URL =
 const TZ = "America/Denver";
 
 /** First names on the Tech Phones tab who get the standup text. */
-const RECIPIENTS = ["Mark", "Brigham", "Karmel", "Matthew", "Jacob"];
+const RECIPIENTS = ["Mark", "Karmel", "Matthew", "Jacob"];   // Brigham removed 10/21 (no automated texts)
 
 /* ---------- Google auth (same self-contained pattern as report-reminders) ---------- */
 let tokenCache: { token: string; exp: number } | null = null;

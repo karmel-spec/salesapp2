@@ -1,4 +1,4 @@
-/** Friday 5:00 PM Mountain: text Brigham his week in sales streaks. */
+/** Friday 5:00 PM Mountain: text Karmel the week in sales streaks (Brigham 10/21: not Brigham). */
 export const config = { schedule: "0 23 * * 5" };
 const SITE = process.env.URL || "https://blpsalesapp.netlify.app";
 const KEY = process.env.BLP_APP_ACCESS_KEY || "";
@@ -20,7 +20,7 @@ export default async () => {
       "Weekend doesn't count against you. See you Monday. 💪",
     ].filter(Boolean);
     const message = parts.join(" ").slice(0, 600);
-    const n = await fetch(`${SITE}/.netlify/functions/request-notify`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: KEY, name: "Brigham", message, now: true }) });
+    const n = await fetch(`${SITE}/.netlify/functions/request-notify`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: KEY, name: "Karmel", message, now: true }) });
     const out = await n.json().catch(() => ({}));
     console.log(`[friday-recap] ${message} → ${n.status} ${JSON.stringify(out).slice(0, 120)}`);
     return new Response(JSON.stringify({ ok: n.ok, message, out }), { status: 200, headers: { "content-type": "application/json" } });

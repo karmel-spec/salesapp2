@@ -22,7 +22,7 @@ export default async () => {
     const msg = `⏰ Mini-QC waiting ${">"}${escMin} min — ${q.phase} on ${(q.piano ? String(q.piano).trim() + " #" : "#") + q.serial} (requested by ${String(q.requested_by || "").split(" ")[0]}). Inspect: https://blpstoremap.netlify.app/#qc=${q.id}`;
     // during the training month (through 10/3) Brigham owns every mini-QC —
     // silence nudges him again and loops in Mark; afterwards Mark + Karmel
-    let escalateTo = ["Brigham", "Mark Hales"];
+    let escalateTo = ["Mark Hales"];   // Brigham 10/21: mini-QC texts go to Mark only
     try {
       const { loadSettings } = await import("./app-settings.mts");
       const st = (await loadSettings()).settings;
