@@ -316,9 +316,11 @@ function plan(action: string, p: Payload, sh: Sheet, rowNum: number, row: string
     }
     case "setscopenote": {
       const c = need("SCOPE NOTES"); if (!c) return null;
-      const val = s(p.value).trim().slice(0, 500);
+      const val = s(p.value).trim().slice(0, 4000); // 4000 (10/21) — same as the bridge
       const writes = [{ col: c, value: val }];
-      if (val) { const n = noteWrite(sh, row, who, "🧾 scope: " + val); if (!n) return null; writes.push(n); }
+      // only the typed part goes into 📝 Notes — pinned 📜 contract / 🏆 handoff lines ride along on every save
+      const typed = val.split("\n").filter((l) => !/^\s*(📜|🏆)/u.test(l)).join(" ").trim();
+      if (typed) { const n = noteWrite(sh, row, who, "🧾 scope: " + typed); if (!n) return null; writes.push(n); }
       return { writes, logs: [[who, "Scope of Work note", piano, val || "(cleared)"]], result: { ok: true, scopeNotes: val } };
     }
     case "setpaperwork": {

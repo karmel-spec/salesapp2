@@ -378,3 +378,37 @@ export async function ackToken(id: string, role: "admin" | "shop"): Promise<stri
   const secret = process.env.BLP_INTEGRATION_KEY || process.env.BLP_APP_ACCESS_KEY || "pianoman";
   return createHmac("sha256", secret).update(`${id}:${role}`).digest("hex").slice(0, 24);
 }
+
+/* ---- 🏆 shop notes → the piano's Scope of Work (Mark 10/21) ----
+ * A shop project's fix requests and piano note used to ride on a task-board
+ * card for the shop manager. Those are things the techs need while they work,
+ * so they now land on the piano's Store Map card instead (🧾 Scope of Work,
+ * pinned 🏆 lines in the Piano Log's SCOPE NOTES). The bridge finds the piano
+ * by serial, else by the client's name; a piano with no Piano Log row yet is
+ * retried by the daily WON sweep once its Coming Soon row is added. */
+export const SCOPE_DONE_RE = /^Shop notes on the piano card/;
+export function shopScopeLines(h: Handoff, createdAt?: string): { header: string; lines: string[] } {
+  const lines: string[] = [];
+  const svc = h.items.service?.note?.trim();
+  if (svc && !/^(none|n\/?a|nothing)( stated)?\.?$/i.test(svc)) lines.push(`Fix requests: ${svc}`);
+  const pn = h.piano.note?.trim();
+  if (pn) lines.push(`Piano note: ${pn}`);
+  const d = createdAt ? new Date(createdAt) : new Date();
+  const md = d.toLocaleDateString("en-US", { month: "numeric", day: "numeric", timeZone: "America/Denver" });
+  return { header: `From ${(h.closer || "the").trim()}${h.closer ? "'s" : ""} sale ${md}`, lines };
+}
+export async function pushShopScope(
+  row: { id: string; lead_name: string; serial: string | null; piano: string | null; answers: Handoff; created_at?: string },
+  bridge: { url: string; pin: string },
+  dry = false,
+): Promise<{ ok: boolean; skipped?: string; row?: number; added?: number; error?: string; adding?: string[] }> {
+  const { header, lines } = shopScopeLines(row.answers, row.created_at);
+  if (!lines.length) return { ok: true, skipped: "nothing for the card" };
+  if (!bridge.pin) return { ok: false, error: "BLP_BRIDGE_PIN is not set on the sales app" };
+  const body = { pin: bridge.pin, action: "wonscope", serial: row.serial || row.answers.piano.serial || "", row: row.answers.piano.row || "",
+    leadName: row.lead_name, pianoLabel: row.piano || row.answers.piano.label || "", header, lines, dryrun: dry };
+  const r = await fetch(bridge.url, { method: "POST", redirect: "follow", headers: { "content-type": "text/plain;charset=utf-8" }, body: JSON.stringify(body), signal: AbortSignal.timeout(20000) });
+  const j = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string; why?: string; row?: number; added?: number; adding?: string[] };
+  if (!j.ok) return { ok: false, error: j.why || j.error || `bridge ${r.status}` };
+  return { ok: true, row: j.row, added: j.added, adding: j.adding };
+}

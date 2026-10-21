@@ -174,7 +174,7 @@ function parseStoreMap(rows, today) {
       plateHwStatus: plateHwStatusIdx >= 0 ? col(plateHwStatusIdx).slice(0, 40) : '',
       plateFinish: plateFinishIdx >= 0 ? col(plateFinishIdx).slice(0, 30) : '',
       keytopMaterial: keytopMatIdx >= 0 ? col(keytopMatIdx).slice(0, 30) : '',
-      scopeNotes: scopeNotesIdx >= 0 ? col(scopeNotesIdx).slice(0, 500) : '',
+      scopeNotes: scopeNotesIdx >= 0 ? col(scopeNotesIdx).slice(0, 4000) : '',   // 4000 (10/21): contract blocks ran past 500 and a save wrote the cut text back
       crmClientId: crmIdIdx >= 0 ? col(crmIdIdx).trim() : '',
       keytopStatus: keytopIdx >= 0 ? col(keytopIdx).slice(0, 40) : '',
       importantNote: impNoteIdx >= 0 ? col(impNoteIdx).slice(0, 200) : '',

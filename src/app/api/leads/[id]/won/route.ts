@@ -5,7 +5,7 @@ import { config } from "@/lib/config";
 import { crmUpsertLead, crmNote } from "@/lib/crm";
 import { sendEmail } from "@/lib/comms";
 import { qboConfigured, findOrCreateCustomer, createInvoice } from "@/lib/qbo";
-import { type Handoff, type HandoffRow, renderHandoff, summarize, todos, handoffLines, diffHandoff, getHandoff, priceCents, newHandoffId, insertHandoff, patchHandoff, handoffsForLead, handoffStoreReady, ackToken, logHandoff, getDraft, deleteDraft } from "@/lib/won";
+import { type Handoff, type HandoffRow, renderHandoff, summarize, todos, handoffLines, diffHandoff, getHandoff, priceCents, newHandoffId, insertHandoff, patchHandoff, handoffsForLead, pushShopScope, handoffStoreReady, ackToken, logHandoff, getDraft, deleteDraft } from "@/lib/won";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 26;
@@ -139,9 +139,22 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       } catch (e) { warn(`Piano Log: ${e instanceof Error ? e.message : String(e)}`); }
     })());
 
-    // Shop manager's task board card with his to-dos (Store Map board, Supabase authority).
+    // Shop manager's task board card — SHOWROOM sales only now (QC, tune, pull
+    // from the floor are real to-dos with a finish). A shop project's fix
+    // requests and piano note go on the piano's Store Map card instead
+    // (🧾 Scope of Work), below; "Got it" already tracks that the shop has it
+    // (Mark 10/21).
     const t = todos(h);
-    if (t.shop.length && SB_URL && SB_KEY) jobs.push((async () => {
+    const hrow = row;
+    if (h.branch === "shop" && hrow) jobs.push((async () => {
+      try {
+        const res = await pushShopScope({ ...hrow, answers: h }, { url: BRIDGE_URL, pin: BRIDGE_PIN });
+        if (res.skipped) return;
+        if (res.ok) await logHandoff(hrow, `Shop notes on the piano card — Piano Log row ${res.row}${res.added ? ` (${res.added} line${res.added === 1 ? "" : "s"})` : " (already there)"}`);
+        else await logHandoff(hrow, `Shop notes waiting for the piano card: ${res.error}`, false);
+      } catch (e) { await logHandoff(hrow, `Shop notes waiting for the piano card: ${e instanceof Error ? e.message : String(e)}`, false); }
+    })());
+    if (h.branch !== "shop" && t.shop.length && SB_URL && SB_KEY) jobs.push((async () => {
       try {
         const nowIso = new Date().toISOString();
         const r = await fetch(`${SB_URL}/rest/v1/tb_cards`, { method: "POST", headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "content-type": "application/json", Prefer: "return=minimal" }, body: JSON.stringify({ id: "tc" + Date.now().toString(36) + Math.floor(Math.random() * 1e4), owner: SHOP_MANAGER, col: "todo", text: `WON ${h.branch === "shop" ? "shop project" : "showroom sale"}: ${lead.name}${h.piano.label ? ` — ${h.piano.label}` : ""}`, serial: h.piano.serial || "", due: "", from_who: h.closer, notes: t.shop.map((x) => `☐ ${x}`).join("\n") + (links.lead ? `\n\nSales App: ${links.lead}` : ""), ord: 0, created: nowIso, updated_at: nowIso }), signal: AbortSignal.timeout(8000) });

@@ -3,7 +3,10 @@ import { requireSession, jsonError } from "@/lib/api";
 import { config } from "@/lib/config";
 import { createLead, getLeads, appendTimeline } from "@/lib/leads";
 import { getPianos, findBySerial, describe } from "@/lib/pianolog";
-import { listHandoffs, patchHandoff, handoffStoreReady, logHandoff } from "@/lib/won";
+import { listHandoffs, patchHandoff, handoffStoreReady, logHandoff, pushShopScope, shopScopeLines, SCOPE_DONE_RE } from "@/lib/won";
+
+const BRIDGE_URL = process.env.BLP_BRIDGE_URL || "https://script.google.com/macros/s/AKfycbxY4BKnr_Tr0iCTc9itCWhNYLvgszmkI1IoYSkbBWpyAqRtWI-yaUkJQjcVdgG58KXt/exec";
+const BRIDGE_PIN = process.env.BLP_BRIDGE_PIN || "";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -24,8 +27,10 @@ export async function GET(req: NextRequest) {
   try {
     if (!handoffStoreReady()) return NextResponse.json({ checked: 0, reason: "store not configured" });
     const dry = req.nextUrl.searchParams.get("dry") === "1";
+    const scope = await scopeSweep(dry);
+    if (req.nextUrl.searchParams.get("only") === "scope") return NextResponse.json({ scope, dry });
     const rows = await listHandoffs(`branch=eq.shop&status=eq.sent&or=(arrived_at.is.null,and(upsell_followup.eq.true,upsell_triggered_at.is.null))&order=created_at.asc`);
-    if (!rows.length) return NextResponse.json({ checked: 0, triggered: [], arrived: [] });
+    if (!rows.length) return NextResponse.json({ checked: 0, triggered: [], arrived: [], scope });
     const pianos = await getPianos(true);
     const triggered: string[] = [], arrived: string[] = [];
     for (const r of rows) {
@@ -62,8 +67,30 @@ export async function GET(req: NextRequest) {
         if (nl) await appendTimeline(nl, fresh.shape, { at: new Date().toISOString(), who: "app", kind: "assign", text: `🔔 Shop project hit 50% — time for Brigham's update + upsell call (from WON handoff ${r.id}).` });
       } catch (e) { await logHandoff(r, `50% lead failed: ${e instanceof Error ? e.message : String(e)}`, false); }
     }
-    return NextResponse.json({ checked: rows.length, triggered, arrived, dry });
+    return NextResponse.json({ checked: rows.length, triggered, arrived, scope, dry });
   } catch (err) {
     return jsonError(err);
   }
+}
+
+/** 🏆 Shop notes → the piano's Scope of Work (Mark 10/21): every shop handoff
+ *  from the last 120 days whose fix requests / piano note aren't on the piano
+ *  card yet — the piano had no Piano Log row at send time, or the send-time
+ *  write failed. The bridge skips lines already on the card, so a retry is safe. */
+async function scopeSweep(dry: boolean) {
+  // handoffs before 10/21 were reviewed and written by hand (Mark 10/21 — some
+  // of their notes were record-keeping or client money, not shop info), so the
+  // sweep only picks up handoffs sent from then on
+  const since = new Date(Math.max(Date.now() - 120 * 86400e3, Date.parse("2026-10-21T06:00:00Z"))).toISOString();
+  const rows = await listHandoffs(`branch=eq.shop&status=eq.sent&created_at=gte.${since}&order=created_at.asc`);
+  const done: string[] = [], waiting: string[] = [], plan: { lead: string; row?: number; adding?: string[] }[] = [];
+  for (const r of rows) {
+    if ((r.log || []).some((l) => SCOPE_DONE_RE.test(l.text))) continue;
+    if (!shopScopeLines(r.answers, r.created_at).lines.length) continue;
+    const res = await pushShopScope(r, { url: BRIDGE_URL, pin: BRIDGE_PIN }, dry).catch((e) => ({ ok: false, error: e instanceof Error ? e.message : String(e) } as { ok: boolean; error?: string; row?: number; added?: number; adding?: string[] }));
+    if (dry) { plan.push({ lead: r.lead_name, row: res.row, adding: res.adding || (res.error ? [`✗ ${res.error}`] : []) }); continue; }
+    if (res.ok) { done.push(r.lead_name); await logHandoff(r, `Shop notes on the piano card — Piano Log row ${res.row}${res.added ? ` (${res.added} line${res.added === 1 ? "" : "s"})` : " (already there)"}`); }
+    else waiting.push(`${r.lead_name}: ${res.error}`);
+  }
+  return dry ? { checked: rows.length, plan } : { checked: rows.length, done, waiting };
 }
