@@ -4,7 +4,8 @@
  * Hourly rate (base wage) | Effective (yyyy-mm-dd) | Source | Note, plus one row
  * named BURDEN whose rate column is the employer-tax multiplier (0.079 = 7.9%).
  * Loaded $/h = base × (1 + burden); a person with several rows gets the latest
- * effective one. Anyone blank falls back to the blended rate typed in the board.
+ * effective one. A rate of 0 is real (unpaid intern); only a BLANK falls back to
+ * the blended rate typed in the board.
  *
  *   GET ?key=<app key> → {ok, rates: {"first name lowercased": 21.58, …}, burden}
  *
@@ -53,7 +54,7 @@ export default async (req: Request) => {
     for (const row of rows) {
       const name = String(row[0] || "").trim();
       const rate = parseFloat(String(row[1] || "").replace(/[^0-9.]/g, ""));
-      if (!name || !isFinite(rate) || rate <= 0) continue;
+      if (!name || !isFinite(rate) || rate < 0) continue;   // 0 = unpaid intern, a real rate (Brigham 10/20)
       if (name.toUpperCase() === "BURDEN") { burden = rate; continue; }
       const first = name.split(/\s+/)[0].toLowerCase();
       if (first.startsWith("—")) continue;
