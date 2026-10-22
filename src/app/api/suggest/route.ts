@@ -89,6 +89,18 @@ export async function POST(req: NextRequest) {
       `💡 <b>${who} filed a ${s.type}</b> for the ${app}:\n"${text.slice(0, 400)}"` +
         `${s.context ? `\n📄 ${s.context}` : ""}${screenshot ? `\n📷 ${screenshot}` : ""}\n<i>${s.id} — on the fix list.</i>`
     ).catch(() => {});
+    // 💡 from the Tuning Academy → a text to Karmel (Mark 10/22): she owns the
+    // Academy, and Telegram alone was easy to miss. Owners are exempt from
+    // quiet hours, so it arrives right away.
+    if (/tuning/i.test(app)) {
+      const msg = `💡 Tuning Academy ${s.type} from ${who}: "${text.slice(0, 300)}"` +
+        `${s.context ? ` (${s.context.slice(0, 80)})` : ""}${screenshot ? ` 📷 ${screenshot}` : ""} — ${s.id}`;
+      await fetch("https://blpsalesapp.netlify.app/.netlify/functions/request-notify", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ key: process.env.BLP_APP_ACCESS_KEY || "pianoman", name: process.env.TUNING_SUGGEST_TEXT_TO || "Karmel Larson", message: msg }),
+        signal: AbortSignal.timeout(8000),
+      }).catch(() => {});
+    }
     return NextResponse.json({ ok: true, id: s.id }, { headers });
   } catch (err) {
     const res = jsonError(err);
