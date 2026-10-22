@@ -177,7 +177,7 @@ export default async (req: Request) => {
         field: { type: "string", enum: ["bphoto", "bvideo", "aphoto", "avideo"], description: "for setmedia" },
         keys: { type: "string", description: "for setkeys: comma list from Ivory, Plastic, Ebony" },
         cabinetry: { type: "string", description: "for setcabinetry: shelf tokens like 8-3, 5-RF" },
-        tracks: { type: "array", items: { type: "string" }, description: "for settrack: from Rebuild, Hybrid, Refurbish, Refinish, Technology, Old Player, Storage, Misc" },
+        tracks: { type: "array", items: { type: "string" }, description: "for settrack: from Rebuild, Hybrid, Refurbish, Refinish, Technology, Player Rebuild, Storage, Misc" },
         phases_done: { type: "array", items: { type: "string" }, description: "for setdone: FULL new list of completed phase names" },
         price: { type: "string", description: "for setprice: digits only, no $ or commas (e.g. 12995)" },
         note: { type: "string", description: "for photo: what the picture is (e.g. QC worksheet)" },

@@ -71,7 +71,10 @@ const CARD_FIELDS: Record<string, { header: string; values: string[]; label: str
 const PLATE_HW_STATUSES = ["", "Needs buffing", "In buffing queue", "Buffing", "Buffed", "Installed"];
 const PLATE_STATUSES = ["", "In piano", "Removed", "Plate storage — BEFORE", "At Curtis Harper", "Plate storage — AFTER", "Back in piano"];
 const KEYTOP_STATES = ["Evaluate", "In Key Queue", "In Progress", "Done"];
-const TRACK_VALUES = ["Rebuild", "Hybrid", "Refurbish", "Refinish", "Technology", "Old Player", "Storage", "Misc"];
+const TRACK_VALUES = ["Rebuild", "Hybrid", "Refurbish", "Refinish", "Technology", "Player Rebuild", "Storage", "Misc"];   // Player Rebuild was Old Player (Mark 10/22)
+// older spellings still accepted, saved under the current name — same as the bridge's trackCanon_
+const trackCanon = (t: string) => /^(old\s*)?player(\s*rebuild)?$/i.test(t) ? "Player Rebuild"
+  : (TRACK_VALUES.find((k) => k.toLowerCase() === t.toLowerCase()) || t);
 const GOOGLE_CLIENT_ID = "110628682621-v65mkaoanv87sp75ggdfcrglfr7bkr8p.apps.googleusercontent.com";
 const TEAM_EMAILS = ["brighamlarson@gmail.com"];
 /* ------------------------------------------------------------------------- */
@@ -338,7 +341,7 @@ function plan(action: string, p: Payload, sh: Sheet, rowNum: number, row: string
       const c = need("TRACK"); if (!c) return null;
       const tracks: string[] = [];
       for (const t0 of Array.isArray(p.tracks) ? (p.tracks as unknown[]) : []) {
-        const t = s(t0).trim();
+        const t = trackCanon(s(t0).trim());
         if (TRACK_VALUES.includes(t) && !tracks.includes(t)) tracks.push(t);
       }
       const prev = cur(c);
