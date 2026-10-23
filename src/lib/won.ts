@@ -137,6 +137,8 @@ export function todos(h: Handoff): { admin: string[]; shop: string[] } {
   if (h.branch === "shop") {
     shop.push(`Piano coming for shop work${h.piano.label ? `: ${h.piano.label}` : ""}${h.piano.serial ? ` (serial ${h.piano.serial})` : " (serial not obtained yet)"} — watch for the pickup`);
     admin.push("Send the Client Portal welcome email (drafted in the portal outbox)");
+    // Melissa 10/22 (SG-2CB9F8): the tag was getting missed
+    admin.push("Print the shop tag once the piano is on the Store Map with its serial (card → 🖨 Shop tag), then tick “Plan Entered to Shop Tag & Printed”");
     if (h.upsellAt50) admin.push("At 50% complete: Brigham's upsell call lands in his Top Ten automatically — confirm the Store Map phase is kept current");
   } else {
     shop.push(`Pull ${h.piano.label || "the sold piano"}${h.piano.serial ? ` (serial ${h.piano.serial})` : ""} from the floor when delivery is set`);
