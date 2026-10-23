@@ -198,7 +198,8 @@ export async function generateDraftsViaApi(lead: Lead): Promise<{
       "emails link [grab a time on Brigham's calendar](https://calendly.com/BrighamLarson); in texts say " +
       "'you can grab a time with Brigham at calendly.com/BrighamLarson'. Especially: whenever the draft's " +
       "closing question is an offer to talk ('want to talk it through?', 'should we discuss?'), include the " +
-      "Calendly link as the easy way to say yes.",
+      "Calendly link as the easy way to say yes. Our new keytops are ACRYLIC — always say acrylic keytops, " +
+      "never plastic, even when the lead's notes say plastic.",
     messages: [
       {
         role: "user",
