@@ -144,6 +144,7 @@ export default async (req: Request) => {
       // out of output room on a big week — Mark's notes came back "malformed" twice.
       // Only the touched techs come back now; everything else is kept as it is.
       changed_techs: { type: "array", items: { type: "object" }, description: "Every technician you changed, each as the COMPLETE tech object exactly as in the input plan (name, hours, who, days = 5 arrays of [start,end,kind,title,note], and any other fields it had). Omit technicians you did not change — they are kept as they are." },
+      cleared_techs: { type: "array", items: { type: "string" }, description: "Technicians whose WHOLE week is cleared because a note says they are out / on vacation / 'clear his week' / 'do not schedule her this week' — their names exactly as in the plan. Each must ALSO appear in changed_techs with days = five empty arrays." },
       bottlenecks: { type: "array", items: { type: "array", items: { type: "string" } }, description: "ONLY if you changed the bottlenecks: the complete new list of [title, body] pairs. Omit to keep the current list." },
       reportOverrides: { type: "array", items: { type: "string" }, description: "ONLY if you changed them: the complete new reportOverrides list. Omit to keep the current one." },
       changes: { type: "array", items: { type: "string" }, description: "Plain-English list of every adjustment made" },
@@ -171,6 +172,12 @@ export default async (req: Request) => {
     + "that assignment, not just the first). Separate several lines inside one segment with ' / '. Never put ']' inside "
     + "the segment. Your own remarks (NEW, per Brigham's note, day counts) go after the segment, outside the brackets. "
     + "Only use [CAL: …] for words a note asked to put on the calendar. "
+    + "TECHNICIAN OUT (Mark 10/23 — standing rule): when a note says a technician is out, on vacation, 'out all week', "
+    + "'clear his/her week', or 'do not schedule him/her this week', that technician gets NO work that week: put the name in "
+    + "cleared_techs AND return the tech in changed_techs with days = five empty arrays [[],[],[],[],[]], hours '' and "
+    + "who = 'OUT this week — <the reason as given>'. Never leave a carried-forward lane on a tech who is out, and never "
+    + "move their work onto another tech unless the note says who takes it. This applies in every later run too: a tech "
+    + "already marked OUT stays empty until a note says they are back. "
     + "PLATES (Scheduling Rule 94): a piano listed under PLATES NOT READY has its plate out and not yet refinished — never "
     + "schedule its Restringing (or any stringing) until the card says Plate storage — AFTER or Back in piano; give that tech "
     + "other work instead and say so in changes. If a note asks for it anyway, keep the block and add a question. Approve "
@@ -232,6 +239,30 @@ export default async (req: Request) => {
     }
     if (Array.isArray(out.bottlenecks)) merged.bottlenecks = out.bottlenecks;
     if (Array.isArray(out.reportOverrides)) merged.reportOverrides = out.reportOverrides;
+    // TECH OUT (Mark 10/23): the model's "removed Ricardo entirely" never
+    // reached the plan — it narrated the removal in `changes` but returned
+    // no empty tech, so the merge kept his old days. Clear every tech named
+    // in cleared_techs, and any tech the change log says is out / cleared /
+    // removed, and say so in the change log.
+    const blocksOf = (t: any) => (Array.isArray(t.days) ? t.days : []).reduce((n: number, d: any) => n + (Array.isArray(d) ? d.length : 0), 0);
+    const clearTech = (t: any, why: string) => {
+      const had = blocksOf(t);
+      t.days = [[], [], [], [], []]; t.hours = "";
+      if (!/^\s*out\b/i.test(String(t.who || ""))) t.who = "OUT this week — " + why;
+      return had;
+    };
+    const OUT_RE = /\b(out all week|out this week|on vacation|cleared (?:his|her|their) week|clear(?:ed)? (?:the )?week|removed (?:him|her|them )?(?:entirely|from (?:his|her|their) schedule|from the schedule)|no work (?:is )?scheduled|not scheduled this week|do not schedule)\b/i;
+    const changes: string[] = Array.isArray(out.changes) ? out.changes.map((c: any) => String(c)) : [];
+    const named = new Set((Array.isArray(out.cleared_techs) ? out.cleared_techs : []).map(key));
+    for (const t of merged.techs) {
+      const k = key(t.name), f = first(t.name);
+      const listed = named.has(k) || [...named].some((n) => n.split(/\s+/)[0] === f);
+      const narrated = changes.some((c) => OUT_RE.test(c) && new RegExp("\\b" + f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i").test(c));
+      if (!listed && !narrated) continue;
+      const had = clearTech(t, listed ? "per the note" : "per the note (the change log said so)");
+      if (had) changes.push(`${t.name}: cleared ${had} remaining block${had === 1 ? "" : "s"} — the week is empty (technician out).`);
+    }
+    out.changes = changes;
     out.plan = merged;
   }
   // The model sometimes returns `plan` as a JSON STRING instead of an object
