@@ -92,6 +92,32 @@ async function appendRules(rules: string[], by: string) {
     { values: rules.map(r => [denverStamp(), r, by]) });
 }
 
+/* Approved time off for the plan week (Mark 10/23): the bridge's fn=timeoffrows
+ * (status approved), keyed by first name. A whole day → that day index (Mon=0)
+ * is cleared after the merge; a partial day (a Times value) is listed only. */
+async function approvedTimeOff(plan: any): Promise<{ text: string; days: Record<string, Set<number>> }> {
+  const ws = String(plan?.weekStart || "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ws)) return { text: "", days: {} };
+  const r = await fetch(BRIDGE + "?fn=timeoffrows&_=" + Date.now(), { redirect: "follow", signal: AbortSignal.timeout(30000) });
+  const j = (await r.json()) as { rows?: { who: string; start: string; end: string; times: string; status: string }[] };
+  const dayYmd: string[] = []; const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  for (let i = 0; i < 7; i++) { const d = new Date(ws + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + i); dayYmd.push(d.toISOString().slice(0, 10)); }
+  const days: Record<string, Set<number>> = {}; const lines: string[] = [];
+  for (const row of j.rows || []) {
+    if (!/^approved/i.test(String(row.status || ""))) continue;
+    const s = String(row.start || ""), e0 = String(row.end || ""), e = /^\d{4}-\d{2}-\d{2}$/.test(e0) ? e0 : s;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) continue;
+    const idx = dayYmd.map((y, i) => (y >= s && y <= e ? i : -1)).filter(i => i >= 0);
+    if (!idx.length) continue;
+    const who = String(row.who || "").trim(), k = who.toLowerCase().split(/\s+/)[0];
+    const times = String(row.times || "").trim();
+    const label = idx.map(i => DOW[i] + " " + Number(dayYmd[i].slice(5, 7)) + "/" + Number(dayYmd[i].slice(8, 10))).join(", ");
+    lines.push(`${who}: ${label} — ${times || "all day"}`);
+    if (!times) { days[k] = days[k] || new Set(); idx.filter(i => i < 5).forEach(i => days[k].add(i)); }
+  }
+  return { text: lines.join("\n"), days };
+}
+
 export default async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("", { headers: CORS });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
@@ -130,6 +156,8 @@ export default async (req: Request) => {
   const reports = await readWeekReports().catch(() => null);
   const plateHolds = await plateHoldText();
   const tuneQueue = await tuningQueueText();
+  // approved time off for the plan week (Mark 10/23) — from the Time Off requests
+  const timeOff = await approvedTimeOff(plan).catch(() => ({ text: "", days: {} as Record<string, Set<number>> }));
   const notesTxt = Object.entries(body.notes || {})
     .filter(([, v]) => String(v || "").trim())
     .map(([k, v]) => `${k}: ${String(v).trim()}`).join("\n");
@@ -172,6 +200,8 @@ export default async (req: Request) => {
     + "that assignment, not just the first). Separate several lines inside one segment with ' / '. Never put ']' inside "
     + "the segment. Your own remarks (NEW, per Brigham's note, day counts) go after the segment, outside the brackets. "
     + "Only use [CAL: …] for words a note asked to put on the calendar. "
+    + "APPROVED TIME OFF (Mark 10/23): the APPROVED TIME OFF list below is binding — a technician's whole day off stays "
+    + "empty whatever the notes or carried-forward lanes say, and a partial day gets no blocks in the stated hours. "
     + "TECHNICIAN OUT (Mark 10/23 — standing rule): when a note says a technician is out, on vacation, 'out all week', "
     + "'clear his/her week', or 'do not schedule him/her this week', that technician gets NO work that week: put the name in "
     + "cleared_techs AND return the tech in changed_techs with days = five empty arrays [[],[],[],[],[]], hours '' and "
@@ -209,6 +239,7 @@ export default async (req: Request) => {
     + reportsTxt
     + (tuneQueue ? `TUNING QUEUE (marked Needs tuning on the Showroom Tuning Check, not booked yet, in order):\n${tuneQueue}\n\n` : "")
     + (plateHolds ? `PLATES NOT READY (plate out, not yet refinished — do not schedule stringing):\n${plateHolds}\n\n` : "")
+    + (timeOff.text ? `APPROVED TIME OFF (from the Time Off requests — schedule NOTHING for that technician on a whole day off; on a partial day leave the stated hours empty):\n${timeOff.text}\n\n` : "")
     + `BRIGHAM'S NOTES THIS WEEK:\n${globalTxt ? "GLOBAL: " + globalTxt + "\n" : ""}${notesTxt}\n\n`
     + `CURRENT PLAN JSON:\n${JSON.stringify(plan)}`;
 
@@ -261,6 +292,14 @@ export default async (req: Request) => {
       if (!listed && !narrated) continue;
       const had = clearTech(t, listed ? "per the note" : "per the note (the change log said so)");
       if (had) changes.push(`${t.name}: cleared ${had} remaining block${had === 1 ? "" : "s"} — the week is empty (technician out).`);
+    }
+    // approved whole days off are binding (Mark 10/23): empty them whatever the model did
+    for (const t of merged.techs) {
+      const offDays = timeOff.days[first(t.name)];
+      if (!offDays || !Array.isArray(t.days)) continue;
+      let cleared = 0;
+      for (const di of offDays) { if (Array.isArray(t.days[di]) && t.days[di].length) { cleared += t.days[di].length; t.days[di] = []; } }
+      if (cleared) changes.push(`${t.name}: cleared ${cleared} block${cleared === 1 ? "" : "s"} on approved time off (${[...offDays].sort().map(d => ["Mon", "Tue", "Wed", "Thu", "Fri"][d]).join(", ")}).`);
     }
     out.changes = changes;
     out.plan = merged;
