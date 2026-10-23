@@ -5,6 +5,21 @@ import { notifyTelegram } from "@/lib/arnold";
 import { jsonError } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Every shared-widget request is also filed in the Store Map's "Requests" tab
+ * (Store Map → Admin → 💡 App Requests), which is where Brigham and Karmel
+ * review app feedback (Karmel 10/23). Best-effort; the App Suggestions tab
+ * stays the primary record.
+ */
+const STOREMAP_BRIDGE = process.env.STOREMAP_BRIDGE_URL || "https://script.google.com/macros/s/AKfycbxY4BKnr_Tr0iCTc9itCWhNYLvgszmkI1IoYSkbBWpyAqRtWI-yaUkJQjcVdgG58KXt/exec";
+async function forwardToStoreMap(s: { id: string; app: string; who: string; type: string; text: string; context?: string; screenshot?: string }): Promise<void> {
+  try {
+    await fetch(STOREMAP_BRIDGE, { method: "POST", redirect: "follow", headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ pin: process.env.STOREMAP_BRIDGE_PIN || "pianoman", action: "suggest", type: s.type, text: s.text, app: s.app, user: { name: s.who },
+        context: `app: ${s.app}${s.context ? ` · ${s.context}` : ""} · via 💡 widget ${s.id}`, screenshotUrl: s.screenshot || "" }) });
+  } catch { /* best-effort */ }
+}
 export const maxDuration = 60;
 
 /**
@@ -85,6 +100,7 @@ export async function POST(req: NextRequest) {
     }
 
     const s = await addSuggestion({ app, who, type: input.type || "idea", text, context: input.context, screenshot });
+    await forwardToStoreMap({ id: s.id, app, who, type: s.type, text, context: input.context, screenshot });
     notifyTelegram(
       `💡 <b>${who} filed a ${s.type}</b> for the ${app}:\n"${text.slice(0, 400)}"` +
         `${s.context ? `\n📄 ${s.context}` : ""}${screenshot ? `\n📷 ${screenshot}` : ""}\n<i>${s.id} — on the fix list.</i>`
