@@ -193,13 +193,24 @@ export default async (req: Request) => {
     // Walter 10/13: Garrett's "add this note to calendar event" text was reworded,
     // fused into a "NEW per Brigham's note" sentence the calendar filter drops, and
     // put on Wednesday only — the bridge passes [CAL: …] through verbatim.
-    + "CALENDAR NOTES: when a note asks for words to appear on the calendar ('add this note to the calendar event', "
-    + "'call out in calendar', 'add to calendar descriptions', 'put on his events', and the like), copy those words EXACTLY "
-    + "as written — same wording, spelling, capitalization and order; no paraphrase, no attribution, no added conditions — "
-    + "into a segment [CAL: the exact words] at the very START of the note of EVERY block that note covers (every day of "
-    + "that assignment, not just the first). Separate several lines inside one segment with ' / '. Never put ']' inside "
-    + "the segment. Your own remarks (NEW, per Brigham's note, day counts) go after the segment, outside the brackets. "
-    + "Only use [CAL: …] for words a note asked to put on the calendar. "
+    // Mark 10/26: the [CAL: …] segment is the technician's calendar text —
+    // the piano work only, second person; reasoning stays outside it
+    + "CALENDAR NOTES (Mark 10/26 — standing rule): a block note's [CAL: …] segment, at the very START of the note, is the "
+    + "technician's calendar text; your reasoning for the managers goes after it, outside the brackets. (a) When a note asks "
+    + "for words to appear on the calendar ('add this note to the calendar event', 'call out in calendar', 'add to calendar "
+    + "descriptions', 'put on his events', and the like), copy those words EXACTLY as written — same wording, spelling, "
+    + "capitalization and order; no paraphrase, no attribution, no added conditions — into the segment of EVERY block that "
+    + "note covers (every day of that assignment, not just the first). (b) Otherwise, when you write or change a block, give it "
+    + "a segment only if the technician needs something for the PIANO WORK in it: what to do or check, next steps, a known "
+    + "problem and how to fix it, parts they're waiting on or that arrived, a client's request about the piano. Write it TO the "
+    + "technician, second person / imperative: 'Next steps: finish the let-off', 'Waiting on #9 bridge pins', 'Bush the pedal "
+    + "rod hole with felt' — never he/she/his/her/they or the technician's name. NEVER in the segment: anything about the "
+    + "schedule (times, days, dates, end times, days off, field bookings, 'full shop day', open slots, who else covers what, "
+    + "reassignments, deadlines or pacing); anything private (health, personal matters, comments on progress or performance, "
+    + "payment status, client contact details); anything written for the managers rather than the technician — why the block "
+    + "is here, card or scope-note status ('That closes the card's \"CAP stays open - waiting for new whippens\" scope note, "
+    + "so the CAP can actually finish' is for Mark, not Avery), report echoes, queue ranks, 'continuing'; the make/serial or spot (the title and location carry them). Nothing piano-specific "
+    + "to say → no segment. Separate several lines inside one segment with ' / '. Never put ']' inside the segment. "
     + "APPROVED TIME OFF (Mark 10/23): the APPROVED TIME OFF list below is binding — a technician's whole day off stays "
     + "empty whatever the notes or carried-forward lanes say, and a partial day gets no blocks in the stated hours. "
     + "TECHNICIAN OUT (Mark 10/23 — standing rule): when a note says a technician is out, on vacation, 'out all week', "
