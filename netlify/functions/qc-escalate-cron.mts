@@ -18,8 +18,15 @@ export default async () => {
   const rows = (await (await fetch(
     `${SB}/rest/v1/qc_requests?status=eq.pending&escalated=eq.false&created=lt.${encodeURIComponent(cutoff)}`,
     { headers: h })).json()) as Array<{ id: number; serial: string; piano: string; phase: string; requested_by: string }>;
+  let prsbFirst = "Matthew Wessman";
+  try {
+    const { loadSettings } = await import("./app-settings.mts");
+    prsbFirst = (await loadSettings()).settings.qc_inspector_prsb || prsbFirst;
+  } catch { /* default */ }
   for (const q of rows) {
-    const msg = `⏰ Mini-QC waiting ${">"}${escMin} min — ${q.phase} on ${(q.piano ? String(q.piano).trim() + " #" : "#") + q.serial} (requested by ${String(q.requested_by || "").split(" ")[0]}). Inspect: https://blpstoremap.netlify.app/#qc=${q.id}`;
+    // PRSB requests texted Matthew first (Mark 10/27) — say so in the escalation
+    const firstTo = /^PRSB/i.test(q.phase) ? ` — first text went to ${prsbFirst.split(" ")[0]}` : "";
+    const msg = `⏰ Mini-QC waiting ${">"}${escMin} min — ${q.phase} on ${(q.piano ? String(q.piano).trim() + " #" : "#") + q.serial} (requested by ${String(q.requested_by || "").split(" ")[0]}${firstTo}). Inspect: https://blpstoremap.netlify.app/#qc=${q.id}`;
     // during the training month (through 10/3) Brigham owns every mini-QC —
     // silence nudges him again and loops in Mark; afterwards Mark + Karmel
     let escalateTo = ["Mark Hales"];   // Brigham 10/21: mini-QC texts go to Mark only

@@ -184,10 +184,13 @@ export default async (req: Request) => {
     // can video the inspection for the training library. After 10/3 requests
     // go back to the shop manager.
     // inspector + video-copy + escalation window come from the Settings page
+    // PRSB requests (both halves, and the retired PRSBa/PRSBb names) text
+    // Matthew first (Mark 10/27); escalation still goes to qc_escalate_to
     let inspector = "Mark Hales", videoCopy = "", escMin = "30";
     try {
       const st = (await loadSettings()).settings;
       inspector = st.qc_inspector || inspector;
+      if (/^PRSB/i.test(String(p.phase))) inspector = st.qc_inspector_prsb || "Matthew Wessman";
       videoCopy = st.qc_video_copy || "";
       escMin = st.qc_escalate_minutes || escMin;
     } catch { /* defaults */ }
