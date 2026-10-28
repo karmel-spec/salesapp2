@@ -247,6 +247,9 @@ export default async (req: Request) => {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ relayKey: APP_KEY, pin: String(p.pin || "pianoman"), action: "setphase",
           serial: q.serial, phase: q.next_phase,
+          // owner update (Brigham 10/28): the bridge passes this flag to the Client Portal, which drafts
+          // the "<phase> complete" email with this phase's team photos into info@ Drafts
+          miniQcPassed: true, qcManager: String(p.manager || ""), qcNote: genNote,
           user: { name: (p.manager || "Manager") + " (mini-QC pass)", email: "" } }),
       }).catch(() => {});
       await textByName(q.requested_by,
