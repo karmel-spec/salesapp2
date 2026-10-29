@@ -25,6 +25,14 @@ export const config = {
   arnoldWebhookSecret: process.env.ARNOLD_WEBHOOK_SECRET || "", // HMAC shared secret
   arnoldDraftKey: process.env.BLP_ARNOLD_ACCESS_KEY || "", // draft-only key Arnold uses to call US
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || "", // @arnoldlarsonbot token (for team notifications)
+
+  // Grok Bot admin team (Brigham 10/29): each bot gets its own sign-in link
+  // (/api/auth/bot?token=…) and the same token works as an x-blp-key on every
+  // API. Tokens derive from BLP_BOT_SECRET + the bot's name, so rotating the
+  // secret signs every bot out; removing a name from BLP_BOTS revokes one bot.
+  botSecret: process.env.BLP_BOT_SECRET || "",
+  bots: (process.env.BLP_BOTS || "ila,liv,callie,melody,ivory,moe,arnold,marcus,clarence,lindsay")
+    .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
   telegramChatId: process.env.TELEGRAM_CHAT_ID || "", // sales team chat/group id
 
   // Outbound comms

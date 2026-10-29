@@ -234,6 +234,14 @@ export default function SettingsPage() {
 
       <TeamCard />
 
+      <div className="card" style={{ marginBottom: 18 }}>
+        <h2>Bot access</h2>
+        <p className="sub" style={{ margin: "6px 0 10px" }}>
+          One-click sign-in links and API keys for the Grok Bot admin team (Ila, Liv, Callie, Melody, Ivory, Moe, Arnold, Marcus, Clarence, Lindsay). Owners only.
+        </p>
+        <a className="btn" href="/bots">Open bot access</a>
+      </div>
+
       <BackupsCard />
 
       <div className="card" style={{ marginBottom: 18 }}>

@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isValidSession, SESSION_COOKIE } from "./auth";
+import { isValidSession, SESSION_COOKIE, botFromRequest } from "./auth";
 
-/** Session guard for API routes. Returns a 401 response, or null if OK. */
+/** Session guard for API routes. Returns a 401 response, or null if OK.
+ *  Accepts the team/Google/bot session cookie, or a Grok Bot's token as
+ *  x-blp-key / Authorization: Bearer (Brigham 10/29 — the bot admin team
+ *  works the API without a browser). */
 export function requireSession(req: NextRequest): NextResponse | null {
   if (isValidSession(req.cookies.get(SESSION_COOKIE)?.value)) return null;
+  if (botFromRequest(req)) return null;
   return NextResponse.json({ error: "Unauthorized — sign in with the team passcode" }, { status: 401 });
 }
 
