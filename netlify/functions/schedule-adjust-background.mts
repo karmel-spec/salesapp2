@@ -214,6 +214,13 @@ export default async (req: Request) => {
     + "so the CAP can actually finish' is for Mark, not Avery), twin-check / duplicate-serial notes ('also on the TWIN CHECK list "
     + "… distinguish by serial'), report echoes, queue ranks, 'continuing'; the make/serial or spot (the title and location carry them). Nothing piano-specific "
     + "to say → no segment. Separate several lines inside one segment with ' / '. Never put ']' inside the segment. "
+    // Mark 10/29 (Melissa 102626terry10): Chickering 80147 got a "pre-delivery QC" the day
+    // before it went to Barrus Pianos to have its QRS INSTALLED — the move was read as a delivery
+    + "OUTSIDE-SHOP TRIPS ARE NOT DELIVERIES (Mark 10/29 — standing rule): a moving-calendar trip that takes a piano TO an "
+    + "outside shop or specialist — Barrus Pianos, David Hyde, Curtis Harper (plating), a QRS or player installer — is not a "
+    + "delivery, even when the piano is sold: it gets NO pre-delivery tuning or QC before that trip. Outside work (QRS / "
+    + "player installs above all) is checked AFTER the piano comes back: schedule its QC once the return is on the moving "
+    + "calendar, before the trip to the customer. A Piano Log note like 'we are putting a QRS on' means the QRS is NOT on yet. "
     + "APPROVED TIME OFF (Mark 10/23): the APPROVED TIME OFF list below is binding — a technician's whole day off stays "
     + "empty whatever the notes or carried-forward lanes say, and a partial day gets no blocks in the stated hours. "
     + "TECHNICIAN OUT (Mark 10/23 — standing rule): when a note says a technician is out, on vacation, 'out all week', "
