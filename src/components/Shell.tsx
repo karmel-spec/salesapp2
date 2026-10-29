@@ -12,6 +12,8 @@ const NAV: { href: string; label: string; sub?: boolean; boardKey?: string; grou
   { href: "/bl-inbox", label: "BL Client Responses" },
   { href: "/bl-leads", label: "BL Leads" },
   { href: "/leads", label: "Leads" },
+  // the lead map was only a BLP Apps tile and nobody found it (Melissa 10/22, 102326melissa18)
+  { href: "/map", label: "US Sales Map" },
   { href: "/inbox", label: "Sales Responses" },
   // New Inquiries splits into three sub-inboxes whose counts add up to it.
   { href: "/new-inquiries", label: "SalesCaptain", group: "inquiries" },
