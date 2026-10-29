@@ -31,8 +31,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           data-agents-by-user="brigham:clara,arnold,chris|brighamlarson:clara,arnold,chris|karmel:lindsay,melody,carla|lisa:ivory,melody,arnold|melissa:melody,chris,carla|susie:lindsay,chris,melody|alisa:marcus"
           data-dock="#blp-dock"
         />
-        {/* Shared 💡 suggestion box (same widget every BLP app embeds). */}
-        <script src="/suggest.js" defer data-app="Sales App" data-who-key="blp_rep_name" data-dock="#blp-dock" />
+        {/* BLP 💡 lightbulb: requests file into the one Requests list behind the Store Map
+            bridge, tagged Sales App; admins also get the App Requests panel (/api/lightbulb). */}
+        <script
+          src="https://blpstoremap.netlify.app/lightbulb.js"
+          defer
+          data-app="Sales App"
+          data-session="/api/lightbulb"
+          data-who-key="blp_rep_name"
+          data-dock="#blp-dock"
+        />
       </body>
     </html>
   );
