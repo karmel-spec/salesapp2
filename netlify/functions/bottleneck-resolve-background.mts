@@ -171,7 +171,11 @@ export default async (req: Request) => {
     + "NEVER set a phase of \"Delivered\" or \"Sold\" — those take a piano off the map and a human must do "
     + "them. If an answer says a piano was delivered or sold, put it in followups instead. "
     + "Use action \"note\" with a `note` field to record an instruction or status on a piano's card. "
-    + "Answers that state lasting policy go in rules_extracted.";
+    + "Answers that state lasting policy go in rules_extracted. "
+    + "YOU CANNOT CHANGE ANYONE'S SCHEDULE (Mark 10/30): when an answer says to assign / reassign / schedule / move a "
+    + "technician (\"assign her to Schaeffer 23910 - Restring\"), do NOT claim it as an action — add a followup worded "
+    + "exactly \"Add a schedule note — <Tech>: <what to schedule>\" so the manager runs it through Apply adjustments. "
+    + "A card action's `why` says what that card action does, never the schedule change.";
   const userMsg = "BOTTLENECKS AND BRIGHAM'S ANSWERS:\n"
     + items.map((i: any) => `• ${i.title}\n  Context: ${i.body}\n  ANSWER: ${i.answer}`).join("\n\n")
     + `\n\nPIANO LIST:\n${roster}`;
@@ -209,7 +213,10 @@ export default async (req: Request) => {
       ? await bridge({ action: "setscopenote", serial, row: p.row, user, value: String(a.note || "").slice(0, 500) })
       : await bridge({ action, serial, row: p.row, user, ...rest });
     const ok = j.ok || j.moved;
-    executed.push(`${ok ? "✓" : "✗"} ${why || action + " " + serial}${ok ? "" : ": " + (j.error || "failed")}`);
+    // name the card action itself (Mark 10/30): "✓ Reassignment of Lupita per answer" was a
+    // card note, and read as if her schedule had moved
+    const did = action === "note" ? `card note on ${serial}` : action === "setphase" ? `phase ${serial} → ${a.phase}` : `${action} ${serial}`;
+    executed.push(`${ok ? "✓" : "✗"} ${did}${why ? " — " + why : ""}${ok ? "" : ": " + (j.error || "failed")}`);
     await new Promise(r => setTimeout(r, 350));
   }
 
