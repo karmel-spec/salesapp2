@@ -96,39 +96,6 @@ export async function plateHoldText(): Promise<string> {
   } catch { return ""; }
 }
 
-/** Live card phases for every piano the plan schedules (Mark 10/30). The adjust
- * job only ever saw the plan's own notes, so a stale draft line ("her report
- * says continue next week, so the body wins") kept Lupita on Steinway 160095
- * Mon–Thu after the restring was done — her report had been corrected and the
- * card had moved on to Chip Tuning. One line per piano:
- * "Steinway 160095 — card phase: Chip Tuning · plan: Lupita Restringing (Mon, Tue, Wed, Thu)". "" if unreadable. */
-export async function cardPhaseText(plan: any): Promise<string> {
-  try {
-    const r = await fetch("https://blpstoremap.netlify.app/api/data", { signal: AbortSignal.timeout(20000) });
-    const d = await r.json() as { pianos?: { make?: string; serial?: string; phase?: string; active?: boolean }[] };
-    const pianos = (d.pianos || []).filter(p => p.active && String(p.serial || "").trim().length >= 4);
-    const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
-    const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const hits = new Map<string, { p: any; uses: Map<string, Set<string>> }>();
-    for (const t of (plan?.techs || [])) {
-      (t.days || []).forEach((day: any[], di: number) => (day || []).forEach((b: any[]) => {
-        const title = String((b || [])[3] || "");
-        if (!title) return;
-        for (const p of pianos) {
-          const sn = String(p.serial).trim();
-          if (!new RegExp(`(^|[^A-Za-z0-9])${esc(sn)}([^A-Za-z0-9]|$)`, "i").test(title)) continue;
-          const h = hits.get(sn) || { p, uses: new Map() };
-          const what = `${String(t.name || "").split(/\s+/)[0]} ${title.replace(/^.*?\s[-–—]\s/, "")}`;
-          (h.uses.get(what) || h.uses.set(what, new Set()).get(what)!).add(DAYS[di] || "");
-          hits.set(sn, h);
-        }
-      }));
-    }
-    return [...hits.entries()].map(([sn, h]) => `${String(h.p.make || "").trim()} ${sn} — card phase: ${h.p.phase || "(none)"} · plan: `
-      + [...h.uses.entries()].map(([w, ds]) => `${w} (${[...ds].join(", ")})`).join("; ")).join("\n");
-  } catch { return ""; }
-}
-
 /** The Tuning Queue (Walter 10/14): pianos Korban marked "Needs tuning" on the
  * Showroom Tuning Check that nobody has booked — computed by the Store Map's
  * /api/data (tuningQueue), ⚡ ASAP first, then walk order. They fill Korban's

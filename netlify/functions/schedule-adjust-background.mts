@@ -18,7 +18,7 @@
 import * as crypto from "node:crypto";
 import { getStore } from "@netlify/blobs";
 import { logAdjustment, denverStamp } from "./lib/adjust-log";
-import { normalizeBottlenecks, plateHoldText, tuningQueueText, cardPhaseText } from "./_blp-sched-lib.mts";
+import { normalizeBottlenecks, plateHoldText, tuningQueueText } from "./_blp-sched-lib.mts";
 
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
 const RULES_TAB = "Scheduling Rules";
@@ -156,7 +156,6 @@ export default async (req: Request) => {
   const reports = await readWeekReports().catch(() => null);
   const plateHolds = await plateHoldText();
   const tuneQueue = await tuningQueueText();
-  const cardPhases = await cardPhaseText(plan);
   // approved time off for the plan week (Mark 10/23) — from the Time Off requests
   const timeOff = await approvedTimeOff(plan).catch(() => ({ text: "", days: {} as Record<string, Set<number>> }));
   const notesTxt = Object.entries(body.notes || {})
@@ -253,21 +252,13 @@ export default async (req: Request) => {
     + "You also get each technician's WEEKLY REPORT (their own account of this week, per piano: DONE / CONTINUE NEXT WEEK "
     + "(with days to finish) / NOT STARTED). When a note asks you to re-check a report or redo a tech's week from it, rebuild "
     + "that tech's days from the report: CONTINUE NEXT WEEK items first with their days-to-finish, then NOT STARTED items, "
-    + "DONE items need no time and their existing blocks come OFF; keep standing rules and fixed blocks. A tech with no report cannot be rebuilt — say so in questions. "
-    + "CARD PHASES ARE THE CURRENT TRUTH (Mark 10/30): you also get each scheduled piano's live card phase. The plan's own lane "
-    + "notes and reportOverrides are the draft's EARLIER reasoning, not evidence — when the card phase or the report you are "
-    + "given now disagrees with them, the fresh data wins: drop or rewrite the stale override and never quote it as a reason. "
-    + "When a tech you are changing (or a note asks you to re-check) has a lane for work the card has already moved PAST "
-    + "(e.g. Restringing blocks while the card says Chip Tuning), that work is done — take those blocks off and fill the time "
-    + "per the notes / report; if nothing says what comes next, leave the time open and ask in questions. For techs no note "
-    + "touches, do not change their days — add a bottleneck naming the stale lane instead.";
+    + "DONE items need no time; keep standing rules and fixed blocks. A tech with no report cannot be rebuilt — say so in questions.";
   const reportsTxt = reports
     ? `TECH WEEKLY REPORTS (filed under ${reports.label}):\n` + Object.entries(reports.byTech).map(([n, t]) => `${n}: ${t}`).join("\n") + "\n\n"
     : "TECH WEEKLY REPORTS: (none found on the year tab)\n\n";
   const userMsg = `STANDING RULES:\n${rules.map(r => "- " + r).join("\n") || "(none yet)"}\n\n`
     + reportsTxt
     + (tuneQueue ? `TUNING QUEUE (marked Needs tuning on the Showroom Tuning Check, not booked yet, in order):\n${tuneQueue}\n\n` : "")
-    + (cardPhases ? `CARD PHASES (live from the Store Map, for every piano the plan schedules):\n${cardPhases}\n\n` : "")
     + (plateHolds ? `PLATES NOT READY (plate out, not yet refinished — do not schedule stringing):\n${plateHolds}\n\n` : "")
     + (timeOff.text ? `APPROVED TIME OFF (from the Time Off requests — schedule NOTHING for that technician on a whole day off; on a partial day leave the stated hours empty):\n${timeOff.text}\n\n` : "")
     + `BRIGHAM'S NOTES THIS WEEK:\n${globalTxt ? "GLOBAL: " + globalTxt + "\n" : ""}${notesTxt}\n\n`
