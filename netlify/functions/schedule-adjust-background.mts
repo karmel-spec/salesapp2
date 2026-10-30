@@ -18,7 +18,7 @@
 import * as crypto from "node:crypto";
 import { getStore } from "@netlify/blobs";
 import { logAdjustment, denverStamp } from "./lib/adjust-log";
-import { normalizeBottlenecks, plateHoldText, plateReadyText, tuningQueueText } from "./_blp-sched-lib.mts";
+import { normalizeBottlenecks, plateHoldText, plateReadyText, tuningQueueText, allowedTechs, doubleStaffed } from "./_blp-sched-lib.mts";
 
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
 const RULES_TAB = "Scheduling Rules";
@@ -191,6 +191,20 @@ export default async (req: Request) => {
     + "Add/adjust bottlenecks entries when notes reveal blockers — every bottlenecks entry MUST be a two-element array [title, body] (never a plain string); per-piano reconciliation notes belong in reportOverrides, not bottlenecks. Distinguish one-off adjustments (apply them, "
     + "list in changes) from standing rules ('always', 'never', 'from now on', 'remember') which also go in "
     + "rules_extracted. Do not invent work that wasn't asked for. "
+    + "ONLY THE TECHNICIANS THE NOTES NAME (Mark 10/30 — enforced in code): change a technician only if a note is written "
+    + "for them, a note names them, or there is a GLOBAL note. Never re-staff, re-pair or 'cover' a piano another note "
+    + "emptied — if a lane is left without a tech, say so in a bottleneck and leave it to the manager. Any change to an "
+    + "unnamed technician is thrown away. "
+    + "ONE TECHNICIAN PER PIANO (Mark 10/30 — standing rule): a piano has one technician on it on any given day unless a "
+    + "manager's note puts two on it by name ('Hunter joins Avery on 211935'). Never pair technicians on your own, never "
+    + "add a second tech 'behind' the first, and when a note moves a tech onto a piano that already has one, the note's "
+    + "tech takes it and you say in changes that the other is now free — or ask, if the note is unclear. "
+    + "THE REPORT AS GIVEN (Mark 10/30): when a note asks you to re-read / re-check a technician's weekly report or rebuild "
+    + "their week from it, use ONLY the text under TECH WEEKLY REPORTS as it stands now. The plan's own 'who' lines, block "
+    + "notes and reportOverrides are the draft's EARLIER reasoning — never quote them as the report, and when they "
+    + "disagree with the report text you are given, the report wins and you rewrite them. A piano line tagged DONE with "
+    + "no 'continue' wording means that work is finished: take its blocks off and give the time per the notes, or leave it "
+    + "open and ask. "
     // Walter 10/13: Garrett's "add this note to calendar event" text was reworded,
     // fused into a "NEW per Brigham's note" sentence the calendar filter drops, and
     // put on Wednesday only — the bridge passes [CAL: …] through verbatim.
@@ -284,11 +298,16 @@ export default async (req: Request) => {
     merged.techs = Array.isArray(merged.techs) ? merged.techs : [];
     const key = (n: unknown) => String(n || "").trim().toLowerCase();
     const first = (n: unknown) => key(n).split(/\s+/)[0];
+    // only techs the notes name may change (Mark 10/30) — see allowedTechs
+    const allowed = allowedTechs(plan, body.notes || {}, globalTxt);
+    const ignored: string[] = [];
     for (const t of out.changed_techs) {
       if (!t || typeof t !== "object" || !t.name) continue;
       // "Myrrhanda Lamping" from the model is the plan's "Myrrhanda" — exact name first, then first name
       let i = merged.techs.findIndex((x: any) => key(x.name) === key(t.name));
       if (i < 0) i = merged.techs.findIndex((x: any) => first(x.name) === first(t.name));
+      const planName = i >= 0 ? key(merged.techs[i].name) : key(t.name);
+      if (allowed && !allowed.has(planName)) { ignored.push(i >= 0 ? merged.techs[i].name : String(t.name)); continue; }
       if (i >= 0) merged.techs[i] = { ...merged.techs[i], ...t, name: merged.techs[i].name }; else merged.techs.push(t);
     }
     if (Array.isArray(out.bottlenecks)) merged.bottlenecks = out.bottlenecks;
@@ -310,6 +329,7 @@ export default async (req: Request) => {
     const named = new Set((Array.isArray(out.cleared_techs) ? out.cleared_techs : []).map(key));
     for (const t of merged.techs) {
       const k = key(t.name), f = first(t.name);
+      if (allowed && !allowed.has(k)) continue;   // an unnamed tech is never cleared either
       const listed = named.has(k) || [...named].some((n) => n.split(/\s+/)[0] === f);
       const narrated = changes.some((c) => OUT_RE.test(c) && new RegExp("\\b" + f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i").test(c));
       if (!listed && !narrated) continue;
@@ -323,6 +343,17 @@ export default async (req: Request) => {
       let cleared = 0;
       for (const di of offDays) { if (Array.isArray(t.days[di]) && t.days[di].length) { cleared += t.days[di].length; t.days[di] = []; } }
       if (cleared) changes.push(`${t.name}: cleared ${cleared} block${cleared === 1 ? "" : "s"} on approved time off (${[...offDays].sort().map(d => ["Mon", "Tue", "Wed", "Thu", "Fri"][d]).join(", ")}).`);
+    }
+    for (const n of ignored) changes.push(`⚠ Ignored the model's change to ${n} — no note named ${n.split(/\s+/)[0]}. Write a note for them if you want their week changed.`);
+    // one tech per piano (Mark 10/30): report any piano two techs share on a day — not fixed here, flagged
+    const shared = doubleStaffed(merged);
+    if (shared.length) {
+      changes.push(`⚠ Two technicians on one piano: ${shared.join("; ")} — one tech per piano unless a note pairs them.`);
+      const bn = Array.isArray(merged.bottlenecks) ? merged.bottlenecks : (merged.bottlenecks = []);
+      const title = "TWO TECHS ON ONE PIANO (rule 10/30)";
+      const body = "One technician per piano on a day unless a manager's note pairs them by name. Shared now: " + shared.join("; ") + ". Say who keeps each piano.";
+      const j = bn.findIndex((b: any) => Array.isArray(b) && String(b[0]).startsWith("TWO TECHS ON ONE PIANO"));
+      if (j >= 0) bn[j] = [title, body]; else bn.push([title, body]);
     }
     out.changes = changes;
     out.plan = merged;

@@ -109,6 +109,58 @@ export async function plateReadyText(): Promise<string> {
   } catch { return ""; }
 }
 
+/** Which technicians a notes run may change (Mark 10/30): the techs the notes
+ * are written for, any tech named inside a note's text ("Garrett: swap with
+ * Jake" touches Jake), and everyone when there is a GLOBAL note. On 10/30 the
+ * model took Hunter off Steinway 451912 — no note named him — because "someone
+ * needs to continue the CAP" Avery had just left. Keys are plan tech names,
+ * lower-cased; null = no limit. */
+export function allowedTechs(plan: any, notes: Record<string, unknown>, globalTxt: string): Set<string> | null {
+  if (String(globalTxt || "").trim()) return null;
+  const key = (n: unknown) => String(n || "").trim().toLowerCase();
+  const first = (n: unknown) => key(n).split(/\s+/)[0];
+  const techs: string[] = (plan?.techs || []).map((t: any) => key(t.name)).filter(Boolean);
+  const out = new Set<string>();
+  const noteText = Object.entries(notes || {}).filter(([, v]) => String(v || "").trim());
+  for (const [who] of noteText) {
+    const k = key(who), f = first(who);
+    for (const t of techs) if (t === k || t.split(/\s+/)[0] === f) out.add(t);
+  }
+  const blob = noteText.map(([, v]) => String(v)).join("\n");
+  for (const t of techs) {
+    const f = t.split(/\s+/)[0];
+    if (f.length >= 3 && new RegExp("\\b" + f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i").test(blob)) out.add(t);
+  }
+  return out;
+}
+
+/** Pianos with two technicians on the same day (Mark 10/30): one tech per
+ * piano unless a note pairs them. Serial = the first 4+ character token of
+ * digits (letters allowed) in the block title. Returns one line per piano. */
+export function doubleStaffed(plan: any): string[] {
+  const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+  const serialOf = (title: string) => (String(title || "").match(/\b(?=[A-Z0-9-]*\d)[A-Z0-9][A-Z0-9-]{3,}\b/i) || [""])[0].toUpperCase();
+  const byPiano = new Map<string, { title: string; days: Map<number, Set<string>> }>();
+  for (const t of (plan?.techs || [])) {
+    (t.days || []).forEach((day: any[], di: number) => (day || []).forEach((b: any[]) => {
+      const kind = String((b || [])[2] || ""), title = String((b || [])[3] || "");
+      if (/^(misc|tune|qc)$/i.test(kind)) return;   // standing blocks, tunings and QCs ride along with the shop work
+      const sn = serialOf(title); if (!sn) return;
+      const e = byPiano.get(sn) || { title: title.replace(/\s[-–—]\s.*$/, ""), days: new Map() };
+      (e.days.get(di) || e.days.set(di, new Set()).get(di)!).add(String(t.name || "").split(/\s+/)[0]);
+      byPiano.set(sn, e);
+    }));
+  }
+  const out: string[] = [];
+  for (const [, e] of byPiano) {
+    const hits = [...e.days.entries()].filter(([, who]) => who.size > 1);
+    if (!hits.length) continue;
+    const who = new Set<string>(); hits.forEach(([, w]) => w.forEach(x => who.add(x)));
+    out.push(`${e.title} — ${[...who].join(" + ")} on ${hits.map(([d]) => DAYS[d]).join(", ")}`);
+  }
+  return out;
+}
+
 /** The Tuning Queue (Walter 10/14): pianos Korban marked "Needs tuning" on the
  * Showroom Tuning Check that nobody has booked — computed by the Store Map's
  * /api/data (tuningQueue), ⚡ ASAP first, then walk order. They fill Korban's
