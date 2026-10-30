@@ -18,7 +18,7 @@
 import * as crypto from "node:crypto";
 import { getStore } from "@netlify/blobs";
 import { logAdjustment, denverStamp } from "./lib/adjust-log";
-import { normalizeBottlenecks, plateHoldText, tuningQueueText } from "./_blp-sched-lib.mts";
+import { normalizeBottlenecks, plateHoldText, plateReadyText, tuningQueueText } from "./_blp-sched-lib.mts";
 
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
 const RULES_TAB = "Scheduling Rules";
@@ -155,6 +155,7 @@ export default async (req: Request) => {
   const rules = await readRules().catch(() => [] as string[]);
   const reports = await readWeekReports().catch(() => null);
   const plateHolds = await plateHoldText();
+  const plateReady = await plateReadyText();
   const tuneQueue = await tuningQueueText();
   // approved time off for the plan week (Mark 10/23) — from the Time Off requests
   const timeOff = await approvedTimeOff(plan).catch(() => ({ text: "", days: {} as Record<string, Set<number>> }));
@@ -259,6 +260,7 @@ export default async (req: Request) => {
   const userMsg = `STANDING RULES:\n${rules.map(r => "- " + r).join("\n") || "(none yet)"}\n\n`
     + reportsTxt
     + (tuneQueue ? `TUNING QUEUE (marked Needs tuning on the Showroom Tuning Check, not booked yet, in order):\n${tuneQueue}\n\n` : "")
+    + (plateReady ? `PLATES BACK FROM CURTIS HARPER (Plate storage — AFTER) — each restring is LUPITA's next assignment, in this order, as soon as her current restring wraps; another tech only if a note says so; phase already past Restringing → flag the stale plate status, don't schedule (Mark 10/30):\n${plateReady}\n\n` : "")
     + (plateHolds ? `PLATES NOT READY (plate out, not yet refinished — do not schedule stringing):\n${plateHolds}\n\n` : "")
     + (timeOff.text ? `APPROVED TIME OFF (from the Time Off requests — schedule NOTHING for that technician on a whole day off; on a partial day leave the stated hours empty):\n${timeOff.text}\n\n` : "")
     + `BRIGHAM'S NOTES THIS WEEK:\n${globalTxt ? "GLOBAL: " + globalTxt + "\n" : ""}${notesTxt}\n\n`

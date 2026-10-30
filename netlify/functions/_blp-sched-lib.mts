@@ -96,6 +96,19 @@ export async function plateHoldText(): Promise<string> {
   } catch { return ""; }
 }
 
+/** Plates back from Curtis Harper (Mark 10/30): card PLATE STATUS "Plate storage —
+ * AFTER" — each one's restringing is Lupita's next assignment, in shop-queue order.
+ * One line per piano with its phase and queue #. "" if unreadable or none. */
+export async function plateReadyText(): Promise<string> {
+  try {
+    const r = await fetch("https://blpstoremap.netlify.app/api/data", { signal: AbortSignal.timeout(20000) });
+    const d = await r.json() as { pianos?: { make?: string; serial?: string; phase?: string; plateStatus?: string; queuePos?: number; active?: boolean }[] };
+    const ready = (d.pianos || []).filter(p => p.active && p.serial && /^plate storage\s*\W*\s*after/i.test(String(p.plateStatus || "").trim()))
+      .sort((a, b) => (a.queuePos || 999) - (b.queuePos || 999));
+    return ready.map(p => `${String(p.make || "").trim()} ${p.serial} (${p.phase || "no phase"}${p.queuePos ? ", queue #" + p.queuePos : ""})`).join("\n");
+  } catch { return ""; }
+}
+
 /** The Tuning Queue (Walter 10/14): pianos Korban marked "Needs tuning" on the
  * Showroom Tuning Check that nobody has booked — computed by the Store Map's
  * /api/data (tuningQueue), ⚡ ASAP first, then walk order. They fill Korban's
