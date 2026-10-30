@@ -198,9 +198,11 @@ export default async (req: Request) => {
     + "ONE TECHNICIAN PER PHASE (Mark 10/30 — standing rule): a piano's phase (its CAP, its DHRT, its restringing…) has one "
     + "technician on it on any given day unless a manager's note puts two on it by name ('Hunter joins Avery on the 211935 "
     + "CAP'). Never double up techs on one phase on your own, and never add a second tech 'behind' the first. DIFFERENT "
-    + "phases on the same piano may overlap — restringing and DHRT, keytops alongside other phases — that is fine. When a "
-    + "note moves a tech onto a phase that already has one, the note's tech takes it and you say in changes that the other "
-    + "is now free — or ask, if the note is unclear. "
+    + "phases on the same piano may overlap — restringing and DHRT, keytops alongside other phases — that is fine and NEEDS "
+    + "NO NOTE: another technician on a different phase of the same piano is never a reason to leave a tech unscheduled or to "
+    + "ask (10/30: Lupita was left blank because Marcelo had the Schaeffer's key service — wrong). When a note moves a tech "
+    + "onto a phase that already has one, the note's tech takes it and you say in changes that the other is now free — or "
+    + "ask, if the note is unclear. "
     + "THE REPORT AS GIVEN (Mark 10/30): when a note asks you to re-read / re-check a technician's weekly report or rebuild "
     + "their week from it, use ONLY the text under TECH WEEKLY REPORTS as it stands now. The plan's own 'who' lines, block "
     + "notes and reportOverrides are the draft's EARLIER reasoning — never quote them as the report, and when they "
@@ -282,7 +284,7 @@ export default async (req: Request) => {
   const userMsg = `STANDING RULES:\n${rules.map(r => "- " + r).join("\n") || "(none yet)"}\n\n`
     + reportsTxt
     + (tuneQueue ? `TUNING QUEUE (marked Needs tuning on the Showroom Tuning Check, not booked yet, in order):\n${tuneQueue}\n\n` : "")
-    + (plateReady ? `PLATES BACK FROM CURTIS HARPER (Plate storage — AFTER) — each restring is LUPITA's next assignment, in this order, as soon as her current restring wraps; another tech only if a note says so; phase already past Restringing → flag the stale plate status, don't schedule (Mark 10/30):\n${plateReady}\n\n` : "")
+    + (plateReady ? `PLATES BACK FROM CURTIS HARPER (Plate storage — AFTER) — each restring is LUPITA's next assignment, in this order, as soon as her current restring wraps — SCHEDULE IT, no note needed, and another tech on a different phase of that piano (keytops, DHRT, refinishing) is not a conflict; another restringer only if a note says so; phase already past Restringing → flag the stale plate status, don't schedule (Mark 10/30):\n${plateReady}\n\n` : "")
     + (plateHolds ? `PLATES NOT READY (plate out, not yet refinished — do not schedule stringing):\n${plateHolds}\n\n` : "")
     + (timeOff.text ? `APPROVED TIME OFF (from the Time Off requests — schedule NOTHING for that technician on a whole day off; on a partial day leave the stated hours empty):\n${timeOff.text}\n\n` : "")
     + `BRIGHAM'S NOTES THIS WEEK:\n${globalTxt ? "GLOBAL: " + globalTxt + "\n" : ""}${notesTxt}\n\n`
