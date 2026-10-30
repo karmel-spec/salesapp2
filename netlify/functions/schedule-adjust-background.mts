@@ -212,7 +212,7 @@ export default async (req: Request) => {
     // put on Wednesday only — the bridge passes [CAL: …] through verbatim.
     // Mark 10/26: the [CAL: …] segment is the technician's calendar text —
     // the piano work only, second person; reasoning stays outside it
-    + "CALENDAR TITLES (Mark 10/30 — standing rule): when a note says to put words in the calendar TITLE ('add xyz to the "
+    + "CALENDAR TITLES (Mark 10/30 — standing rule): when a Planner note (a technician box or GLOBAL) says to put words in the calendar TITLE ('add xyz to the "
     + "calendar title', 'as the exact title', 'in the title'), those words go into the block TITLE verbatim — not into a "
     + "[CAL: …] segment. Never write '(see notes)' yourself: Approve adds it to any block whose event carries a description. "
     + "CALENDAR NOTES (Mark 10/26 — standing rule): a block note's [CAL: …] segment, at the very START of the note, is the "
