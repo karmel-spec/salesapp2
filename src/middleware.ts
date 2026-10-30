@@ -13,6 +13,7 @@ export function middleware(req: NextRequest) {
     pathname.startsWith("/api/arnold/draft") ||
     pathname.startsWith("/_next") ||
     pathname === "/suggest.js" || // shared 💡 widget, embedded by every BLP app
+    pathname === "/lightbulb.js" || // the Sales App's own 💡 (loaded on /login too)
     pathname === "/favicon.ico";
   if (open) return NextResponse.next();
 
