@@ -195,10 +195,12 @@ export default async (req: Request) => {
     + "for them, a note names them, or there is a GLOBAL note. Never re-staff, re-pair or 'cover' a piano another note "
     + "emptied — if a lane is left without a tech, say so in a bottleneck and leave it to the manager. Any change to an "
     + "unnamed technician is thrown away. "
-    + "ONE TECHNICIAN PER PIANO (Mark 10/30 — standing rule): a piano has one technician on it on any given day unless a "
-    + "manager's note puts two on it by name ('Hunter joins Avery on 211935'). Never pair technicians on your own, never "
-    + "add a second tech 'behind' the first, and when a note moves a tech onto a piano that already has one, the note's "
-    + "tech takes it and you say in changes that the other is now free — or ask, if the note is unclear. "
+    + "ONE TECHNICIAN PER PHASE (Mark 10/30 — standing rule): a piano's phase (its CAP, its DHRT, its restringing…) has one "
+    + "technician on it on any given day unless a manager's note puts two on it by name ('Hunter joins Avery on the 211935 "
+    + "CAP'). Never double up techs on one phase on your own, and never add a second tech 'behind' the first. DIFFERENT "
+    + "phases on the same piano may overlap — restringing and DHRT, keytops alongside other phases — that is fine. When a "
+    + "note moves a tech onto a phase that already has one, the note's tech takes it and you say in changes that the other "
+    + "is now free — or ask, if the note is unclear. "
     + "THE REPORT AS GIVEN (Mark 10/30): when a note asks you to re-read / re-check a technician's weekly report or rebuild "
     + "their week from it, use ONLY the text under TECH WEEKLY REPORTS as it stands now. The plan's own 'who' lines, block "
     + "notes and reportOverrides are the draft's EARLIER reasoning — never quote them as the report, and when they "
@@ -348,14 +350,14 @@ export default async (req: Request) => {
       if (cleared) changes.push(`${t.name}: cleared ${cleared} block${cleared === 1 ? "" : "s"} on approved time off (${[...offDays].sort().map(d => ["Mon", "Tue", "Wed", "Thu", "Fri"][d]).join(", ")}).`);
     }
     for (const n of ignored) changes.push(`⚠ Ignored the model's change to ${n} — no note named ${n.split(/\s+/)[0]}. Write a note for them if you want their week changed.`);
-    // one tech per piano (Mark 10/30): report any piano two techs share on a day — not fixed here, flagged
+    // one tech per phase (Mark 10/30): report any piano + phase two techs share on a day — not fixed here, flagged
     const shared = doubleStaffed(merged);
     if (shared.length) {
-      changes.push(`⚠ Two technicians on one piano: ${shared.join("; ")} — one tech per piano unless a note pairs them.`);
+      changes.push(`⚠ Two technicians on one phase: ${shared.join("; ")} — one tech per phase unless a note pairs them.`);
       const bn = Array.isArray(merged.bottlenecks) ? merged.bottlenecks : (merged.bottlenecks = []);
-      const title = "TWO TECHS ON ONE PIANO (rule 10/30)";
-      const body = "One technician per piano on a day unless a manager's note pairs them by name. Shared now: " + shared.join("; ") + ". Say who keeps each piano.";
-      const j = bn.findIndex((b: any) => Array.isArray(b) && String(b[0]).startsWith("TWO TECHS ON ONE PIANO"));
+      const title = "TWO TECHS ON ONE PHASE (rule 10/30)";
+      const body = "One technician per phase of a piano on a day unless a manager's note pairs them by name (different phases may overlap). Doubled now: " + shared.join("; ") + ". Say who keeps each one, or confirm the pairing.";
+      const j = bn.findIndex((b: any) => Array.isArray(b) && /^TWO TECHS ON ONE (PIANO|PHASE)/.test(String(b[0])));
       if (j >= 0) bn[j] = [title, body]; else bn.push([title, body]);
     }
     out.changes = changes;

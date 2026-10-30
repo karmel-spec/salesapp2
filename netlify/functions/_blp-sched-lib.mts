@@ -134,29 +134,37 @@ export function allowedTechs(plan: any, notes: Record<string, unknown>, globalTx
   return out;
 }
 
-/** Pianos with two technicians on the same day (Mark 10/30): one tech per
- * piano unless a note pairs them. Serial = the first 4+ character token of
- * digits (letters allowed) in the block title. Returns one line per piano. */
+/** Two technicians on the same piano AND phase on one day (Mark 10/30): one tech
+ * per phase unless a note pairs them. Different phases on one piano may overlap
+ * (restringing + DHRT, keytops alongside anything) — that is not flagged. The
+ * phase is the title after " - " ("Steinway 211935 - CAP"); serial = the first
+ * 4+ character token with a digit. Returns one line per piano + phase. */
 export function doubleStaffed(plan: any): string[] {
   const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
   const serialOf = (title: string) => (String(title || "").match(/\b(?=[A-Z0-9-]*\d)[A-Z0-9][A-Z0-9-]{3,}\b/i) || [""])[0].toUpperCase();
-  const byPiano = new Map<string, { title: string; days: Map<number, Set<string>> }>();
+  const phaseOf = (title: string) => {
+    const m = /\s[-–—]\s(.+)$/.exec(String(title || ""));
+    return (m ? m[1] : "").replace(/\(see notes\)/i, "").replace(/\s+/g, " ").trim().toLowerCase();
+  };
+  const byKey = new Map<string, { label: string; days: Map<number, Set<string>> }>();
   for (const t of (plan?.techs || [])) {
     (t.days || []).forEach((day: any[], di: number) => (day || []).forEach((b: any[]) => {
       const kind = String((b || [])[2] || ""), title = String((b || [])[3] || "");
       if (/^(misc|tune|qc)$/i.test(kind)) return;   // standing blocks, tunings and QCs ride along with the shop work
-      const sn = serialOf(title); if (!sn) return;
-      const e = byPiano.get(sn) || { title: title.replace(/\s[-–—]\s.*$/, ""), days: new Map() };
+      const sn = serialOf(title), ph = phaseOf(title);
+      if (!sn || !ph) return;
+      const k = sn + "|" + ph;
+      const e = byKey.get(k) || { label: title.replace(/\(see notes\)/i, "").trim(), days: new Map() };
       (e.days.get(di) || e.days.set(di, new Set()).get(di)!).add(String(t.name || "").split(/\s+/)[0]);
-      byPiano.set(sn, e);
+      byKey.set(k, e);
     }));
   }
   const out: string[] = [];
-  for (const [, e] of byPiano) {
+  for (const [, e] of byKey) {
     const hits = [...e.days.entries()].filter(([, who]) => who.size > 1);
     if (!hits.length) continue;
     const who = new Set<string>(); hits.forEach(([, w]) => w.forEach(x => who.add(x)));
-    out.push(`${e.title} — ${[...who].join(" + ")} on ${hits.map(([d]) => DAYS[d]).join(", ")}`);
+    out.push(`${e.label} — ${[...who].join(" + ")} on ${hits.map(([d]) => DAYS[d]).join(", ")}`);
   }
   return out;
 }
