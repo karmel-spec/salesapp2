@@ -198,6 +198,7 @@ type InboxCounts = {
 function useInboxUnread(pathname: string): InboxCounts {
   const [counts, setCounts] = useState<InboxCounts>({ brigham: 0, fresh: 0, others: 0, newFolders: {}, readClients: {} });
   useEffect(() => {
+    if (pathname === "/login") return; // no session yet — nothing to poll
     let dead = false;
     const tick = () =>
       api<{ unread: number; brighamUnread?: number; newUnread?: number; newFolders?: Record<string, number>; readClients?: Record<string, number> }>("/api/inbox?count=1")
@@ -224,6 +225,7 @@ function useInboxUnread(pathname: string): InboxCounts {
 function useLeadCounts(pathname: string): { brigham: number; others: number; support: number } {
   const [counts, setCounts] = useState({ brigham: 0, others: 0, support: 0 });
   useEffect(() => {
+    if (pathname === "/login") return; // no session yet — nothing to poll
     let dead = false;
     const tick = () =>
       api<{ brighamActive: number; othersActive: number; support?: number }>("/api/leads?count=1")
@@ -246,6 +248,7 @@ type BoardPerson = { key: string; name: string; taskOwner?: string; emailUnread:
 function useBoardTotals(pathname: string): { emailUnread: number; emailTotal: number; people: Record<string, BoardPerson> } {
   const [n, setN] = useState<{ emailUnread: number; emailTotal: number; people: Record<string, BoardPerson> }>({ emailUnread: 0, emailTotal: 0, people: {} });
   useEffect(() => {
+    if (pathname === "/login") return; // no session yet — nothing to poll
     let dead = false;
     const tick = () =>
       api<{ emailUnread: number; emailTotal?: number; people?: BoardPerson[] }>("/api/board?count=1")
@@ -267,6 +270,7 @@ function useBoardTotals(pathname: string): { emailUnread: number; emailTotal: nu
 function useUnfiledCalls(pathname: string): number {
   const [n, setN] = useState(0);
   useEffect(() => {
+    if (pathname === "/login") return; // no session yet — nothing to poll
     let dead = false;
     const tick = () =>
       api<{ items: unknown[] }>("/api/plaud/unfiled")
