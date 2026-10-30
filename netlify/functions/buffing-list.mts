@@ -116,8 +116,15 @@ export async function buildLists() {
   // that phase, or the same words in the Piano Log STATUS column
   const forSale = (p: any) => !!p && (/^(for sale|sale pending|sold)$/i.test(String(p.phase || "").trim())
     || /\b(for sale|sale pending|sold)\b/i.test(String(p.status || "")));
-  // pianos in 1st or 2nd Tuning or Post Sale QC are off the list too (Walter 10/7)
-  const skipPhase = (p: any) => !!p && /^((1st|2nd) tuning|post sale qc)$/i.test(String(p.phase || "").trim());
+  // pianos in 1st or 2nd Tuning or Post Sale QC are off the list too (Walter 10/7);
+  // so is a Paused piano, and one whose only track is Player Rebuild — player
+  // work only, no side tasks (Mark 10/30, same rule as the Store Map's queues)
+  const playerOnly = (p: any) => {
+    const l = String(p.track || "").split(",").map((t: string) => t.trim()).filter(Boolean)
+      .map((t: string) => /^(old\s*)?player(\s*rebuild)?$/i.test(t) ? "Player Rebuild" : t);
+    return l.length > 0 && l.every((t: string) => t === "Player Rebuild");
+  };
+  const skipPhase = (p: any) => !!p && (/^((1st|2nd) tuning|post sale qc|paused)$/i.test(String(p.phase || "").trim()) || playerOnly(p));
   const task = (serial: string, name: string) =>
     tasks.find(t => norm(t.serial) === norm(serial) && norm(t.task) === norm(name) && !t.part);
 
