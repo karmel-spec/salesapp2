@@ -83,7 +83,7 @@ async function bridge(body: Record<string, unknown>) {
 }
 
 const ALLOWED = new Set(["move", "setphase", "setdone", "settrack", "setcabinetry", "queue",
-  "settype", "setpayplan", "setkeys", "markduplicate", "unmarkduplicate", "note"]);   // note → scope note on the card
+  "settype", "setpayplan", "setkeys", "markduplicate", "unmarkduplicate", "note"]);   // note → a dated 📝 Piano Notes line (appends; never the Scope of Work)
 
 /* Phases this flow may never set unattended (Walter 9/17). "Delivered" does not
  * just change a dropdown — the bridge physically relocates the row below the
@@ -170,7 +170,9 @@ export default async (req: Request) => {
     + "Post Sale QC, Waiting on Brigham, Waiting on Curtis Harper, Waiting on Customer, Waiting on OTHER. "
     + "NEVER set a phase of \"Delivered\" or \"Sold\" — those take a piano off the map and a human must do "
     + "them. If an answer says a piano was delivered or sold, put it in followups instead. "
-    + "Use action \"note\" with a `note` field to record an instruction or status on a piano's card. "
+    + "Use action \"note\" with a `note` field to add a dated line to a piano's notes — only for a fact about the PIANO "
+    + "(a part arrived, a problem found, a client decision); never schedule information (who is assigned, which days, "
+    + "lanes, bumps) — that belongs in the plan, not on the card. "
     + "Answers that state lasting policy go in rules_extracted. "
     + "YOU CANNOT CHANGE ANYONE'S SCHEDULE (Mark 10/30): when an answer says to assign / reassign / schedule / move a "
     + "technician (\"assign her to Schaeffer 23910 - Restring\"), do NOT claim it as an action — add a followup worded "
@@ -208,9 +210,12 @@ export default async (req: Request) => {
     if (!p) { executed.push(`✗ ${a.serial}: unknown serial`); continue; }
     const { action, serial, why, ...rest } = a;
     // "note" (the AI's most common ask — Mark 9/11 saw "note: not allowed")
-    // → the card's Scope of Work special-instructions note
+    // → APPENDS a dated line to the card's 📝 Piano Notes. Never the Scope of
+    // Work: setscopenote REPLACES that whole cell, and on 10/30 the answers
+    // runs wiped 21 cards' Scope Notes (🏆 sale lines, the Labrousse's mouse
+    // nest…) with schedule sentences (Mark 10/30)
     const j = action === "note"
-      ? await bridge({ action: "setscopenote", serial, row: p.row, user, value: String(a.note || "").slice(0, 500) })
+      ? await bridge({ action: "pianonote", serial, row: p.row, user, note: String(a.note || "").slice(0, 300) })
       : await bridge({ action, serial, row: p.row, user, ...rest });
     const ok = j.ok || j.moved;
     // name the card action itself (Mark 10/30): "✓ Reassignment of Lupita per answer" was a
