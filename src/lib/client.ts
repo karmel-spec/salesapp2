@@ -29,7 +29,7 @@ export async function fetchLeads(refresh = false) {
 
 /** Fallback team list — the live one comes from /api/roster (managed in
  *  Settings → Team), which seeds from this on first use. */
-export const REPS = ["Brigham", "Karmel", "Arnold", "Melissa", "Alisa", "Susie", "Ezzy", "Lisa"] as const;
+export const REPS = ["Brigham", "Karmel", "Arnold", "Melissa", "Alisa", "Susie", "Ezzy"] as const;
 
 let rosterCache: string[] | null = null;
 
