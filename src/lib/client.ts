@@ -10,7 +10,9 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
   });
   const json = await res.json().catch(() => ({}));
-  if (res.status === 401 && typeof window !== "undefined") {
+  // Session expired → back to the login page. Never from /login itself: a
+  // redirect there is a full reload that wipes the passcode mid-typing.
+  if (res.status === 401 && typeof window !== "undefined" && window.location.pathname !== "/login") {
     window.location.href = "/login";
   }
   if (!res.ok) throw new Error((json as { error?: string }).error || `Request failed (${res.status})`);

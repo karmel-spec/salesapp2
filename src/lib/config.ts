@@ -41,6 +41,13 @@ export const config = {
   twilioFrom: process.env.TWILIO_FROM_NUMBER || "", // texting number (801-769-0054)
   // Verified caller ID shown to customers on bridge calls — the public store line.
   twilioCallerId: process.env.TWILIO_CALLER_ID_NUMBER || "+18017010113",
+  // Browser dialer (Brigham 11/4): calls placed straight from the Sales App
+  // over WebRTC — no cell phone, no Plaud. Needs a Twilio API Key (Console →
+  // Account → API keys) and a TwiML App whose Voice URL is
+  // <PUBLIC_BASE_URL>/api/twilio/outbound.
+  twilioApiKeySid: process.env.TWILIO_API_KEY_SID || "",
+  twilioApiKeySecret: process.env.TWILIO_API_KEY_SECRET || "",
+  twilioTwimlAppSid: process.env.TWILIO_TWIML_APP_SID || "",
   // A2P-registered messaging service ("Default Messaging Service for
   // Conversations") — sending through it adds automatic STOP/opt-out handling.
   twilioMessagingServiceSid:
@@ -97,6 +104,8 @@ export function integrationStatus() {
     sheetsWrite: Boolean(config.googleClientEmail && config.googlePrivateKey),
     auth: Boolean(config.accessKey),
     twilio: Boolean(config.twilioAccountSid && config.twilioAuthToken && config.twilioFrom),
+    voice: Boolean(config.twilioAccountSid && config.twilioApiKeySid && config.twilioApiKeySecret && config.twilioTwimlAppSid),
+    transcripts: Boolean(process.env.OPENAI_API_KEY),
     email: Boolean(config.smtpPass),
     arnoldWebhook: Boolean(config.arnoldWebhookUrl),
     telegram: Boolean(config.telegramBotToken && config.telegramChatId),

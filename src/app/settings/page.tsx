@@ -32,6 +32,18 @@ const INTEGRATIONS: { key: string; name: string; desc: string; env: string }[] =
     env: "TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER",
   },
   {
+    key: "voice",
+    name: "Call from the computer (browser dialer)",
+    desc: "Lead page → 📞 Call → \"From this computer\": dials the lead or any typed number over the internet, store caller ID, recorded. Twilio Console → Account → API keys (create one), and Voice → TwiML Apps (create one, Voice Request URL = POST https://blpsalesapp.netlify.app/api/twilio/outbound).",
+    env: "TWILIO_API_KEY_SID, TWILIO_API_KEY_SECRET, TWILIO_TWIML_APP_SID",
+  },
+  {
+    key: "transcripts",
+    name: "Call transcripts (Whisper)",
+    desc: "Every recorded call (browser, bridge, or inbound) gets a transcript, then a Claude summary, filed onto the lead's conversation.",
+    env: "OPENAI_API_KEY (+ ANTHROPIC_API_KEY for the summary)",
+  },
+  {
     key: "email",
     name: "Email from info@brighamlarsonpianos.com",
     desc: "SMTP via a Google Workspace app password for the info@ mailbox.",
