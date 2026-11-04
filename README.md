@@ -13,6 +13,7 @@ Built with Next.js 15 + TypeScript, styled after brighamlarsonpianos.com (deep c
   1. **Event webhook** — "Ask Arnold" posts to `ARNOLD_WEBHOOK_URL` (HMAC-signed), the Agent Console's `/api/agents/arnold/events`, which wakes Arnold's Grok Bot (Hermes until 2026-10-08); Arnold answers by POSTing drafts to `/api/arnold/draft` using his **draft-only** key (rejected for anything else).
   2. **Telegram** — humans chat with Arnold at [@arnoldlarsonbot](https://t.me/arnoldlarsonbot); the app posts new-lead and stale-sweep notifications via the bot.
   3. **Claude API fallback** — with `ANTHROPIC_API_KEY` set, the app writes drafts in Arnold's voice itself when the Agent Console is unreachable.
+- **Calling from the app** — every lead has a 📞 Call panel with two modes. **From this computer** dials over the internet (Twilio Voice SDK) using the computer's mic — no cell phone, no Plaud. **Ring my cell first** is the bridge call: the rep's phone rings, answering dials the customer. Either way the customer sees the store's caller ID, hears a short recording notice, and the call is recorded; when it ends, Whisper transcribes it, Claude summarizes it, and both file onto the lead's conversation with the audio link. The panel can dial **any number** — pick one of the lead's saved numbers, or type a new one (keypad included) and save it to the lead with a label like "husband Rick". The keypad also sends touch-tones during a live call.
 - **Lead management** — searchable/filterable lead table, full detail view with editable fields, activity timeline (readable `App Activity` text + structured `timeline_data_json`, same schema as the BLP Mega App), dedupe-guarded lead creation.
 
 ## Run it
@@ -30,6 +31,8 @@ npm run dev                  # http://localhost:8790
 | Two-way sync | Create a Google Cloud service account with the Sheets API enabled, share the Leads Log with it as **Editor**, set `GOOGLE_SERVICE_ACCOUNT_EMAIL` + `GOOGLE_PRIVATE_KEY` |
 | Team login | Set `BLP_APP_ACCESS_KEY` to the shared passcode |
 | Text sending | Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` |
+| Calling from the computer | Twilio Console → create an **API key** and a **TwiML App** (Voice Request URL = `POST https://blpsalesapp.netlify.app/api/twilio/outbound`); set `TWILIO_API_KEY_SID`, `TWILIO_API_KEY_SECRET`, `TWILIO_TWIML_APP_SID`. Cell-phone bridge calls need only the SMS vars. |
+| Call transcripts + summaries | Set `OPENAI_API_KEY` (Whisper) — summaries use `ANTHROPIC_API_KEY` |
 | Email sending | Create an app password for info@brighamlarsonpianos.com, set `SMTP_PASS` |
 | Arnold (Grok Bot via the Agent Console) | Set `ARNOLD_WEBHOOK_URL` (= the console events route), `ARNOLD_WEBHOOK_SECRET`, `BLP_ARNOLD_ACCESS_KEY`, `BLP_AGENTS_KEY` |
 | Telegram pings | Set `TELEGRAM_BOT_TOKEN` (@arnoldlarsonbot) + `TELEGRAM_CHAT_ID` |
@@ -72,3 +75,8 @@ X-BLP-Signature: <hex HMAC-SHA256 of raw body>
 | `POST /api/arnold/draft` | Arnold pushes drafts (draft-only key + HMAC) |
 | `POST /api/arnold/ask` | Request drafts (webhook first, Claude fallback) |
 | `POST /api/sync` | Stale sweep: persist 30-day → Arnold rule to the sheet |
+| `GET /api/twilio/token` | Browser dialer: Voice access token for the signed-in rep |
+| `POST /api/twilio/outbound` | TwiML App voice URL: dials the typed number from a browser call, recorded |
+| `POST /api/leads/[id]/call` | Bridge call (rep's cell rings first); `to` overrides the lead's number |
+| `POST /api/leads/[id]/phones` | Save a labeled extra number onto a lead |
+| `POST /api/twilio/recording` | Recording finished → archive, transcript, summary, filed to the lead |

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { Lead } from "@/lib/leads";
 import { api, getWho } from "@/lib/client";
 import { AttachButton, type PickedFile } from "@/components/AttachButton";
+import { Dialer } from "@/components/Dialer";
 
 /**
  * Inline composer under a conversation thread: text, email, or call the
@@ -44,7 +45,6 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
   const [mode, setMode] = useState<Mode>(lead.phoneDialable ? "sms" : "email");
   const [body, setBody] = useState("");
   const [subject, setSubject] = useState("");
-  const [repPhone, setRepPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [flash, setFlash] = useState("");
   const [err, setErr] = useState("");
@@ -77,7 +77,6 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
   }, [mode, lead.id]);
 
   useEffect(() => {
-    setRepPhone(localStorage.getItem("blp_rep_phone") || "");
     api<{ senders: { key: string; label: string }[] }>("/api/senders")
       .then((r) => setSenders(r.senders))
       .catch(() => {});
@@ -155,13 +154,6 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
         setFlash("✓ Internal note saved to this lead's activity (the client never sees it)");
         setBody("");
         onSent();
-      } else if (mode === "call") {
-        localStorage.setItem("blp_rep_phone", repPhone);
-        const r = await api<{ detail?: string }>(`/api/leads/${encodeURIComponent(lead.id)}/call`, {
-          method: "POST",
-          body: JSON.stringify({ repPhone, who: getWho() }),
-        });
-        setFlash(r.detail || "📞 Your phone rings first, then we dial the client.");
       } else {
         const r = await api<{ detail: string }>(`/api/leads/${encodeURIComponent(lead.id)}/send`, {
           method: "POST",
@@ -224,7 +216,7 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
           [
             ["sms", "💬 Text", Boolean(lead.phoneDialable), `no dialable number ("${lead.phone || "—"}")`],
             ["email", "✉️ Email", Boolean(lead.emailClean), `no valid email ("${lead.email || "—"}")`],
-            ["call", "📞 Call", Boolean(lead.phoneDialable), "no dialable number"],
+            ["call", "📞 Call", true, ""],
             ["note", "📝 Internal note", true, ""],
           ] as [Mode, string, boolean, string][]
         ).map(([m, label, enabled, why]) => (
@@ -328,20 +320,7 @@ export function ThreadComposer({ lead, onSent }: { lead: Lead; onSent: () => voi
       )}
 
       {mode === "call" ? (
-        <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <input
-            placeholder="Your cell (rings you first)"
-            value={repPhone}
-            onChange={(e) => setRepPhone(e.target.value)}
-            style={{ minWidth: 190 }}
-          />
-          <button className="btn small" disabled={busy || repPhone.replace(/\D/g, "").length < 10} onClick={send}>
-            {busy ? "Dialing…" : `📞 Call ${lead.name.split(" ")[0]}`}
-          </button>
-          <span className="muted" style={{ fontSize: 12 }}>
-            store number shows as caller ID · the call logs to this conversation
-          </span>
-        </div>
+        <Dialer lead={lead} inline onFlash={setFlash} onDone={onSent} />
       ) : (
         <>
           {mode === "email" && (

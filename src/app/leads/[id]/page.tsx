@@ -13,6 +13,7 @@ import type { LeadGeo } from "@/lib/geo-shared";
 import { ThreadComposer, replySubject } from "@/components/ThreadComposer";
 import { AttachButton, allowedAttachment, type PickedFile } from "@/components/AttachButton";
 import { WonWizard } from "@/components/WonWizard";
+import { Dialer } from "@/components/Dialer";
 import type { HandoffRow, Handoff } from "@/lib/won";
 
 type Adjacent = { id: string; name: string } | null;
@@ -200,7 +201,7 @@ export default function LeadDetail({ params }: { params: Promise<{ id: string }>
             ✉️ Email
           </button>
         )}
-        {lead.phoneDialable && <CallButton leadId={lead.id} onFlash={setFlash} onDone={loadSoon} />}
+        <Dialer lead={lead} onFlash={setFlash} onDone={loadSoon} />
         <SnoozeButton leadId={lead.id} onFlash={setFlash} onDone={loadSoon} />
         <AdjacentLeadButton target={adj.prev} ready={adj.ready} dir={-1} />
         <AdjacentLeadButton target={adj.next} ready={adj.ready} dir={1} />
@@ -780,55 +781,6 @@ function SnoozeButton({ leadId, onFlash, onDone }: { leadId: string; onFlash: (s
       )}
       <div className="muted" style={{ fontSize: 12 }}>Commas or "or" separate alternatives; every word in an alternative must match (make, model, size, category, decade like 1940s). The Piano Log is checked once a day at 9 AM.</div>
     </div>
-  );
-}
-
-function CallButton({ leadId, onFlash, onDone }: { leadId: string; onFlash: (s: string) => void; onDone: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [repPhone, setRepPhone] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    setRepPhone(localStorage.getItem("blp_rep_phone") || "");
-  }, []);
-
-  async function call() {
-    setBusy(true);
-    try {
-      localStorage.setItem("blp_rep_phone", repPhone);
-      const r = await api<{ detail: string }>(`/api/leads/${encodeURIComponent(leadId)}/call`, {
-        method: "POST",
-        body: JSON.stringify({ repPhone, who: getWho() }),
-      });
-      onFlash(`📞 ${r.detail}`);
-      setOpen(false);
-      onDone();
-    } catch (e) {
-      onFlash(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (!open) {
-    return (
-      <button className="btn ghost" onClick={() => setOpen(true)}>📞 Call</button>
-    );
-  }
-  return (
-    <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-      <input
-        style={{ width: 170 }}
-        placeholder="Your cell (rings first)"
-        value={repPhone}
-        onChange={(e) => setRepPhone(e.target.value)}
-        autoFocus
-      />
-      <button className="btn small" onClick={call} disabled={busy || repPhone.replace(/\D/g, "").length < 10}>
-        {busy ? "Dialing…" : "Start call"}
-      </button>
-      <button className="btn ghost small" onClick={() => setOpen(false)}>✕</button>
-    </span>
   );
 }
 
