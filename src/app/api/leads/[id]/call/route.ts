@@ -50,6 +50,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
     return NextResponse.json({
       ok: true,
+      sid,
       detail: `Your phone (${repPhone}) is ringing now — answer it and we'll dial ${target}. They'll see ${config.twilioCallerId}.`,
     });
   } catch (err) {
