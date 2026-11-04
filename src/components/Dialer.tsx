@@ -38,9 +38,11 @@ type TwilioCall = {
   disconnect: () => void;
   mute: (m: boolean) => void;
   sendDigits: (d: string) => void;
+  parameters: Record<string, string>; // CallSid once Twilio has it
 };
 type TwilioDevice = {
   connect: (opts: { params: Record<string, string> }) => Promise<TwilioCall>;
+  disconnectAll: () => void;
   destroy: () => void;
   on: (ev: string, fn: (arg?: unknown) => void) => void;
 };
@@ -72,6 +74,8 @@ export function Dialer({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [tones, setTones] = useState("");
+  const [bridgeSid, setBridgeSid] = useState(""); // cell mode: the call we can end from here
+  const [hangingUp, setHangingUp] = useState(false);
   const deviceRef = useRef<TwilioDevice | null>(null);
   const callRef = useRef<TwilioCall | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -127,11 +131,47 @@ export function Dialer({
   function endCall(note?: string) {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = null;
+    // Whatever brought us here (hang-up, error, remote end), make sure the
+    // browser leg is really torn down before we forget it.
+    try { callRef.current?.disconnect(); } catch { /* already gone */ }
     callRef.current = null;
     setState("ended");
     setMuted(false);
     setTones("");
+    setHangingUp(false);
     if (note) flash(note);
+    onDone?.();
+  }
+
+  // Tell Twilio to end the call from the server side too — ends the
+  // customer leg even if the browser SDK's disconnect gets stuck.
+  async function serverHangUp(sid: string) {
+    if (!sid) return;
+    try {
+      await api(`/api/twilio/hangup`, { method: "POST", body: JSON.stringify({ callSid: sid }) });
+    } catch (e) {
+      setErr(`Couldn't end the call from the server: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  function hangUp() {
+    setHangingUp(true);
+    const sid = callRef.current?.parameters?.CallSid || "";
+    try { callRef.current?.disconnect(); } catch { /* fall through to the device */ }
+    try { deviceRef.current?.disconnectAll(); } catch { /* fall through to the server */ }
+    void serverHangUp(sid);
+    // Don't wait on the "disconnect" event — if it never comes, the UI must
+    // still drop out of the live state so the rep isn't stuck.
+    setTimeout(() => { if (callRef.current) endCall(`📞 Call with ${dialLabel} ended — the recording, transcript and summary file onto this lead in a minute or two.`); }, 1500);
+  }
+
+  async function endBridgeCall() {
+    const sid = bridgeSid;
+    setHangingUp(true);
+    await serverHangUp(sid);
+    setBridgeSid("");
+    setHangingUp(false);
+    flash("📞 Call ended — the recording, transcript and summary file onto this lead in a minute or two.");
     onDone?.();
   }
 
@@ -170,12 +210,12 @@ export function Dialer({
     setBusy(true);
     try {
       localStorage.setItem("blp_rep_phone", repPhone);
-      const r = await api<{ detail: string }>(`/api/leads/${encodeURIComponent(lead.id)}/call`, {
+      const r = await api<{ detail: string; sid?: string }>(`/api/leads/${encodeURIComponent(lead.id)}/call`, {
         method: "POST",
         body: JSON.stringify({ repPhone, who: getWho(), to: dialTo }),
       });
       flash(`📞 ${r.detail}`);
-      if (!inline) setOpen(false);
+      setBridgeSid(r.sid || "");
       onDone?.();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -297,10 +337,16 @@ export function Dialer({
 
       {/* Action row */}
       <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
-        {mode === "cell" && !inCall && (
+        {mode === "cell" && !inCall && !bridgeSid && (
           <input placeholder="Your cell (rings you first)" inputMode="tel" value={repPhone} onChange={(e) => setRepPhone(e.target.value)} style={{ minWidth: 190 }} />
         )}
-        {!inCall ? (
+        {mode === "cell" && bridgeSid ? (
+          <>
+            <span style={{ fontWeight: 600, fontSize: 13.5 }}>📱 On your cell with {dialLabel}</span>
+            <button type="button" className="btn small" style={{ background: "#a02020" }} disabled={hangingUp} onClick={endBridgeCall}>{hangingUp ? "Ending…" : "⏹ End call"}</button>
+            <span className="muted" style={{ fontSize: 12 }}>(or just hang up your cell)</span>
+          </>
+        ) : !inCall ? (
           <button
             className="btn small"
             disabled={busy || !dialTo || (mode === "cell" && repPhone.replace(/\D/g, "").length < 10) || (mode === "browser" && (!voice || !voice.configured))}
@@ -313,8 +359,8 @@ export function Dialer({
             <span style={{ fontWeight: 600, fontSize: 13.5 }}>
               {state === "connecting" ? "Connecting…" : state === "ringing" ? `Ringing ${dialLabel}…` : `🔴 Live with ${dialLabel} · ${clock(secs)}`}
             </span>
-            <button className="btn ghost small" onClick={() => { const m = !muted; callRef.current?.mute(m); setMuted(m); }}>{muted ? "🔇 Unmute" : "🎙 Mute"}</button>
-            <button className="btn small" style={{ background: "#a02020" }} onClick={() => callRef.current?.disconnect()}>⏹ Hang up</button>
+            <button type="button" className="btn ghost small" onClick={() => { const m = !muted; callRef.current?.mute(m); setMuted(m); }}>{muted ? "🔇 Unmute" : "🎙 Mute"}</button>
+            <button type="button" className="btn small" style={{ background: "#a02020" }} disabled={hangingUp} onClick={hangUp}>{hangingUp ? "Ending…" : "⏹ Hang up"}</button>
           </>
         )}
         <span className="muted" style={{ fontSize: 12 }}>

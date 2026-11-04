@@ -94,6 +94,34 @@ export async function startBridgeCall(
   return { sid: json.sid };
 }
 
+/** End a call we started (parent leg → Twilio tears down the dialed leg too). */
+export async function hangUpCall(sid: string): Promise<{ status: string }> {
+  if (config.dryRunSends || sid === "DRYRUN-CALL") {
+    console.log(`[DRY-RUN] hang up ${sid}`);
+    return { status: "completed" };
+  }
+  if (!config.twilioAccountSid || !config.twilioAuthToken) {
+    throw new Error("Twilio not configured: set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN");
+  }
+  const res = await fetch(
+    `https://api.twilio.com/2010-04-01/Accounts/${config.twilioAccountSid}/Calls/${encodeURIComponent(sid)}.json`,
+    {
+      method: "POST",
+      headers: {
+        Authorization:
+          "Basic " +
+          Buffer.from(`${config.twilioAccountSid}:${config.twilioAuthToken}`).toString("base64"),
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({ Status: "completed" }),
+    }
+  );
+  const json = (await res.json().catch(() => ({}))) as any;
+  // Already over (completed/canceled) → Twilio answers 400; that's a success for us.
+  if (!res.ok && res.status !== 400) throw new Error(`Twilio hang-up failed (${res.status}): ${json.message || "unknown"}`);
+  return { status: json.status || "completed" };
+}
+
 export interface EmailAttachment {
   filename: string;
   contentType: string;
