@@ -62,7 +62,9 @@ export async function runBackup(): Promise<{ file: BackupFile; rows: number; pru
   await deleteObjects(BUCKET, stale);
 
   return {
-    file: { id: name, name, createdTime: new Date().toISOString(), size: String(csv.length) },
+    // webViewLink: 1-hour download link so the nightly job can also keep a
+    // copy in the BLP Knowledge Vault on the Mac (Brigham 11/4).
+    file: { id: name, name, createdTime: new Date().toISOString(), size: String(csv.length), webViewLink: await signedUrl(BUCKET, name, 3600) },
     rows: rows.length,
     pruned: stale.length,
   };
