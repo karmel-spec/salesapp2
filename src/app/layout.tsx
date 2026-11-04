@@ -28,7 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           data-app="Sales App"
           data-user-key="blp_rep_name"
           data-agents="clara,arnold,chris"
-          data-agents-by-user="brigham:clara,arnold,chris|brighamlarson:clara,arnold,chris|karmel:lindsay,melody,carla|lisa:ivory,melody,arnold|melissa:melody,chris,carla|susie:lindsay,chris,melody|alisa:marcus"
+          data-agents-by-user="brigham:clara,arnold,chris|brighamlarson:clara,arnold,chris|karmel:lindsay,melody,carla|melissa:melody,chris,carla|susie:lindsay,chris,melody|alisa:marcus"
           data-dock="#blp-dock"
         />
         {/* BLP 💡 lightbulb (Brigham 10/30): the Sales App's OWN lightbulb — requests

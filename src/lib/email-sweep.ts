@@ -5,17 +5,18 @@ import { imapConfigured, imapRecent } from "./imapmail";
 
 /**
  * Daily staff-email sweep. Emails the team sends to (or receives from) a
- * lead's address from Gmail — info@, brigham@, melissa@, alisa@, lisa@ —
+ * lead's address from Gmail — info@, brigham@, melissa@, alisa@ —
  * never passed through the console, so they were missing from timelines.
  * Every day this looks back a few days in each mailbox and logs what's new:
  * customer emails as inbound (unread if unanswered), staff emails as
  * email_out attributed by signature or mailbox. One sheet write per lead.
  */
-export const SWEEP_MAILBOXES = ["info@brighamlarsonpianos.com", "brigham@brighamlarsonpianos.com", "melissa@brighamlarsonpianos.com", "alisa@brighamlarsonpianos.com", "lisa@brighamlarsonpianos.com", "brighamlarson@gmail.com"];
+export const SWEEP_MAILBOXES = ["info@brighamlarsonpianos.com", "brigham@brighamlarsonpianos.com", "melissa@brighamlarsonpianos.com", "alisa@brighamlarsonpianos.com", "brighamlarson@gmail.com"];
 /** Personal Gmail has no delegation — it's read over IMAP with an app password. */
 const IMAP_BOXES = new Set(["brighamlarson@gmail.com"]);
 const OPEN = new Set(["new", "active", "snoozed", "support", "dormant"]);
-const REPS = "Brigham|Melissa|Lisa|Alisa|Karmel|Susie|Ezzy";
+// Lisa left BLP (11/4): no longer matched as a signature or mailbox.
+const REPS = "Brigham|Melissa|Alisa|Karmel|Susie|Ezzy";
 const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
 const twin = (tl: TimelineEvent[], at: string, body: string, kinds: string[]) => {
   const t = Date.parse(at); const key = norm(body).slice(0, 60);
@@ -39,7 +40,7 @@ export function staffEmailEvents(l: Lead, msgs: { rfcMessageId: string; subject:
     } else if (/brighamlarsonpianos\.com$/.test(m.fromAddress) || /brighamlarson@gmail\.com$/.test(m.fromAddress)) {
       if (twin(l.timeline, at, body.slice(0, 80), ["email_out"])) continue;
       const sig = new RegExp(`\\b(${REPS})\\b`, "i").exec(body.slice(-260));
-      const who = sig ? sig[1][0].toUpperCase() + sig[1].slice(1).toLowerCase() : m.fromAddress.startsWith("brigham") ? "Brigham" : m.fromAddress.startsWith("melissa") ? "Melissa" : m.fromAddress.startsWith("alisa") ? "Alisa" : m.fromAddress.startsWith("lisa") ? "Lisa" : "BLP team";
+      const who = sig ? sig[1][0].toUpperCase() + sig[1].slice(1).toLowerCase() : m.fromAddress.startsWith("brigham") ? "Brigham" : m.fromAddress.startsWith("melissa") ? "Melissa" : m.fromAddress.startsWith("alisa") ? "Alisa" : "BLP team";
       out.push({ at, who, kind: "email_out", source: "email", emailId: mid, emailSubject: m.subject, text: `📧 Email "${m.subject}" sent from ${m.fromAddress} to ${addr} (logged by the daily email sweep): ${body.slice(0, 1500)}${body.length > 1500 ? "… [truncated]" : ""}` } as TimelineEvent);
     }
   }

@@ -10,7 +10,8 @@ import { ensureTab, readTab, writeTab } from "./sheets";
 const TAB = "Team Roster";
 const HEADER = ["name", "addedBy", "addedAt"];
 
-export const DEFAULT_ROSTER = ["Brigham", "Karmel", "Arnold", "Melissa", "Alisa", "Susie", "Ezzy", "Lisa"];
+// Lisa left BLP (Brigham 11/4); her leads went to Karmel.
+export const DEFAULT_ROSTER = ["Brigham", "Karmel", "Arnold", "Melissa", "Alisa", "Susie", "Ezzy"];
 
 export async function listRoster(): Promise<string[]> {
   const rows = await readTab(TAB);
