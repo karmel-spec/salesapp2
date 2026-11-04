@@ -26,7 +26,6 @@ const NAV: { href: string; label: string; sub?: boolean; boardKey?: string; grou
   { href: "/board/karmel", label: "Karmel", sub: true, boardKey: "karmel", in: "board" },
   { href: "/board/alisa", label: "Alisa", sub: true, boardKey: "alisa", in: "board" },
   { href: "/board/melissa", label: "Melissa", sub: true, boardKey: "melissa", in: "board" },
-  { href: "/board/lisa", label: "Lisa", sub: true, boardKey: "lisa", in: "board" },
   { href: "/board/info", label: "Info", sub: true, boardKey: "info", in: "board" },
   { href: "/board/blp", label: "BLP", sub: true, boardKey: "blp", in: "board" },
   { href: "/", label: "Dashboard" },
