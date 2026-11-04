@@ -29,7 +29,8 @@ export const BOARD_PEOPLE: BoardPerson[] = [
   { key: "melissa", name: "Melissa", role: "sales & events", mailbox: "melissa@brighamlarsonpianos.com", taskOwner: "Melissa Terry", rep: "Melissa" },
   { key: "karmel", name: "Karmel", role: "operations", mailbox: "karmel@brighamlarsonpianos.com", taskOwner: "Karmel Larson", rep: "Karmel" },
   { key: "alisa", name: "Alisa", role: "marketing", mailbox: "alisa@brighamlarsonpianos.com", taskOwner: "Alisa Miller", rep: "Alisa" },
-  { key: "lisa", name: "Lisa", role: "admin", mailbox: "lisa@brighamlarsonpianos.com", taskOwner: "Lisa Litton", rep: "Lisa" },
+  // Lisa left BLP (Brigham 11/4): her mailbox is no longer a board person. Her
+  // historical threads and lead history are untouched.
   { key: "info", name: "Info", role: "shared inbox · info@", mailbox: "info@brighamlarsonpianos.com", shared: true },
   { key: "blp", name: "BLP Email", role: "brighamlarsonpianos@gmail.com", mailbox: "brighamlarsonpianos@gmail.com", personalGmail: true, shared: true },
   { key: "mark", name: "Mark", role: "shop lead", taskOwner: "Mark Hales" },
