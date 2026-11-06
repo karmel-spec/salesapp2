@@ -44,7 +44,11 @@ const PHASES = ["New Arrival - Admin", "Assessment", "CAP", "PRSB - Downbearing"
   "1st Tuning", "Refinishing", "QC & Assembly", "2nd Tuning", "Exit Prep - Admin"];
 const RETIRED: Record<string, string> = {
   "PRSBa - Pre-Plate": "PRSB - Downbearing", "PRSBb - Plate In": "PRSB - Notching and Pins" };
-const FIRST = PHASES.indexOf("PRSB - Downbearing"), LAST = PHASES.indexOf("Refinishing");
+// QC & Assembly too (Mark 11/6): Steinway 189150 reached QC & Assembly with its
+// brass hardware still unbuffed and unshipped, and fell off the queue. A piano
+// now stays until its hardware is marked; Exit Prep is the hard stop (by then
+// the hardware is back on — the three Exit Prep pianos had no marks at all).
+const FIRST = PHASES.indexOf("PRSB - Downbearing"), LAST = PHASES.indexOf("QC & Assembly");
 
 let tokenCache: { token: string; exp: number } | null = null;
 async function googleToken(): Promise<string> {
