@@ -66,7 +66,7 @@ export default async (req: Request) => {
   };
 
   const t = await googleToken();
-  const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(`'${PHONES_TAB}'!A2:B60`)}`,
+  const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(`'${PHONES_TAB}'!A2:C60`)}`,
     { headers: { Authorization: `Bearer ${t}` } });
   const rows = ((await r.json()).values as string[][]) || [];
   // first-name match is enough — the sheet's names and Google names both
@@ -75,6 +75,12 @@ export default async (req: Request) => {
   const hit = rows.find(x => (x[0] || "").trim().toLowerCase().startsWith(first));
   const phone = hit && (hit[1] || "").replace(/[^\d+]/g, "");
   if (!phone) return json({ ok: false, sent: false, reason: "no phone on Tech Phones for " + name });
+  // ⏸ paused (Mark 11/6, Ricardo): "NO" in the Tech Phones "Reminders on?"
+  // column stops every AUTOMATED text to that person — report reminders,
+  // clock nudges, sweeps, escalations. A text a teammate sends by hand from a
+  // card (it carries replyTo) still goes. Blank or YES = texts on.
+  if (/^\s*no\b/i.test(String((hit && hit[2]) || "")) && !replyTo)
+    return json({ ok: false, sent: false, reason: "texts paused for " + name + " (Tech Phones: Reminders on? = NO)" });
 
   const sid = process.env.TWILIO_ACCOUNT_SID || "";
   const tok = process.env.TWILIO_AUTH_TOKEN || "";
