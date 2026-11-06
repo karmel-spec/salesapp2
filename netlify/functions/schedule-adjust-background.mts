@@ -245,6 +245,11 @@ export default async (req: Request) => {
     + "to say → no segment. Separate several lines inside one segment with ' / '. Never put ']' inside the segment. "
     // Mark 10/29 (Melissa 102626terry10): Chickering 80147 got a "pre-delivery QC" the day
     // before it went to Barrus Pianos to have its QRS INSTALLED — the move was read as a delivery
+    + "A TUNE OR QC ALREADY BOOKED SATISFIES THE DELIVERY OBLIGATION (Mark 11/6 — standing rule): before adding a pre-delivery "
+    + "tuning or QC for a piano delivering in the plan week, look for that serial on the QC calendar, the tuning calendar and the "
+    + "tech calendars from TODAY through the delivery date — not just the plan week. An event already there (any tech, any day "
+    + "before the delivery) means the obligation is met: do not propose another; name who has it and when in the who-line. "
+    + "A manager's note saying a QC or tune is already booked or done is the same instruction: remove the duplicate block. "
     + "OUTSIDE-SHOP TRIPS ARE NOT DELIVERIES (Mark 10/29 — standing rule): a moving-calendar trip that takes a piano TO an "
     + "outside shop or specialist — Barrus Pianos, David Hyde, Curtis Harper (plating), a QRS or player installer — is not a "
     + "delivery, even when the piano is sold: it gets NO pre-delivery tuning or QC before that trip. Outside work (QRS / "
