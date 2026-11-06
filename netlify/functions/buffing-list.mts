@@ -126,7 +126,9 @@ export async function buildLists() {
   const playerOnly = (p: any) => {
     const l = String(p.track || "").split(",").map((t: string) => t.trim()).filter(Boolean)
       .map((t: string) => /^(old\s*)?player(\s*rebuild)?$/i.test(t) ? "Player Rebuild" : t);
-    return l.length > 0 && l.every((t: string) => t === "Player Rebuild");
+    // refurb-only pianos get no replating either (Mark 11/6); Refurbish +
+    // Refinish / Rebuild still does
+    return l.length > 0 && l.every((t: string) => t === "Player Rebuild" || t === "Refurbish");
   };
   const skipPhase = (p: any) => !!p && (/^((1st|2nd) tuning|post sale qc|paused)$/i.test(String(p.phase || "").trim()) || playerOnly(p));
   const task = (serial: string, name: string) =>
@@ -175,7 +177,8 @@ export async function buildLists() {
       // manufacturer and serial are all Korban needs (Walter 10/7)
       label: [String(p.make || "").trim() || String(p.summary || "").split("/")[0].trim(), "#" + p.serial].filter(Boolean).join(" "),
       summary: String(p.summary || "").slice(0, 80), finish,
-      kind: /^no electroplating$/i.test(finish) ? "buff" : finish ? "ship" : "unset", done });
+      // finish now comes from AL REQUESTED TRIM COLOR (free text allowed): "no plating" / "buff only" wordings mean buff
+      kind: /no\s*(electro)?plating|buff(ing)? only|^buff/i.test(finish) ? "buff" : finish ? "ship" : "unset", done });
   }
   hardware.sort((x, y) => y.phaseIdx - x.phaseIdx || x.label.localeCompare(y.label));
   return { ok: true, today: denverDay(), plates, hardware };

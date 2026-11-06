@@ -64,8 +64,8 @@ const PHASE_MIGRATE: Record<string, string> = {
   "Tuning": "1st Tuning", "QC": "QC & Assembly", "Admin Exit Prep": "Exit Prep - Admin",
 };
 const CARD_FIELDS: Record<string, { header: string; values: string[]; label: string }> = {
-  plateFinish: { header: "PLATE HARDWARE FINISH", values: ["", "Brass", "Nickel", "Copper", "No electroplating"], label: "Plate hardware finish" },
-  keytopMaterial: { header: "KEYTOP MATERIAL", values: ["", "White Acrylic", "Off-white Acrylic", "Ivory - clean & leave as is", "Ivory - replace damaged keys", "Ivory", "No key service"], label: "Keytop material" },
+  plateFinish: { header: "REQUESTED TRIM COLOR", values: ["", "Brass", "Nickel", "Copper", "No electroplating"], label: "Plate hardware finish" },
+  keytopMaterial: { header: "REQUESTED WHITE KEYTOP PLAN", values: ["", "White Acrylic", "Off-white Acrylic", "Ivory - clean & leave as is", "Ivory - replace damaged keys", "Ivory", "No key service"], label: "Keytop material" },
 };
 // mirrors the bridge's PLATE_HW_STATUSES ('' = not tracked)
 const PLATE_HW_STATUSES = ["", "Needs buffing", "In buffing queue", "Buffing", "Buffed", "Installed"];

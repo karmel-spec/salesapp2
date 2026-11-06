@@ -80,7 +80,7 @@ const SM_HEADERS = {
   phaseNotesIdx: 'PHASE NOTES', payPlanIdx: 'PAYMENT PLAN', payMsIdx: 'PAY MILESTONE',
   adminStIdx: 'ADMIN STEPS', keySvcIdx: 'KEY SERVICE', benchLocIdx: 'BENCH LOCATION',
   plateHwIdx: 'PLATE HW LOCATION', plateTempIdx: 'PLATE TEMP SPOT', plateHwStatusIdx: 'PLATE HARDWARE STATUS',
-  plateFinishIdx: 'PLATE HARDWARE FINISH', keytopMatIdx: 'KEYTOP MATERIAL', crmIdIdx: 'CRM CLIENT ID',
+  plateFinishIdx: 'REQUESTED TRIM COLOR',   // was PLATE HARDWARE FINISH (card-only) — AL is the one admin source (Mark 11/6) keytopMatIdx: 'REQUESTED WHITE KEYTOP PLAN',   // was KEYTOP MATERIAL (card-only) — AM is the one admin source (Mark 11/6) crmIdIdx: 'CRM CLIENT ID',
   scopeNotesIdx: 'SCOPE NOTES', keytopIdx: 'KEYTOP STATUS', impNoteIdx: 'IMPORTANT NOTES',
   pianoNotesIdx: 'PIANO NOTES', benchNoteIdx: 'BENCH NOTE', tempEntryIdx: 'TEMP ENTRY',
   tagSnapIdx: 'TAG SNAPSHOT', pvideoIdx: 'PROGRESS VIDEO', paperworkIdx: 'PAPERWORK',
@@ -172,8 +172,8 @@ function parseStoreMap(rows, today) {
       plateHw: plateHwIdx >= 0 ? col(plateHwIdx).slice(0, 80) : '',
       plateTemp: plateTempIdx >= 0 ? col(plateTempIdx).slice(0, 90) : '',
       plateHwStatus: plateHwStatusIdx >= 0 ? col(plateHwStatusIdx).slice(0, 40) : '',
-      plateFinish: plateFinishIdx >= 0 ? col(plateFinishIdx).slice(0, 30) : '',
-      keytopMaterial: keytopMatIdx >= 0 ? col(keytopMatIdx).slice(0, 30) : '',
+      plateFinish: plateFinishIdx >= 0 ? col(plateFinishIdx).slice(0, 80) : '',   // 80: AL holds free text like 'Brass (requested to match original)'
+      keytopMaterial: keytopMatIdx >= 0 ? col(keytopMatIdx).slice(0, 80) : '',
       scopeNotes: scopeNotesIdx >= 0 ? col(scopeNotesIdx).slice(0, 4000) : '',   // 4000 (10/21): contract blocks ran past 500 and a save wrote the cut text back
       crmClientId: crmIdIdx >= 0 ? col(crmIdIdx).trim() : '',
       keytopStatus: keytopIdx >= 0 ? col(keytopIdx).slice(0, 40) : '',
