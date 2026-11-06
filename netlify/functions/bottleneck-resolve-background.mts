@@ -154,7 +154,7 @@ export default async (req: Request) => {
       bottleneck_updates: { type: "array", items: { type: "object", properties: {
         title: { type: "string", description: "existing bottleneck title (exact)" },
         resolved: { type: "boolean" },
-        new_body: { type: "string", description: "updated body if partially resolved" },
+        new_body: { type: "string", description: "ONLY when part of the original question is still open: the open part, worded as what is still needed. Never a restatement of the answer." },
       }, required: ["title", "resolved"] } },
       rules_extracted: { type: "array", items: { type: "string" } },
       followups: { type: "array", items: { type: "string" }, description: "things a HUMAN still must do (e.g. edit the Store Map sheet layout, add a Piano Log row with owner info Claude doesn't have)" },
@@ -177,7 +177,13 @@ export default async (req: Request) => {
     + "YOU CANNOT CHANGE ANYONE'S SCHEDULE (Mark 10/30): when an answer says to assign / reassign / schedule / move a "
     + "technician (\"assign her to Schaeffer 23910 - Restring\"), do NOT claim it as an action — add a followup worded "
     + "exactly \"Add a schedule note — <Tech>: <what to schedule>\" so the manager runs it through Apply adjustments. "
-    + "A card action's `why` says what that card action does, never the schedule change.";
+    + "A card action's `why` says what that card action does, never the schedule change. "
+    + "CLEARING ITEMS (Mark 11/6: 'Ivers & Pond 72472' stayed on the board with its body replaced by his answer): "
+    + "if an answer settles the question the item asked, mark it resolved: true — EVEN WHEN a schedule-note followup "
+    + "or another human followup comes out of it (the followups list carries those; the item does not need to stay up "
+    + "as a reminder). Use resolved: false with new_body ONLY when part of the original question is genuinely still "
+    + "open (e.g. 'bridges done, still waiting on the client's decal decision'), and then new_body says what is still "
+    + "open — never just your restatement of the answer. An item you would only rewrite into the answer itself is resolved.";
   const userMsg = "BOTTLENECKS AND BRIGHAM'S ANSWERS:\n"
     + items.map((i: any) => `• ${i.title}\n  Context: ${i.body}\n  ANSWER: ${i.answer}`).join("\n\n")
     + `\n\nPIANO LIST:\n${roster}`;
