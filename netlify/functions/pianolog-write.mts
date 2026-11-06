@@ -181,12 +181,29 @@ export default async (req: Request) => {
   const humanOnly = action === "setphase" && /^delivered$/i.test(String((payload as { phase?: unknown }).phase || ""));
 
   // 1. durable record first — the op can no longer be lost
+  // NO timeout here on purpose: an insert that is merely slow could still
+  // land after we gave up, and the worker would replay it AFTER the direct
+  // write below (a stale move could put a piano back). Only a clear error
+  // status / refused connection means "not queued".
   const ins = await fetch(SB + "/rest/v1/bridge_queue", {
     method: "POST",
     headers: { ...sbHeaders(), Prefer: "return=representation" },
     body: JSON.stringify({ action, payload }),
-  });
+  }).catch((e) => ({ ok: false, status: 0, json: async () => [], _err: String((e as Error).message || e) }) as unknown as Response);
   if (!ins.ok) {
+    // queue down → still try the fast DIRECT sheet write (it needs no
+    // Supabase); only a bridge-only action falls back to the Store Map's
+    // own bridge send via the 503 below. Saves went from ~1 s to 10-20 s
+    // through the bridge while Supabase was down (Mark 11/6).
+    if (!humanOnly) {
+      let d0: Record<string, unknown> | null = null;
+      try { d0 = await directWrite(action, payload); }
+      catch (e) { console.warn("queue down + pianolog-direct failed, client will use the bridge:", action, String((e as Error).message || e).slice(0, 160)); }
+      if (d0) {
+        if (!d0.error) await triggerSync("write").catch(() => {});
+        return new Response(JSON.stringify({ ...d0, queueDown: true }), { headers });
+      }
+    }
     // 503, not 502 (Mark 11/6: Supabase answered PGRST002 and every move /
     // phase / status save failed with "queue write failed 503"). The Store
     // Map treats 502 as a final answer but falls through to the bridge on any
