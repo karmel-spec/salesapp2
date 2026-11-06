@@ -187,7 +187,11 @@ export default async (req: Request) => {
     body: JSON.stringify({ action, payload }),
   });
   if (!ins.ok) {
-    return new Response(JSON.stringify({ error: "queue write failed " + ins.status }), { status: 502, headers });
+    // 503, not 502 (Mark 11/6: Supabase answered PGRST002 and every move /
+    // phase / status save failed with "queue write failed 503"). The Store
+    // Map treats 502 as a final answer but falls through to the bridge on any
+    // other status — nothing was queued, so nothing can be replayed twice.
+    return new Response(JSON.stringify({ error: "queue write failed " + ins.status, queueDown: true }), { status: 503, headers });
   }
   const qid = ((await ins.json()) as Array<{ id: number }>)[0]?.id;
 
