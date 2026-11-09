@@ -247,6 +247,15 @@ export function patchForAction(action: string, payload: Record<string, unknown>,
       p.pl[m[2]] = payload.skip ? "Skipped" : "✓";
       break;
     }
+    // Scope of Work picks (Melissa 11/9: a Keys pick looked unsaved — the mirror
+    // kept the old value until the next full sync, and the card's poll took it back)
+    case "setcardfield": {
+      const f = s(payload.field), v = s(payload.value).replace(/\s+/g, " ").trim();
+      const hdr = f === "plateFinish" ? "REQUESTED TRIM COLOR" : f === "keytopMaterial" ? "REQUESTED WHITE KEYTOP PLAN" : "";
+      if (!hdr) return null;
+      p.sm[f] = v.slice(0, 80); p.raw[hdr] = v;
+      break;
+    }
     default:
       return null;   // other setters land with the next sync (≤ 3 min)
   }

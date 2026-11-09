@@ -80,7 +80,8 @@ const SM_HEADERS = {
   phaseNotesIdx: 'PHASE NOTES', payPlanIdx: 'PAYMENT PLAN', payMsIdx: 'PAY MILESTONE',
   adminStIdx: 'ADMIN STEPS', keySvcIdx: 'KEY SERVICE', benchLocIdx: 'BENCH LOCATION',
   plateHwIdx: 'PLATE HW LOCATION', plateTempIdx: 'PLATE TEMP SPOT', plateHwStatusIdx: 'PLATE HARDWARE STATUS',
-  plateFinishIdx: 'REQUESTED TRIM COLOR',   // was PLATE HARDWARE FINISH (card-only) — AL is the one admin source (Mark 11/6) keytopMatIdx: 'REQUESTED WHITE KEYTOP PLAN',   // was KEYTOP MATERIAL (card-only) — AM is the one admin source (Mark 11/6) crmIdIdx: 'CRM CLIENT ID',
+  // AL / AM are the one admin source (Mark 11/6) — were the card-only PLATE HARDWARE FINISH / KEYTOP MATERIAL
+  plateFinishIdx: 'REQUESTED TRIM COLOR', keytopMatIdx: 'REQUESTED WHITE KEYTOP PLAN', crmIdIdx: 'CRM CLIENT ID',
   scopeNotesIdx: 'SCOPE NOTES', keytopIdx: 'KEYTOP STATUS', impNoteIdx: 'IMPORTANT NOTES',
   pianoNotesIdx: 'PIANO NOTES', benchNoteIdx: 'BENCH NOTE', tempEntryIdx: 'TEMP ENTRY',
   tagSnapIdx: 'TAG SNAPSHOT', pvideoIdx: 'PROGRESS VIDEO', paperworkIdx: 'PAPERWORK',
