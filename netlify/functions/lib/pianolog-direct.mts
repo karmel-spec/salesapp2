@@ -69,7 +69,7 @@ const CARD_FIELDS: Record<string, { header: string; values: string[]; label: str
 };
 // mirrors the bridge's PLATE_HW_STATUSES ('' = not tracked)
 const PLATE_HW_STATUSES = ["", "Needs buffing", "In buffing queue", "Buffing", "Buffed", "Installed"];
-const PLATE_STATUSES = ["", "In piano", "Removed", "Plate storage — BEFORE", "At Curtis Harper", "Plate storage — AFTER", "Back in piano"];
+const PLATE_STATUSES = ["", "In piano", "Plate storage — BEFORE", "At Curtis Harper", "Plate storage — AFTER", "Back in piano"];
 const KEYTOP_STATES = ["Evaluate", "In Key Queue", "In Progress", "Done"];
 const TRACK_VALUES = ["Rebuild", "Hybrid", "Refurbish", "Refinish", "Technology", "Player Rebuild", "Storage", "Misc"];   // Player Rebuild was Old Player (Mark 10/22)
 // older spellings still accepted, saved under the current name — same as the bridge's trackCanon_
