@@ -115,16 +115,26 @@ export default async (req: Request) => {
       .map((v, i) => ({ i, kind: v[1] || "work", variant: (v[2] || "all").toLowerCase(),
         section: v[3] || "", text: v[4] || "", detail: v[5] || "",
         handbook: v[6] || "", video: v[7] || "", photo: v[8] || "" }));
-    let checks: unknown[] = [], request: unknown = null;
+    // the steps come from the sheet; check-offs + mini-QC requests from
+    // Supabase. Supabase unreachable (11/6–11/9) made this whole call hang 30 s
+    // and every checklist read 0/0 (Mark 11/9, 110926hales77) — now the steps
+    // always come back and checksUnavailable says the ticks couldn't be read
+    let checks: unknown[] = [], request: unknown = null, checksUnavailable = false;
     if (serial) {
-      const [cr, qr] = await Promise.all([
-        fetch(`${SB()}/rest/v1/phase_checks?serial=eq.${encodeURIComponent(serial)}&phase=eq.${encodeURIComponent(phase)}`, { headers: sb() }),
-        fetch(`${SB()}/rest/v1/qc_requests?serial=eq.${encodeURIComponent(serial)}&phase=eq.${encodeURIComponent(phase)}&status=in.(pending,rework)&order=id.desc&limit=1`, { headers: sb() }),
-      ]);
-      checks = await cr.json();
-      request = ((await qr.json()) as unknown[])[0] || null;
+      try {
+        const [cr, qr] = await Promise.all([
+          fetch(`${SB()}/rest/v1/phase_checks?serial=eq.${encodeURIComponent(serial)}&phase=eq.${encodeURIComponent(phase)}`, { headers: sb(), signal: AbortSignal.timeout(5000) }),
+          fetch(`${SB()}/rest/v1/qc_requests?serial=eq.${encodeURIComponent(serial)}&phase=eq.${encodeURIComponent(phase)}&status=in.(pending,rework)&order=id.desc&limit=1`, { headers: sb(), signal: AbortSignal.timeout(5000) }),
+        ]);
+        if (!cr.ok || !qr.ok) throw new Error("supabase " + cr.status + "/" + qr.status);
+        checks = await cr.json();
+        request = ((await qr.json()) as unknown[])[0] || null;
+      } catch (e) {
+        checksUnavailable = true;
+        console.warn("[phase-qc] check-offs unavailable:", String((e as Error).message || e).slice(0, 120));
+      }
     }
-    return json({ ok: true, items, checks, request,
+    return json({ ok: true, items, checks, request, checksUnavailable,
       glossary: gloss.map((v) => ({ term: v[0], def: v[1], img: v[2] || "" })) }, headers);
   }
 
@@ -138,7 +148,7 @@ export default async (req: Request) => {
     const row = { serial: String(p.serial), phase: String(p.phase), step: Number(p.step) };
     if (p.done) {
       const r = await fetch(`${SB()}/rest/v1/phase_checks?on_conflict=serial,phase,step`, {
-        method: "POST", headers: { ...sb(), Prefer: "resolution=merge-duplicates,return=minimal" },
+        method: "POST", headers: { ...sb(), Prefer: "resolution=merge-duplicates,return=minimal" }, signal: AbortSignal.timeout(8000),
         body: JSON.stringify({ ...row, done_by: String(p.by || ""), at: now,
           skipped: !!p.skipped, note: String(p.note || "").slice(0, 200) }),
       });
