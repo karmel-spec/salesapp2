@@ -77,7 +77,7 @@ const SM_HEADERS = {
   phaseIdx: 'CURRENT PHASE', trackIdx: 'TRACK', doneIdx: 'PHASES DONE', waitIdx: 'WAITING NOTE',
   crIdx: 'CLIENT REPORTS', cbIdx: 'CHECK BACK', cabIdx: 'CABINETRY', typeOvIdx: 'TYPE OVERRIDE',
   plateIdx: 'PLATE STATUS', colorPickIdx: 'COLOR FIRST PICK', colorFinalIdx: 'COLOR FINAL APPROVED',
-  phaseNotesIdx: 'PHASE NOTES', payPlanIdx: 'PAYMENT PLAN', payMsIdx: 'PAY MILESTONE',
+  phaseNotesIdx: 'PHASE NOTES', payPlanIdx: 'PAYMENT PLAN', payMsIdx: 'PAY MILESTONE', payTrackIdx: 'PAY TRACK',
   adminStIdx: 'ADMIN STEPS', keySvcIdx: 'KEY SERVICE', benchLocIdx: 'BENCH LOCATION',
   plateHwIdx: 'PLATE HW LOCATION', plateTempIdx: 'PLATE TEMP SPOT', plateHwStatusIdx: 'PLATE HARDWARE STATUS',
   // AL / AM are the one admin source (Mark 11/6) — were the card-only PLATE HARDWARE FINISH / KEYTOP MATERIAL
@@ -107,7 +107,7 @@ function parseStoreMap(rows, today) {
   const hdr = rows[1] || [];
   const I = smColumns(hdr);
   const { phaseIdx, priceIdx, trackIdx, doneIdx, waitIdx, crIdx, cbIdx, cabIdx, typeOvIdx, plateIdx,
-    colorPickIdx, colorFinalIdx, phaseNotesIdx, payPlanIdx, payMsIdx, adminStIdx, keySvcIdx, benchLocIdx,
+    colorPickIdx, colorFinalIdx, phaseNotesIdx, payPlanIdx, payMsIdx, payTrackIdx, adminStIdx, keySvcIdx, benchLocIdx,
     plateHwIdx, plateTempIdx, plateHwStatusIdx, plateFinishIdx, keytopMatIdx, crmIdIdx, scopeNotesIdx,
     keytopIdx, impNoteIdx, pianoNotesIdx, benchNoteIdx, tempEntryIdx, tagSnapIdx, pvideoIdx, paperworkIdx } = I;
   // CUSTOM SHOPWORK queue bounds (1-based rows)
@@ -185,6 +185,7 @@ function parseStoreMap(rows, today) {
       planNotes: col(26).slice(0, 300), replate: col(50).slice(0, 20),
       payPlan: payPlanIdx >= 0 ? col(payPlanIdx) : '',
       payMilestone: payMsIdx >= 0 ? col(payMsIdx) : '',
+      payTrack: payTrackIdx >= 0 ? col(payTrackIdx).slice(0, 600) : '',   // 💰 tracker marks (Melissa 10/24)
       adminSteps: adminStIdx >= 0 ? col(adminStIdx) : '',
       keyService: keySvcIdx >= 0 ? col(keySvcIdx) : '',
       keywork: col(51).slice(0, 90),
@@ -199,7 +200,7 @@ function parseStoreMap(rows, today) {
       logExtras: (() => {
         const used = new Set([0, 1, 2, 3, 4, 5, 6, 7, 9, 14, 15, 16, 17, 18, 19, 20, 21, 23, 26, 50, 51, 68,
           phaseIdx, priceIdx, trackIdx, doneIdx, waitIdx, crIdx, cbIdx, cabIdx, typeOvIdx,
-          payPlanIdx, payMsIdx, adminStIdx, keySvcIdx, tagSnapIdx, paperworkIdx]);
+          payPlanIdx, payMsIdx, payTrackIdx, adminStIdx, keySvcIdx, tagSnapIdx, paperworkIdx]);
         const out = {};
         for (let c = 0; c < hdr.length; c++) {
           const h = String(hdr[c] || '').trim();
