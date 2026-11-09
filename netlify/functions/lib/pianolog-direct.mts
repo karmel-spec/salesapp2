@@ -235,6 +235,10 @@ function plan(action: string, p: Payload, sh: Sheet, rowNum: number, row: string
       const val = s(p.plateStatus).trim();
       if (!PLATE_STATUSES.includes(val)) return { writes: [], logs: [], result: { error: "bad plate status: " + val } };
       const c = need("PLATE STATUS"); if (!c) return null;
+      // plate ↔ phase rules (Mark 11/9) live on the bridge: going to Curtis Harper,
+      // or coming back from there, also changes the phase — hand those to it
+      const prevPlate = cur(c).trim();
+      if (val === "At Curtis Harper" || ((val === "Plate storage — AFTER" || val === "Back in piano") && /^at curtis/i.test(prevPlate))) return null;
       const writes = [{ col: c, value: val }];
       const logs: Plan["logs"] = [[who, "Plate status", piano, val || "(cleared)"]];
       const result: DirectResult = { ...base, plateStatus: val };
@@ -357,6 +361,8 @@ function plan(action: string, p: Payload, sh: Sheet, rowNum: number, row: string
       // the two phases with side effects beyond cells stay on the bridge:
       // Delivered relocates the row below SOLD, Exit Prep - Admin texts admin
       if (phase === "Delivered" || phase === "Exit Prep - Admin") return null;
+      // Waiting on Curtis Harper also sets the plate to At Curtis Harper (Mark 11/9) — the bridge's job
+      if (phase === "Waiting on Curtis Harper") return null;
       const pc = need("CURRENT PHASE"); if (!pc) return null;
       const prev = cur(pc);
       const writes = [{ col: pc, value: phase }];
