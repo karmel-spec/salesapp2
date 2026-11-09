@@ -85,6 +85,12 @@ const SM_HEADERS = {
   scopeNotesIdx: 'SCOPE NOTES', keytopIdx: 'KEYTOP STATUS', impNoteIdx: 'IMPORTANT NOTES',
   pianoNotesIdx: 'PIANO NOTES', benchNoteIdx: 'BENCH NOTE', tempEntryIdx: 'TEMP ENTRY',
   tagSnapIdx: 'TAG SNAPSHOT', pvideoIdx: 'PROGRESS VIDEO', paperworkIdx: 'PAPERWORK',
+  // by header since 11/9: three columns inserted left of Bass Strings (~11/6) moved these by 3 —
+  // cards read Decals from a blank column and the Main folder link from OPTIONS (Mark 11/9)
+  bassIdx: 'BASS STRINGS', decalsIdx: 'DECALS', partsIdx: 'PARTS NEEDED', pedalsIdx: 'PEDALS',
+  pedalTrimIdx: 'PEDAL TRIM', lockIdx: 'LOCK', strikeIdx: 'STRIKE PLATE', escIdx: 'ESCUTCHEON',
+  decorIdx: 'DECOR.', hingeIdx: 'REG SMALL HINGE', screwsIdx: 'CORRESPONDING SCREWS', otherHwIdx: 'OTHER',
+  replateIdx: 'REPLATING ORDERED? Y/N', keyworkIdx: 'KEYWORK', mainFolderIdx: 'MAIN FOLDER',
 };
 
 /** Header-name → 0-based column index map for the Store Map fields. */
@@ -109,7 +115,9 @@ function parseStoreMap(rows, today) {
   const { phaseIdx, priceIdx, trackIdx, doneIdx, waitIdx, crIdx, cbIdx, cabIdx, typeOvIdx, plateIdx,
     colorPickIdx, colorFinalIdx, phaseNotesIdx, payPlanIdx, payMsIdx, payTrackIdx, adminStIdx, keySvcIdx, benchLocIdx,
     plateHwIdx, plateTempIdx, plateHwStatusIdx, plateFinishIdx, keytopMatIdx, crmIdIdx, scopeNotesIdx,
-    keytopIdx, impNoteIdx, pianoNotesIdx, benchNoteIdx, tempEntryIdx, tagSnapIdx, pvideoIdx, paperworkIdx } = I;
+    keytopIdx, impNoteIdx, pianoNotesIdx, benchNoteIdx, tempEntryIdx, tagSnapIdx, pvideoIdx, paperworkIdx,
+    bassIdx, decalsIdx, partsIdx, pedalsIdx, pedalTrimIdx, lockIdx, strikeIdx, escIdx, decorIdx, hingeIdx,
+    screwsIdx, otherHwIdx, replateIdx, keyworkIdx, mainFolderIdx } = I;
   // CUSTOM SHOPWORK queue bounds (1-based rows)
   let qHdr = 0, qEnd = 0;
   for (let k = 0; k < rows.length; k++) {
@@ -123,6 +131,7 @@ function parseStoreMap(rows, today) {
   for (let i = 2; i < rows.length; i++) {
     const r = rows[i] || [];
     const col = j => String(r[j] == null ? '' : r[j]).trim();
+    const colAt = j => (j >= 0 ? col(j) : '');
     const serial = col(2), summary = col(3);
     const head = col(1);
     const capsBanner = !col(4) && !col(5) && !col(6) && head && !head.includes('\n')
@@ -182,23 +191,23 @@ function parseStoreMap(rows, today) {
       pianoNotes: pianoNotesIdx >= 0 ? col(pianoNotesIdx).slice(0, 2000) : '',
       benchNote: benchNoteIdx >= 0 ? col(benchNoteIdx).slice(0, 160) : '',
       tempEntry: tempEntryIdx >= 0 ? col(tempEntryIdx).slice(0, 80) : '',
-      planNotes: col(26).slice(0, 300), replate: col(50).slice(0, 20),
+      planNotes: col(26).slice(0, 300), replate: colAt(replateIdx).slice(0, 20),
       payPlan: payPlanIdx >= 0 ? col(payPlanIdx) : '',
       payMilestone: payMsIdx >= 0 ? col(payMsIdx) : '',
       payTrack: payTrackIdx >= 0 ? col(payTrackIdx).slice(0, 600) : '',   // 💰 tracker marks (Melissa 10/24)
       adminSteps: adminStIdx >= 0 ? col(adminStIdx) : '',
       keyService: keySvcIdx >= 0 ? col(keySvcIdx) : '',
-      keywork: col(51).slice(0, 90),
+      keywork: colAt(keyworkIdx).slice(0, 90),
       tagSnapshot: tagSnapIdx >= 0 ? col(tagSnapIdx) : '',
       paperwork: paperworkIdx >= 0 ? col(paperworkIdx) : '',
       tasks: {
-        bass: col(38).slice(0, 80), decals: col(39).slice(0, 80), parts: col(40).slice(0, 80),
-        pedals: col(41).slice(0, 80), pedaltrim: col(42).slice(0, 80), lock: col(43).slice(0, 80),
-        strikeplate: col(44).slice(0, 80), escutcheon: col(45).slice(0, 80), decor: col(46).slice(0, 80),
-        hinges: col(47).slice(0, 80), screws: col(48).slice(0, 80), otherhw: col(49).slice(0, 80),
+        bass: colAt(bassIdx).slice(0, 80), decals: colAt(decalsIdx).slice(0, 80), parts: colAt(partsIdx).slice(0, 80),
+        pedals: colAt(pedalsIdx).slice(0, 80), pedaltrim: colAt(pedalTrimIdx).slice(0, 80), lock: colAt(lockIdx).slice(0, 80),
+        strikeplate: colAt(strikeIdx).slice(0, 80), escutcheon: colAt(escIdx).slice(0, 80), decor: colAt(decorIdx).slice(0, 80),
+        hinges: colAt(hingeIdx).slice(0, 80), screws: colAt(screwsIdx).slice(0, 80), otherhw: colAt(otherHwIdx).slice(0, 80),
       },
       logExtras: (() => {
-        const used = new Set([0, 1, 2, 3, 4, 5, 6, 7, 9, 14, 15, 16, 17, 18, 19, 20, 21, 23, 26, 50, 51, 68,
+        const used = new Set([0, 1, 2, 3, 4, 5, 6, 7, 9, 14, 15, 16, 17, 18, 19, 20, 21, 23, 26, replateIdx, keyworkIdx, mainFolderIdx,
           phaseIdx, priceIdx, trackIdx, doneIdx, waitIdx, crIdx, cbIdx, cabIdx, typeOvIdx,
           payPlanIdx, payMsIdx, payTrackIdx, adminStIdx, keySvcIdx, tagSnapIdx, paperworkIdx]);
         const out = {};
@@ -213,7 +222,7 @@ function parseStoreMap(rows, today) {
       bphotoUrl: driveUrl(col(14)), bvideoUrl: driveUrl(col(15)),
       aphotoUrl: driveUrl(col(16)), avideoUrl: driveUrl(col(17)),
       pvideoUrl: pvideoIdx >= 0 ? driveUrl(col(pvideoIdx)) : '',
-      mainFolder: driveUrl(col(68)),
+      mainFolder: driveUrl(colAt(mainFolderIdx)),
       isSlot: SLOT_RE.test(loc),
       entered: entered ? entered.toISOString().slice(0, 10) : null,
       phase: phaseIdx >= 0 ? col(phaseIdx) : '',
