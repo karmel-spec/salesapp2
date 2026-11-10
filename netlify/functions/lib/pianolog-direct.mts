@@ -362,8 +362,8 @@ function plan(action: string, p: Payload, sh: Sheet, rowNum: number, row: string
       // the two phases with side effects beyond cells stay on the bridge:
       // Delivered relocates the row below SOLD, Exit Prep - Admin texts admin
       if (phase === "Delivered" || phase === "Exit Prep - Admin") return null;
-      // Waiting on Curtis Harper also sets the plate to At Curtis Harper (Mark 11/9) — the bridge's job
-      if (phase === "Waiting on Curtis Harper") return null;
+      // Waiting on Curtis Harper no longer touches the plate (Mark 11/10, 111026hales81 —
+      // the plate can sit in plate storage while the piano waits), so it saves here like any phase
       // Out on Rental also moves the spot to "Rented — was at …" (Mark 11/10) — the bridge's job
       if (phase === "Out on Rental") return null;
       const pc = need("CURRENT PHASE"); if (!pc) return null;
