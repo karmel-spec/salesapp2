@@ -55,6 +55,7 @@ export const PHASE_VALUES = ["New Arrival - Admin", "Assessment", "CAP",
   "2nd Tuning", "Exit Prep - Admin", "Delivered",
   "In Queue", "Paused", "Player Piano Work", "For Sale", "Sale Pending", "Sold", "Post Sale QC",
   "Waiting on Brigham", "Waiting on Curtis Harper", "Waiting on Customer", "Waiting on OTHER",
+  "Out on Rental", "Rental Check-in",
   "Key Service", "Refurb Checklist", "Repair Work", "Add-ons",
   "Cabinetry Cleaning and Prep", "Action Problems and Hammer Prep", "Action Lubrication and Alignment", "Regulation"];
 const PHASE_MIGRATE: Record<string, string> = {
@@ -363,6 +364,8 @@ function plan(action: string, p: Payload, sh: Sheet, rowNum: number, row: string
       if (phase === "Delivered" || phase === "Exit Prep - Admin") return null;
       // Waiting on Curtis Harper also sets the plate to At Curtis Harper (Mark 11/9) — the bridge's job
       if (phase === "Waiting on Curtis Harper") return null;
+      // Out on Rental also moves the spot to "Rented — was at …" (Mark 11/10) — the bridge's job
+      if (phase === "Out on Rental") return null;
       const pc = need("CURRENT PHASE"); if (!pc) return null;
       const prev = cur(pc);
       const writes = [{ col: pc, value: phase }];
