@@ -79,7 +79,9 @@ export async function readSheet(): Promise<{ values: string[][]; roster: string[
     if (!r.ok) throw new Error(`sheet read ${range} failed (${r.status}) ${(await r.text()).slice(0, 160)}`);
     return clean(((await r.json()) as { values?: string[][] }).values || []);
   };
-  const [values, roster] = await Promise.all([get("'Piano Log'!A1:EZ5000"), get("'App Access'!A1:C300").catch(() => [] as string[][])]);
+  // A:ZZ, not A:EZ (Mark 11/10): the 11/6 column inserts pushed PAY TRACK to FA,
+  // past the old range, so every piano's payment marks read blank from the mirror
+  const [values, roster] = await Promise.all([get("'Piano Log'!A1:ZZ5000"), get("'App Access'!A1:C300").catch(() => [] as string[][])]);
   return { values, roster, ms: Date.now() - t0 };
 }
 
