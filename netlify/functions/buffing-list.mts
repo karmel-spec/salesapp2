@@ -50,6 +50,11 @@ const RETIRED: Record<string, string> = {
 // the hardware is back on — the three Exit Prep pianos had no marks at all).
 const FIRST = PHASES.indexOf("PRSB - Downbearing"), LAST = PHASES.indexOf("QC & Assembly");
 
+// the refurb work phases: one "Refurb Checklist" for grands, four for uprights
+// (same names as the Store Map's REFURB_UPRIGHT_PHASES)
+const REFURB_PHASES = new Set(["Refurb Checklist", "Cabinetry Cleaning and Prep",
+  "Action Problems and Hammer Prep", "Action Lubrication and Alignment", "Regulation"]);
+
 let tokenCache: { token: string; exp: number } | null = null;
 async function googleToken(): Promise<string> {
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || "";
@@ -131,6 +136,16 @@ export async function buildLists() {
     return l.length > 0 && l.every((t: string) => t === "Player Rebuild" || t === "Refurbish");
   };
   const skipPhase = (p: any) => !!p && (/^((1st|2nd) tuning|post sale qc|paused)$/i.test(String(p.phase || "").trim()) || playerOnly(p));
+  // Refurb pianos DO belong on the visible-hardware list (Mark 11/10, request
+  // 111026hales80): their hardware is buffed in house, never electroplated.
+  // "Refurb" = every track is Refurbish (a Player Rebuild alongside is fine);
+  // Refurbish + Refinish / Rebuild is a rebuild and follows the normal rule.
+  // Still off the plate-screws list above (Mark 11/6: no replating).
+  const tracksOf = (p: any) => String(p.track || "").split(",").map((t: string) => t.trim()).filter(Boolean)
+    .map((t: string) => /^(old\s*)?player(\s*rebuild)?$/i.test(t) ? "Player Rebuild" : t);
+  const refurbOnly = (p: any) => { const l = tracksOf(p);
+    return l.includes("Refurbish") && l.every((t: string) => t === "Player Rebuild" || t === "Refurbish"); };
+  const skipHw = (p: any) => /^((1st|2nd) tuning|post sale qc|paused)$/i.test(String(p.phase || "").trim());
   const task = (serial: string, name: string) =>
     tasks.find(t => norm(t.serial) === norm(serial) && norm(t.task) === norm(name) && !t.part);
 
@@ -162,7 +177,11 @@ export async function buildLists() {
   for (const p of active) {
     const ph = RETIRED[p.phase] || p.phase || "";
     const idx = PHASES.indexOf(ph);
-    if (idx < FIRST || idx > LAST || !p.serial || forSale(p) || skipPhase(p)) continue;
+    const refurb = refurbOnly(p);
+    // a refurb piano is listed while it is in its refurb phases (one phase for
+    // grands, four for uprights) and on through QC & Assembly
+    const inRange = refurb ? (REFURB_PHASES.has(ph) || (idx >= FIRST && idx <= LAST)) : (idx >= FIRST && idx <= LAST);
+    if (!inRange || !p.serial || forSale(p) || (refurb ? skipHw(p) : skipPhase(p))) continue;
     const plating = task(p.serial, PLATING_TASK);
     const own = task(p.serial, HW_TASK);
     const sent = plating && (plating.step1At || plating.step2At);
@@ -173,12 +192,13 @@ export async function buildLists() {
     // Buffed stays visible for the day with its undo
     else if (ownDone) { if (stampedToday(own!.step2At) && !/^already done$/i.test(own!.step2)) done = own!.step2 || "Done"; else continue; }
     const finish = String(p.plateFinish || "").trim();
-    hardware.push({ serial: p.serial, mapRow: p.row, phase: ph, phaseIdx: idx,
+    hardware.push({ serial: p.serial, mapRow: p.row, phase: ph, phaseIdx: idx >= 0 ? idx : FIRST - 1, refurb,
       // manufacturer and serial are all Korban needs (Walter 10/7)
       label: [String(p.make || "").trim() || String(p.summary || "").split("/")[0].trim(), "#" + p.serial].filter(Boolean).join(" "),
       summary: String(p.summary || "").slice(0, 80), finish,
       // finish now comes from AL REQUESTED TRIM COLOR (free text allowed): "no plating" / "buff only" wordings mean buff
-      kind: /no\s*(electro)?plating|buff(ing)? only|^buff/i.test(finish) ? "buff" : finish ? "ship" : "unset", done });
+      // a refurb piano is always buff — whatever the trim-color cell says
+      kind: refurb || /no\s*(electro)?plating|buff(ing)? only|^buff/i.test(finish) ? "buff" : finish ? "ship" : "unset", done });
   }
   hardware.sort((x, y) => y.phaseIdx - x.phaseIdx || x.label.localeCompare(y.label));
   return { ok: true, today: denverDay(), plates, hardware };
