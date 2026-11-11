@@ -163,16 +163,24 @@ export default async (req: Request) => {
 
   if (op === "check") {
     const row = { serial: String(p.serial), phase: String(p.phase), step: Number(p.step) };
-    if (p.done) {
-      const r = await fetch(`${SB()}/rest/v1/phase_checks?on_conflict=serial,phase,step`, {
-        method: "POST", headers: { ...sb(), Prefer: "resolution=merge-duplicates,return=minimal" }, signal: AbortSignal.timeout(8000),
-        body: JSON.stringify({ ...row, done_by: String(p.by || ""), at: now,
-          skipped: !!p.skipped, note: String(p.note || "").slice(0, 200) }),
-      });
-      if (!r.ok) return json({ error: "save failed " + r.status }, headers, 502);
-    } else {
-      await fetch(`${SB()}/rest/v1/phase_checks?serial=eq.${encodeURIComponent(row.serial)}&phase=eq.${encodeURIComponent(row.phase)}&step=eq.${row.step}`,
-        { method: "DELETE", headers: sb() });
+    // ok:true ONLY when Supabase took it (Mark 11/11, 111126hales84): the Store
+    // Map keeps every tick on the phone until this says so, and re-sends it when
+    // the database is back. The untick used to answer ok even when it failed.
+    try {
+      if (p.done) {
+        const r = await fetch(`${SB()}/rest/v1/phase_checks?on_conflict=serial,phase,step`, {
+          method: "POST", headers: { ...sb(), Prefer: "resolution=merge-duplicates,return=minimal" }, signal: AbortSignal.timeout(8000),
+          body: JSON.stringify({ ...row, done_by: String(p.by || ""), at: now,
+            skipped: !!p.skipped, note: String(p.note || "").slice(0, 200) }),
+        });
+        if (!r.ok) return json({ error: "save failed " + r.status }, headers, 502);
+      } else {
+        const r = await fetch(`${SB()}/rest/v1/phase_checks?serial=eq.${encodeURIComponent(row.serial)}&phase=eq.${encodeURIComponent(row.phase)}&step=eq.${row.step}`,
+          { method: "DELETE", headers: sb(), signal: AbortSignal.timeout(8000) });
+        if (!r.ok) return json({ error: "untick failed " + r.status }, headers, 502);
+      }
+    } catch (e) {
+      return json({ error: "checklist database unreachable: " + String((e as Error).message || e).slice(0, 80) }, headers, 503);
     }
     return json({ ok: true }, headers);
   }
