@@ -63,13 +63,16 @@ let clCache: { at: number; rows: string[][]; gloss: string[][] } | null = null;
 async function checklistRows(): Promise<{ rows: string[][]; gloss: string[][] }> {
   if (clCache && Date.now() - clCache.at < 600000) return clCache;
   const t = await googleToken();
-  const ranges = ["'Phase Checklists'!A2:I500", "'Glossary'!A2:C300"];
+  const ranges = ["'Phase Checklists'!A2:J500", "'Glossary'!A2:C300"];
   const r = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchGet?` +
       ranges.map((x) => "ranges=" + encodeURIComponent(x)).join("&"),
     { headers: { Authorization: "Bearer " + t } });
   const d = (await r.json()) as { valueRanges: Array<{ values?: string[][] }> };
-  const rows = (d.valueRanges[0]?.values || []).filter((v) => v[0]);
+  // v[10] = the row's number in the sheet (kept before blank rows are dropped):
+  // column J "Show after row #" refers to it (Hunter 111026rawlings14)
+  const rows = (d.valueRanges[0]?.values || []).map((v, n) => { const w = v.slice(0, 10); while (w.length < 10) w.push(""); w.push(String(n + 2)); return w; })
+    .filter((v) => v[0]);
   const gloss = (d.valueRanges[1]?.values || []).filter((v) => v[0] && v[1]);
   clCache = { at: Date.now(), rows, gloss };
   return clCache;
@@ -111,10 +114,24 @@ export default async (req: Request) => {
       "PRSBb - Plate In": "PRSB - Notching and Pins",
     };
     const itemsPhase = ITEM_ALIAS[phase] || phase;
-    const items = rows.filter((v) => v[0] === itemsPhase)
+    const inOrder = rows.filter((v) => v[0] === itemsPhase)
       .map((v, i) => ({ i, kind: v[1] || "work", variant: (v[2] || "all").toLowerCase(),
         section: v[3] || "", text: v[4] || "", detail: v[5] || "",
-        handbook: v[6] || "", video: v[7] || "", photo: v[8] || "" }));
+        handbook: v[6] || "", video: v[7] || "", photo: v[8] || "",
+        row: Number(v[10]) || 0, after: Number(v[9]) || 0 }));
+    // A NEW step is always added at the BOTTOM of the tab: every check-off is
+    // saved under the step's position among its phase's rows (`i`), so a row
+    // inserted mid-list would slide every later tick onto the wrong step.
+    // Column J "Show after row #" then says where it is DISPLAYED — right
+    // after that sheet row. `i` never changes (Hunter 111026rawlings14: the
+    // CAP downbearing check before the plate comes out). Unknown row → stays
+    // at the end.
+    const items = inOrder.filter((x) => !x.after);
+    const movers = inOrder.filter((x) => x.after);
+    for (let m = movers.length - 1; m >= 0; m--) {
+      const at = items.findIndex((y) => y.row === movers[m].after);
+      if (at >= 0) items.splice(at + 1, 0, movers[m]); else items.push(movers[m]);
+    }
     // the steps come from the sheet; check-offs + mini-QC requests from
     // Supabase. Supabase unreachable (11/6–11/9) made this whole call hang 30 s
     // and every checklist read 0/0 (Mark 11/9, 110926hales77) — now the steps
