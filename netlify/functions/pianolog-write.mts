@@ -41,6 +41,29 @@ function sbHeaders() {
   return { apikey: key, Authorization: "Bearer " + key, "Content-Type": "application/json" };
 }
 
+/* Is the save queue answering? (Mark 11/11) During a Supabase outage
+ * (PGRST002 — 11/6, 11/9, 11/10, 11/11) the queue insert below waited 6–20 s
+ * before failing, the Store Map gave up at 20 s and re-sent through the
+ * bridge: every move / phase / status took 20–30 s. A 2-second READ first;
+ * if Supabase doesn't answer, nothing is inserted at all and the save goes
+ * straight to the sheet. A read creates nothing, so no queue row can land
+ * late and be replayed over a newer change — the reason the insert itself
+ * has no time limit. Remembered per warm instance: healthy for 30 s, down
+ * for 60 s, so normal saves don't pay for a check every time. */
+let sbOkUntil = 0, sbDownUntil = 0;
+async function queueAnswering(SB: string): Promise<boolean> {
+  const now = Date.now();
+  if (now < sbOkUntil) return true;
+  if (now < sbDownUntil) return false;
+  try {
+    const r = await fetch(`${SB}/rest/v1/bridge_queue?select=id&limit=1`, { headers: sbHeaders(), signal: AbortSignal.timeout(2000) });
+    if (r.ok) { sbOkUntil = Date.now() + 30000; return true; }
+  } catch { /* timed out or refused */ }
+  sbDownUntil = Date.now() + 60000;
+  console.warn("[pianolog-write] save queue not answering — saving straight to the sheet for 60 s");
+  return false;
+}
+
 // a bridge response only counts when it's JSON and NOT the generic ping
 export function realBridgeResult(j: unknown): boolean {
   return !!j && typeof j === "object" && !("service" in (j as object));
@@ -184,13 +207,17 @@ export default async (req: Request) => {
   // NO timeout here on purpose: an insert that is merely slow could still
   // land after we gave up, and the worker would replay it AFTER the direct
   // write below (a stale move could put a piano back). Only a clear error
-  // status / refused connection means "not queued".
-  const ins = await fetch(SB + "/rest/v1/bridge_queue", {
+  // status / refused connection means "not queued". When the 2-second read
+  // check says the queue isn't answering, no insert is attempted at all.
+  const answering = await queueAnswering(SB);
+  const ins = answering ? await fetch(SB + "/rest/v1/bridge_queue", {
     method: "POST",
     headers: { ...sbHeaders(), Prefer: "return=representation" },
     body: JSON.stringify({ action, payload }),
-  }).catch((e) => ({ ok: false, status: 0, json: async () => [], _err: String((e as Error).message || e) }) as unknown as Response);
+  }).catch((e) => ({ ok: false, status: 0, json: async () => [], _err: String((e as Error).message || e) }) as unknown as Response)
+    : ({ ok: false, status: 0, json: async () => [] } as unknown as Response);
   if (!ins.ok) {
+    if (answering) sbDownUntil = Date.now() + 60000;   // the insert failed — skip the queue for the next saves too
     // queue down → still try the fast DIRECT sheet write (it needs no
     // Supabase); only a bridge-only action falls back to the Store Map's
     // own bridge send via the 503 below. Saves went from ~1 s to 10-20 s
