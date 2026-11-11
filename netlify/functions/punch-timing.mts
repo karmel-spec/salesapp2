@@ -61,6 +61,27 @@ export default async (req: Request) => {
     let b: Record<string, unknown> = {};
     try { b = JSON.parse(await req.text()); } catch { return new Response(JSON.stringify({ error: "bad json" }), { status: 400, headers }); }
     if (s(b.key) !== KEY) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers });
+    // backfill (Mark 11/11): a phone's own saved history of its last punches
+    // (kept for the dashboard's "last punch took" line), sent once — many rows
+    if (Array.isArray(b.batch)) {
+      const who = s(b.who, 60);
+      if (!who) return new Response(JSON.stringify({ error: "who required" }), { status: 400, headers });
+      const rows = (b.batch as Array<Record<string, unknown>>).slice(0, 20).map(e => {
+        const ms2 = num(e.ms); const at2 = new Date(s(e.at, 40)); const g2 = num(e.googleMs);
+        if (ms2 == null || isNaN(at2.getTime())) return null;
+        const act = s(e.action, 20);
+        return [new Date().toISOString(), at2.toISOString(), who, /^day/.test(act) ? "day" : "piano", act,
+          Math.round(ms2 / 100) / 10, g2 == null || g2 === 0 ? "" : Math.round(g2 / 100) / 10, "",
+          "ok (from phone history)", s(b.device, 10), "", "phone history", s(b.app, 10)];
+      }).filter(Boolean) as unknown[][];
+      if (!rows.length) return new Response(JSON.stringify({ ok: true, added: 0 }), { headers });
+      const tokB = await googleToken();
+      const put = () => fetch(`https://sheets.googleapis.com/v4/spreadsheets/${REPORT_SHEET}/values/${encodeURIComponent(`'${TAB}'!A1`)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+        { method: "POST", headers: { Authorization: "Bearer " + tokB, "Content-Type": "application/json" }, body: JSON.stringify({ values: rows }) });
+      let rb = await put();
+      if (!rb.ok && /Unable to parse range|not found/i.test(await rb.text())) { await ensureTab(tokB); rb = await put(); }
+      return new Response(JSON.stringify({ ok: rb.ok, added: rb.ok ? rows.length : 0 }), { status: rb.ok ? 200 : 502, headers });
+    }
     const ms = num(b.ms);
     if (ms == null || !s(b.who)) return new Response(JSON.stringify({ error: "who and ms required" }), { status: 400, headers });
     const g = num(b.googleMs);
