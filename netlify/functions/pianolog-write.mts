@@ -178,7 +178,8 @@ export default async (req: Request) => {
     if (!row) return new Response(JSON.stringify({ error: "not found" }), { status: 404, headers });
     const res = (row.result || {}) as Record<string, unknown>;
     return new Response(JSON.stringify({ ok: true, status: row.status, error: row.status === "failed" ? (row.last_error || res.error || "failed") : null,
-      location: res.location ?? null, stale: !!res.stale, noop: !!res.noop }), { headers });
+      location: res.location ?? null, stale: !!res.stale, noop: !!res.noop,
+      phase: res.phase ?? null, plateHold: res.plateHold || "" }), { headers });   // Restringing → Waiting on Curtis (Mark 11/11)
   }
   const SB = process.env.SUPABASE_URL || "";
   if (!SB || !process.env.SUPABASE_SERVICE_KEY) {

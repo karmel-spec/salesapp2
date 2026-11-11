@@ -368,6 +368,14 @@ function plan(action: string, p: Payload, sh: Sheet, rowNum: number, row: string
       if (phase === "Out on Rental") return null;
       const pc = need("CURRENT PHASE"); if (!pc) return null;
       const prev = cur(pc);
+      // Restringing needs the plate (Mark 11/11): a plate still in BEFORE storage
+      // or At Curtis Harper turns the move into Waiting on Curtis Harper — that
+      // rule lives on the bridge (setPhase_), so hand these few saves to it
+      if (phase === "Restringing" && !/^(for sale|sale pending|sold|delivered|post sale qc)$/i.test(prev.trim())) {
+        const plc = col(sh, "PLATE STATUS");
+        const pl = plc ? cur(plc).trim() : "";
+        if (/^plate storage\s*\W*\s*before/i.test(pl) || /^at curtis/i.test(pl)) return null;
+      }
       const writes = [{ col: pc, value: phase }];
       const waiting = phase.indexOf("Waiting") === 0;
       // WAITING NOTE: written with Waiting phases, cleared when the piano moves on
