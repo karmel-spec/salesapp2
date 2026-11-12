@@ -172,7 +172,7 @@ export function doubleStaffed(plan: any): string[] {
 /** The Tuning Queue (Walter 10/14): pianos Korban marked "Needs tuning" on the
  * Showroom Tuning Check that nobody has booked — computed by the Store Map's
  * /api/data (tuningQueue), ⚡ ASAP first, then walk order. They fill Korban's
- * open tuning slots after chip tunings and card-phase tunings. "" if unreadable. */
+ * open 8:00 (showroom) slots after Store Map requests (Mark 11/12). "" if unreadable. */
 export async function tuningQueueText(): Promise<string> {
   try {
     type TQ = { tuningQueue?: { rank: number; serial: string; piano: string; spot: string; asap: boolean; note: string }[]; tuningQueuePending?: string };

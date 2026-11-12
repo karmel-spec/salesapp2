@@ -52,7 +52,7 @@ export default async () => {
     } catch { /* tab unreadable — skip this check */ }
     // 6. Korban tunings
     const korban = techs.find(t => /^korban/i.test(String(t.name || "")));
-    if (korban) { const n = (korban.days || []).flat().filter((b: any[]) => /in-store tuning/i.test(String(b[3] || ""))).length; if (n < 10) issues.push(`Korban has ${n} in-store tunings scheduled (rule: 10/week)`); }
+    if (korban) { const n = (korban.days || []).flat().filter((b: any[]) => /in-store tuning/i.test(String(b[3] || ""))).length; if (n < 5) issues.push(`Korban has ${n} in-store tunings scheduled (rule since 11/12: his 8:00 slot every day; 9:30 only for shopwork 1st/2nd tunings, Thu/Fri 9:30 held for DHRT finishers)`); }
     // 7. blocks on off days
     techs.forEach(t => { const hrs = String(t.hours || ""); ["Mon","Tue","Wed","Thu","Fri"].forEach((dn, i) => { const off = new RegExp(`off\\s+[^)]*\\b${dn}`, "i").test(hrs) || new RegExp(`\\(${dn}[^)]*off\\)`, "i").test(hrs); if (off && ((t.days || [])[i] || []).length) issues.push(`${t.name} has blocks on ${dn} but hours say off`); }); });
     const glance = techs.map(t => `${String(t.name).split(/\s+/)[0]} ${String(t.who || "").replace(/\s+/g, " ").slice(0, 60)}`).join(" · ");
