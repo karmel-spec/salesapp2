@@ -209,7 +209,7 @@ export default async (req: Request) => {
     const cell = (row: number, col: number) => String((v[row - 1] || [])[col] || "").trim();
     const last = v.length;
     const problems: string[] = [];
-    if (v.some((x) => ROWS.some((n) => String(x[4] || "").trim() === n[4]))) problems.push("already seeded");
+    if (v.some((x) => String(x[0] || "").trim() === "CAP" && String(x[2] || "").trim() === "grand" && ROWS.some((n) => String(x[4] || "").trim() === n[4]))) problems.push("already seeded");
     if (cell(1, 0) !== "Phase") problems.push("row 1 is not the header");
     if (last !== 234) problems.push("expected the tab to end at row 234, it ends at " + last);
     if (cell(234, 0) !== "CAP" || cell(234, 1) !== "qc" || cell(234, 4).indexOf("Downbearing readings") !== 0) problems.push("row 234 is not the downbearing mini-QC line");
