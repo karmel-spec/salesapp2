@@ -83,7 +83,7 @@ export function normalizeBottlenecks(list: unknown): string[][] {
   return out;
 }
 
-/** Pianos whose plate is out and not yet refinished (Scheduling Rule 94, Walter 10/13):
+/** Pianos whose plate is out and not yet refinished (the PLATE READY FOR RESTRINGING rule, Walter 10/13):
  * card PLATE STATUS Removed / Plate storage — BEFORE / At Curtis Harper. The weekly
  * draft gave Alex "Steinway 3536 - Restringing" with its plate still in BEFORE storage;
  * the Planner never saw plate status. Approve holds such blocks too. "" if unreadable. */
