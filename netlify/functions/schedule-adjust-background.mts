@@ -353,7 +353,7 @@ export default async (req: Request) => {
     + "the standing calendar event was deleted 11/2; use that exact title), but do NOT write job lists or "
     + "priorities into its note — Approve fills the calendar event from the live buffing list (top two plate screws in "
     + "Curtis's order, top two visible hardware). The only thing the note may carry is a deadline when a restring depends "
-    + "on hardware (the 'Korban parts deadline' rule), written as 'DEADLINE: <piano> hardware ready by <day time> - <tech> starts <phase>'. "
+    + "on hardware (the KORBAN PARTS DEADLINE rule), written as 'DEADLINE: <piano> hardware ready by <day time> - <tech> starts <phase>'. "
     + "You also get each technician's WEEKLY REPORT (their own account of this week, per piano: DONE / CONTINUE NEXT WEEK "
     + "(with days to finish) / NOT STARTED). When a note asks you to re-check a report or redo a tech's week from it, rebuild "
     + "that tech's days from the report: CONTINUE NEXT WEEK items first with their days-to-finish, then NOT STARTED items, "
