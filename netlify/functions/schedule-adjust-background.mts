@@ -429,6 +429,15 @@ export default async (req: Request) => {
       if (cleared) changes.push(`${t.name}: cleared ${cleared} block${cleared === 1 ? "" : "s"} on approved time off (${[...offDays].sort().map(d => ["Mon", "Tue", "Wed", "Thu", "Fri"][d]).join(", ")}).`);
     }
     for (const n of ignored) changes.push(`⚠ Ignored the model's change to ${n} — no note named ${n.split(/\s+/)[0]}. Write a note for them if you want their week changed.`);
+    // plans are Monday–Friday (Mark 11/13): a run that grew a 6th day (Alex's Saturday copied from Friday,
+    // "Friday Shop Organization" and all) would have had Approve write Saturday events — keep five
+    for (const t of merged.techs) {
+      if (Array.isArray(t.days) && t.days.length > 5) {
+        const extra = t.days.slice(5).reduce((n: number, d: any) => n + (Array.isArray(d) ? d.length : 0), 0);
+        t.days = t.days.slice(0, 5);
+        if (extra) changes.push(`${t.name}: dropped ${extra} block${extra === 1 ? "" : "s"} past Friday — the plan covers Monday–Friday only.`);
+      }
+    }
     // shop work never sits on top of a field appointment (Mark 11/13: Alex's Thursday DHRT came back
     // 8:00-4:00 over his 2:00-4:00 Orem tuning, and Approve would have put it on his calendar)
     const mins = (h: unknown) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(h || "")); return m ? +m[1] * 60 + +m[2] : NaN; };
