@@ -186,17 +186,22 @@ export default async (req: Request) => {
   const sys = "You revise the weekly technician schedule for Brigham Larson Pianos (piano restoration shop). "
     + "You get the current proposal plan JSON, Brigham's per-technician notes, and the standing scheduling rules. "
     + "Return ONLY the technicians your changes touch (each one complete, same shape as in the plan); untouched technicians are kept exactly as they are. "
-    + "Apply the notes faithfully: move/resize/replace blocks, keep the JSON shape EXACTLY (days = 5 arrays of "
-    + "[start,end,kind,title,note]; times are shop-clock 12h without am/pm where 7-11=morning, 12-6=afternoon; "
-    + "kind must be an existing colors key). Keep every tech's hours realistic and keep the Friday 2:30-3:30 "
-    + "cleaning block for full-day techs. Update the 'who' summary line when a tech's pianos change. "
+    + "Apply the notes faithfully: move/resize/replace blocks, keep the JSON shape EXACTLY (days = 5 arrays, Monday-Friday — 6 only for a "
+    + "Saturday worker, see ALEX WORKS SATURDAYS — of [start,end,kind,title,note]; write times the way the plan already does, "
+    + "24-hour like '14:00' (a bare 1:00-6:00 is read as afternoon); "
+    + "kind must be an existing colors key). Keep every tech's hours realistic. "
+    + "Update the 'who' summary line when a tech's pianos change. "
     + "Add/adjust bottlenecks entries when notes reveal blockers — every bottlenecks entry MUST be a two-element array [title, body] (never a plain string); per-piano reconciliation notes belong in reportOverrides, not bottlenecks. Distinguish one-off adjustments (apply them, "
     + "list in changes) from standing rules ('always', 'never', 'from now on', 'remember') which also go in "
-    + "rules_extracted. Do not invent work that wasn't asked for. "
+    + "rules_extracted. Do not invent work that wasn't asked for — except what the standing self-serve rules below require "
+    + "(a delivery's tuning and QC, field appointments that follow the tech's calendar, Alex's Saturday). "
     + "ONLY THE TECHNICIANS THE NOTES NAME (Mark 10/30 — enforced in code): change a technician only if a note is written "
     + "for them, a note names them, or there is a GLOBAL note. Never re-staff, re-pair or 'cover' a piano another note "
-    + "emptied — if a lane is left without a tech, say so in a bottleneck and leave it to the manager. Any change to an "
-    + "unnamed technician is thrown away. "
+    + "emptied — if a lane is left without a tech, say so in a bottleneck and leave it to the manager. Any other change to an "
+    + "unnamed technician is thrown away. TWO EXCEPTIONS (Mark 11/13, also enforced in code): the standing rules FIELD "
+    + "APPOINTMENTS FOLLOW THE TECH'S OWN CALENDAR and DELIVERIES ARE SELF-SERVE apply on every run — return those technicians "
+    + "(the field tech; Korban and the QC technician for a delivery) even when no note names them, changing nothing else in "
+    + "their week. "
     + "ONE TECHNICIAN PER PHASE (Mark 10/30 — standing rule): a piano's phase (its CAP, its DHRT, its restringing…) has one "
     + "technician on it on any given day unless a manager's note puts two on it by name ('Hunter joins Avery on the 211935 "
     + "CAP'). Never double up techs on one phase on your own, and never add a second tech 'behind' the first. DIFFERENT "
@@ -204,7 +209,8 @@ export default async (req: Request) => {
     + "NO NOTE: another technician on a different phase of the same piano is never a reason to leave a tech unscheduled or to "
     + "ask (10/30: Lupita was left blank because Marcelo had the Schaeffer's key service — wrong). When a note moves a tech "
     + "onto a phase that already has one, the note's tech takes it and you say in changes that the other is now free — or "
-    + "ask, if the note is unclear. "
+    + "ask, if the note is unclear. ONE EXCEPTION to overlapping phases (Mark 11/13): no DHRT while the piano is physically in "
+    + "the refinishing shop (card phase Refinishing) — hardware buffing and key work may still run alongside. "
     + "THE REPORT AS GIVEN (Mark 10/30): when a note asks you to re-read / re-check a technician's weekly report or rebuild "
     + "their week from it, use ONLY the text under TECH WEEKLY REPORTS as it stands now. The plan's own 'who' lines, block "
     + "notes and reportOverrides are the draft's EARLIER reasoning — never quote them as the report, and when they "
@@ -270,7 +276,8 @@ export default async (req: Request) => {
     + "move their work onto another tech unless the note says who takes it. This applies in every later run too: a tech "
     + "already marked OUT stays empty until a note says they are back. "
     + "PLATES (Scheduling Rule 94): a piano listed under PLATES NOT READY has its plate out and not yet refinished — never "
-    + "schedule its Restringing (or any stringing) until the card says Plate storage — AFTER or Back in piano; give that tech "
+    + "schedule its Restringing (or any stringing) until the card says Plate storage — AFTER, Back in piano or In piano (Mark "
+    + "11/13: a BEFORE plate bars restringing ONLY — CAP, PRSB, Lacquer Soundboard and key work go ahead); give that tech "
     + "other work instead and say so in changes. If a note asks for it anyway, keep the block and add a question. Approve "
     + "also holds such blocks. "
     + "KORBAN'S TUNING SLOTS (Mark 11/12 — replaces Walter 10/14): two slots a day, FIRST 8:00 (Fridays 8:45, after shop "
@@ -295,6 +302,11 @@ export default async (req: Request) => {
     + "his calendar: Friday's shop work copied over (same piano and phase, 8:00-4:00), minus Friday-only blocks (Friday Shop "
     + "Organization), around any field appointment on his own Saturday calendar. Say 'Mon/Tue/Thu/Fri/Sat' in his hours. No "
     + "other technician gets a 6th day unless their hours say they work Saturdays. "
+    + "TUNE, THEN QC — ALWAYS (Mark 11/13): the old 'short QC, then tune, then final QC' sequence is retired. "
+    + "DELIVERIES ARE MATCHED BY SERIAL ONLY (Brigham 9/8, reaffirmed Mark 11/13): a client name that matches a Piano Log owner "
+    + "is a reason to ask for the serial, never a match to schedule on. "
+    + "PRE-BOOKED TUNINGS ARE NEVER DELETED (Mark 11/13), except true duplicates; they move only under BUMPED TUNINGS, a "
+    + "manager's priority list, a delivery tuning or the Wednesday 6 PM fill. "
     + "DELIVERY BLOCKS — CALENDAR NOTE (Mark 11/13 — standing rule, the one exception to 'nothing about the schedule' in "
     + "CALENDAR NOTES): a pre-delivery tuning or QC block's [CAL: …] segment is exactly 'Delivery <weekday> <M/D>' — e.g. "
     + "[CAL: Delivery Tuesday 11/17] — never the client's name, no time, no other schedule wording. A check-up QC may add the "
@@ -496,7 +508,9 @@ export default async (req: Request) => {
     }
     // shop work never sits on top of a field appointment (Mark 11/13: Alex's Thursday DHRT came back
     // 8:00-4:00 over his 2:00-4:00 Orem tuning, and Approve would have put it on his calendar)
-    const mins = (h: unknown) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(h || "")); return m ? +m[1] * 60 + +m[2] : NaN; };
+    // shop clock, like the bridge's shopClock_: a bare 1:00-6:00 is afternoon
+    const mins = (h: unknown) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(h || "")); if (!m) return NaN;
+      const hr = +m[1] >= 1 && +m[1] <= 6 ? +m[1] + 12 : +m[1]; return hr * 60 + +m[2]; };
     const hhmm = (n: number) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
     for (const t of merged.techs) {
       if (!Array.isArray(t.days)) continue;
