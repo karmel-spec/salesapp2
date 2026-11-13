@@ -367,13 +367,31 @@ export default async (req: Request) => {
     // only techs the notes name may change (Mark 10/30) — see allowedTechs
     const allowed = allowedTechs(plan, body.notes || {}, globalTxt);
     const ignored: string[] = [];
+    // …except the two standing self-serve rules (Mark 11/13), which must work without a note:
+    // a field block that follows the tech's own calendar, and a delivery's tune / QC block
+    const isFieldB = (b: any) => /^\s*field\b|\bfield\s*:/i.test(String((b && b[3]) || ""));
+    const fieldSig = (t: any) => (Array.isArray(t?.days) ? t.days : []).flatMap((d: any[], di: number) =>
+      (d || []).filter(isFieldB).map((b: any[]) => `${di}|${b[0]}|${b[1]}|${b[3]}`)).sort().join("~");
+    const delivSerials = [...deliveryCtx.matchAll(/\[DELIVERY\][^\n]*\n\s*pianos named: ([^\n]+)/g)]
+      .flatMap(m => [...m[1].matchAll(/#([A-Za-z0-9-]{3,})/g)].map(x => x[1].toLowerCase()));
+    const titlesOf = (t: any) => (Array.isArray(t?.days) ? t.days : []).flat().map((b: any[]) => String((b && b[3]) || "").toLowerCase());
+    const selfServe = (oldT: any, newT: any): string => {
+      if (oldT && fieldSig(oldT) !== fieldSig(newT)) return "field appointments re-checked against their calendar";
+      const before = titlesOf(oldT), after = titlesOf(newT);
+      const added = delivSerials.find(sn => after.some(x => x.includes(sn)) && !before.some(x => x.includes(sn)));
+      return added ? `pre-delivery tune / QC for #${added}` : "";
+    };
     for (const t of out.changed_techs) {
       if (!t || typeof t !== "object" || !t.name) continue;
       // "Myrrhanda Lamping" from the model is the plan's "Myrrhanda" — exact name first, then first name
       let i = merged.techs.findIndex((x: any) => key(x.name) === key(t.name));
       if (i < 0) i = merged.techs.findIndex((x: any) => first(x.name) === first(t.name));
       const planName = i >= 0 ? key(merged.techs[i].name) : key(t.name);
-      if (allowed && !allowed.has(planName)) { ignored.push(i >= 0 ? merged.techs[i].name : String(t.name)); continue; }
+      if (allowed && !allowed.has(planName)) {
+        const why = selfServe(i >= 0 ? merged.techs[i] : null, t);
+        if (!why) { ignored.push(i >= 0 ? merged.techs[i].name : String(t.name)); continue; }
+        (out.changes = Array.isArray(out.changes) ? out.changes : []).push(`${i >= 0 ? merged.techs[i].name : t.name}: changed without a note — ${why} (standing rule).`);
+      }
       if (i >= 0) merged.techs[i] = { ...merged.techs[i], ...t, name: merged.techs[i].name }; else merged.techs.push(t);
     }
     if (Array.isArray(out.bottlenecks)) merged.bottlenecks = out.bottlenecks;
@@ -411,6 +429,30 @@ export default async (req: Request) => {
       if (cleared) changes.push(`${t.name}: cleared ${cleared} block${cleared === 1 ? "" : "s"} on approved time off (${[...offDays].sort().map(d => ["Mon", "Tue", "Wed", "Thu", "Fri"][d]).join(", ")}).`);
     }
     for (const n of ignored) changes.push(`⚠ Ignored the model's change to ${n} — no note named ${n.split(/\s+/)[0]}. Write a note for them if you want their week changed.`);
+    // shop work never sits on top of a field appointment (Mark 11/13: Alex's Thursday DHRT came back
+    // 8:00-4:00 over his 2:00-4:00 Orem tuning, and Approve would have put it on his calendar)
+    const mins = (h: unknown) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(h || "")); return m ? +m[1] * 60 + +m[2] : NaN; };
+    const hhmm = (n: number) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
+    for (const t of merged.techs) {
+      if (!Array.isArray(t.days)) continue;
+      let trimmed = 0;
+      t.days = t.days.map((d: any[]) => {
+        if (!Array.isArray(d)) return d;
+        const fields = d.filter(isFieldB).map((b: any[]) => [mins(b[0]), mins(b[1])]).filter(([x, y]) => x < y);
+        if (!fields.length) return d;
+        const outD: any[] = [];
+        for (const b of d) {
+          if (isFieldB(b) || !Array.isArray(b)) { outD.push(b); continue; }
+          let pieces = [[mins(b[0]), mins(b[1])]];
+          for (const [fs, fe] of fields) pieces = pieces.flatMap(([ps, pe]) =>
+            pe <= fs || ps >= fe ? [[ps, pe]] : [[ps, fs], [fe, pe]].filter(([x, y]) => y - x >= 15));
+          if (pieces.length !== 1 || pieces[0][0] !== mins(b[0]) || pieces[0][1] !== mins(b[1])) trimmed++;
+          for (const [ps, pe] of pieces) if (!isNaN(ps) && pe > ps) outD.push([hhmm(ps), hhmm(pe), ...b.slice(2)]);
+        }
+        return outD.sort((x: any[], y: any[]) => mins(x[0]) - mins(y[0]));
+      });
+      if (trimmed) changes.push(`${t.name}: trimmed shop work around field appointments (${trimmed} block${trimmed === 1 ? "" : "s"}).`);
+    }
     // one tech per phase (Mark 10/30): report any piano + phase two techs share on a day — not fixed here, flagged
     const shared = doubleStaffed(merged);
     if (shared.length) {
