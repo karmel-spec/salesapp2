@@ -18,7 +18,7 @@
 import * as crypto from "node:crypto";
 import { getStore } from "@netlify/blobs";
 import { logAdjustment, denverStamp } from "./lib/adjust-log";
-import { normalizeBottlenecks, plateHoldText, plateReadyText, tuningQueueText, allowedTechs, doubleStaffed } from "./_blp-sched-lib.mts";
+import { normalizeBottlenecks, plateHoldText, plateReadyText, tuningQueueText, deliveryContextText, allowedTechs, doubleStaffed } from "./_blp-sched-lib.mts";
 
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
 const RULES_TAB = "Scheduling Rules";
@@ -157,6 +157,7 @@ export default async (req: Request) => {
   const plateHolds = await plateHoldText();
   const plateReady = await plateReadyText();
   const tuneQueue = await tuningQueueText();
+  const deliveryCtx = await deliveryContextText(String(plan.weekStart || ""));
   // approved time off for the plan week (Mark 10/23) — from the Time Off requests
   const timeOff = await approvedTimeOff(plan).catch(() => ({ text: "", days: {} as Record<string, Set<number>> }));
   const notesTxt = Object.entries(body.notes || {})
@@ -288,6 +289,15 @@ export default async (req: Request) => {
     + "DHRT hold included. DELIVERY TUNINGS (Mark 11/12): a pre-delivery tuning takes Korban's 8:00 (Fri 8:45) on the day it "
     + "is needed and a showroom tuning already there moves to the next free 8:00 (say which in changes); only when that 8:00 "
     + "holds another delivery tuning or a Brigham priority does the delivery take the 9:30 (Fri 10:15), held slots included. "
+    + "DELIVERIES ARE SELF-SERVE (Mark 11/13 — standing rule; never ask whether a delivery needs a tuning): for EVERY delivery to "
+    + "a customer on the MOVING CALENDAR list below (or named in a note) whose piano is identified by serial, and that has no "
+    + "tuning for that serial already on the BOOKED tuning list or in the plan, ADD BOTH without being asked: (1) Korban's "
+    + "pre-delivery tuning per DELIVERY TUNINGS, on the workday BEFORE the delivery (the same day only when the delivery is that "
+    + "afternoon and the day before is impossible), and (2) the QC on the QC technician's lane after it — the tuning must END "
+    + "before the QC STARTS on the same day; a QC'd-within-a-month piano gets a short check-up QC (rule 8/10). Say both in "
+    + "changes, including which showroom tuning moved where. Exceptions, from the standing rules: storage returns, moved-only "
+    + "pianos, outside-shop trips (no tune or QC), QRS-only pianos (30-min QC only). A delivery event with NO SERIAL → a "
+    + "bottleneck asking for the serial (rule 9/8); never guess. "
     + "Queue pianos that don't fit are simply left out — they never carry to next "
     + "week; only card-phase tunings and Store Map request tunings overflow. "
     + "CHIP TUNINGS (Mark 11/12): Korban does NOT do chip tunings. The technician doing a piano's DHRT does its chip tuning "
@@ -317,10 +327,11 @@ export default async (req: Request) => {
   const userMsg = `STANDING RULES:\n${rules.map(r => "- " + r).join("\n") || "(none yet)"}\n\n`
     + reportsTxt
     + (tuneQueue ? `TUNING QUEUE (marked Needs tuning on the Showroom Tuning Check, not booked yet, in order):\n${tuneQueue}\n\n` : "")
+    + deliveryCtx
     + (plateReady ? `PLATES BACK FROM CURTIS HARPER (Plate storage — AFTER) — each restring is LUPITA's next assignment, in this order, as soon as her current restring wraps — SCHEDULE IT, no note needed, and another tech on a different phase of that piano (keytops, DHRT, refinishing) is not a conflict; another restringer only if a note says so; phase already past Restringing → flag the stale plate status, don't schedule (Mark 10/30):\n${plateReady}\n\n` : "")
     + (plateHolds ? `PLATES NOT READY (plate out, not yet refinished — do not schedule stringing):\n${plateHolds}\n\n` : "")
     + (timeOff.text ? `APPROVED TIME OFF (from the Time Off requests — schedule NOTHING for that technician on a whole day off; on a partial day leave the stated hours empty):\n${timeOff.text}\n\n` : "")
-    + `BRIGHAM'S NOTES THIS WEEK:\n${globalTxt ? "GLOBAL: " + globalTxt + "\n" : ""}${notesTxt}\n\n`
+    + `MANAGER NOTES THIS WEEK — written by ${String(body.by || "Brigham").replace(/\s*\(.*$/, "")} (credit them to that person in changes, not to anyone else):\n${globalTxt ? "GLOBAL: " + globalTxt + "\n" : ""}${notesTxt}\n\n`
     + `CURRENT PLAN JSON:\n${JSON.stringify(plan)}`;
 
   const ai = await fetch("https://api.anthropic.com/v1/messages", {

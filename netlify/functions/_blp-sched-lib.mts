@@ -173,6 +173,46 @@ export function doubleStaffed(plan: any): string[] {
  * Showroom Tuning Check that nobody has booked — computed by the Store Map's
  * /api/data (tuningQueue), ⚡ ASAP first, then walk order. They fill Korban's
  * open 8:00 (showroom) slots after Store Map requests (Mark 11/12). "" if unreadable. */
+/** Deliveries + booked tunings for the Planner (Mark 11/13: "apply the delivery rules" came
+ *  back as a question — the model had neither the moving calendar nor the tuning calendar,
+ *  so it could not tell whether a tuning was needed or already booked). From the Store Map
+ *  data feed: moving-calendar events from today through the Sunday after the plan week,
+ *  each with the serial(s) it names (or NO SERIAL), and the 03-In Store Tuning calendar's
+ *  upcoming bookings through the same day. "" when the feed can't be read. */
+export async function deliveryContextText(weekStart: string): Promise<string> {
+  try {
+    type Feed = { pianos?: any[]; events?: { date: string; time?: string; summary?: string; description?: string }[];
+      tunings?: { upcoming?: string[][] } };
+    const r = await fetch("https://blpstoremap.netlify.app/api/data?scope=active", { signal: AbortSignal.timeout(20000) });
+    const d = await r.json() as Feed;
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Denver" });
+    const ws = /^\d{4}-\d{2}-\d{2}$/.test(weekStart || "") ? weekStart : today;
+    const endD = new Date(ws + "T12:00:00Z"); endD.setUTCDate(endD.getUTCDate() + 6);
+    const end = endD.toISOString().slice(0, 10);
+    const pianos = (d.pianos || []).filter((p: any) => p.active && p.serial);
+    const fold = (t: string) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const names = (txt: string) => {
+      const T = fold(txt), out: string[] = [];
+      for (const p of pianos) {
+        for (const sn of String(p.serial).split(/\s*\/\s*/)) {
+          const s = fold(sn).trim(); if (s.length < 3) continue;
+          const re = s.length >= 5 ? new RegExp("(^|[^a-z0-9])" + s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "([^a-z0-9]|$)")
+            : new RegExp(fold(String(p.make || "").split(/\s+/)[0]).replace(/[^a-z]/g, "") + "[^a-z0-9]{1,3}#?" + s + "([^a-z0-9]|$)");
+          if (re.test(T)) { out.push(`${p.summary || p.make || "piano"} #${p.serial} (phase ${p.phase || "—"}${p.section ? ", " + p.section : ""})`); break; }
+        }
+      }
+      return out;
+    };
+    const ev = (d.events || []).filter(e => e.date >= today && e.date <= end)
+      .map(e => { const txt = `${e.summary || ""} ${e.description || ""}`; const n = names(txt);
+        return `${e.date} ${e.time || ""} — ${String(e.summary || "").slice(0, 120)}${e.description ? " | " + String(e.description).replace(/\s+/g, " ").slice(0, 160) : ""}\n    pianos named: ${n.length ? n.join("; ") : "NO SERIAL"}`; });
+    const tun = ((d.tunings && d.tunings.upcoming) || []).filter(t => t[0] >= today && t[0] <= end)
+      .map(t => `${t[0]} ${t[1]} — ${String(t[2] || "").slice(0, 110)}`);
+    return `MOVING CALENDAR (today through ${end}):\n${ev.join("\n") || "(nothing)"}\n\n`
+      + `BOOKED ON THE 03-IN STORE TUNING CALENDAR (today through ${end}):\n${tun.join("\n") || "(nothing)"}\n\n`;
+  } catch { return ""; }
+}
+
 export async function tuningQueueText(): Promise<string> {
   try {
     type TQ = { tuningQueue?: { rank: number; serial: string; piano: string; spot: string; asap: boolean; note: string }[]; tuningQueuePending?: string };
