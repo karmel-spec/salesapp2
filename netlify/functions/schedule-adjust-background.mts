@@ -290,6 +290,11 @@ export default async (req: Request) => {
     + "DHRT hold included. DELIVERY TUNINGS (Mark 11/12): a pre-delivery tuning takes Korban's 8:00 (Fri 8:45) on the day it "
     + "is needed and a showroom tuning already there moves to the next free 8:00 (say which in changes); only when that 8:00 "
     + "holds another delivery tuning or a Brigham priority does the delivery take the 9:30 (Fri 10:15), held slots included. "
+    + "ALEX WORKS SATURDAYS (Mark 11/13 — standing rule, replaces 'duplicate Friday to Saturday' in prose): his days are "
+    + "Monday, Tuesday, Thursday, Friday and Saturday. His lane has a 6th day — days[5] = Saturday — which Approve writes to "
+    + "his calendar: Friday's shop work copied over (same piano and phase, 8:00-4:00), minus Friday-only blocks (Friday Shop "
+    + "Organization), around any field appointment on his own Saturday calendar. Say 'Mon/Tue/Thu/Fri/Sat' in his hours. No "
+    + "other technician gets a 6th day unless their hours say they work Saturdays. "
     + "FIELD APPOINTMENTS FOLLOW THE TECH'S OWN CALENDAR (Mark 11/13 — standing rule, applies on every run whatever the notes "
     + "say): the FIELD TECH CALENDARS list below is the live source for every 'Field…' block. A plan field block whose "
     + "appointment is no longer on that tech's calendar at that time — gone, moved, or turned into a *CANCELLED* title or an "
@@ -429,13 +434,22 @@ export default async (req: Request) => {
       if (cleared) changes.push(`${t.name}: cleared ${cleared} block${cleared === 1 ? "" : "s"} on approved time off (${[...offDays].sort().map(d => ["Mon", "Tue", "Wed", "Thu", "Fri"][d]).join(", ")}).`);
     }
     for (const n of ignored) changes.push(`⚠ Ignored the model's change to ${n} — no note named ${n.split(/\s+/)[0]}. Write a note for them if you want their week changed.`);
-    // plans are Monday–Friday (Mark 11/13): a run that grew a 6th day (Alex's Saturday copied from Friday,
-    // "Friday Shop Organization" and all) would have had Approve write Saturday events — keep five
+    // Monday–Friday, plus Saturday (days[5]) only for a Saturday worker — Alex (Mark 11/13: "Alex works
+    // Monday, Tuesday, Thursday, Friday, Saturday"). Approve writes every day in the plan, so a Saturday
+    // anyone else grew is dropped, and Friday-only blocks never ride along into a Saturday.
+    const worksSat = (t: any) => /^alex\b/i.test(String(t.name || "")) || /\bsat(urday)?\b/i.test(String(t.hours || ""));
     for (const t of merged.techs) {
-      if (Array.isArray(t.days) && t.days.length > 5) {
-        const extra = t.days.slice(5).reduce((n: number, d: any) => n + (Array.isArray(d) ? d.length : 0), 0);
-        t.days = t.days.slice(0, 5);
-        if (extra) changes.push(`${t.name}: dropped ${extra} block${extra === 1 ? "" : "s"} past Friday — the plan covers Monday–Friday only.`);
+      if (!Array.isArray(t.days)) continue;
+      const keep = worksSat(t) ? 6 : 5;
+      if (t.days.length > keep) {
+        const extra = t.days.slice(keep).reduce((n: number, d: any) => n + (Array.isArray(d) ? d.length : 0), 0);
+        t.days = t.days.slice(0, keep);
+        if (extra) changes.push(`${t.name}: dropped ${extra} block${extra === 1 ? "" : "s"} past ${keep === 6 ? "Saturday" : "Friday"} — ${t.name.split(/\s+/)[0]} doesn't work ${keep === 6 ? "Sundays" : "Saturdays"}.`);
+      }
+      if (keep === 6 && Array.isArray(t.days[5])) {
+        const before = t.days[5].length;
+        t.days[5] = t.days[5].filter((b: any) => !/shop organization/i.test(String((b && b[3]) || "")));
+        if (t.days[5].length < before) changes.push(`${t.name}: Saturday — left out Friday Shop Organization (a Friday-only block).`);
       }
     }
     // shop work never sits on top of a field appointment (Mark 11/13: Alex's Thursday DHRT came back
