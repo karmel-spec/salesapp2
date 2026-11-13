@@ -157,7 +157,7 @@ export default async (req: Request) => {
   const plateHolds = await plateHoldText();
   const plateReady = await plateReadyText();
   const tuneQueue = await tuningQueueText();
-  const deliveryCtx = await deliveryContextText(String(plan.weekStart || ""));
+  const deliveryCtx = await deliveryContextText(String(plan.weekStart || ""), BRIDGE);
   // approved time off for the plan week (Mark 10/23) — from the Time Off requests
   const timeOff = await approvedTimeOff(plan).catch(() => ({ text: "", days: {} as Record<string, Set<number>> }));
   const notesTxt = Object.entries(body.notes || {})
@@ -289,15 +289,17 @@ export default async (req: Request) => {
     + "DHRT hold included. DELIVERY TUNINGS (Mark 11/12): a pre-delivery tuning takes Korban's 8:00 (Fri 8:45) on the day it "
     + "is needed and a showroom tuning already there moves to the next free 8:00 (say which in changes); only when that 8:00 "
     + "holds another delivery tuning or a Brigham priority does the delivery take the 9:30 (Fri 10:15), held slots included. "
-    + "DELIVERIES ARE SELF-SERVE (Mark 11/13 — standing rule; never ask whether a delivery needs a tuning): for EVERY delivery to "
-    + "a customer on the MOVING CALENDAR list below (or named in a note) whose piano is identified by serial, and that has no "
-    + "tuning for that serial already on the BOOKED tuning list or in the plan, ADD BOTH without being asked: (1) Korban's "
+    + "DELIVERIES ARE SELF-SERVE (Mark 11/13 — standing rule; never ask whether a delivery needs a tuning): for EVERY event "
+    + "marked [DELIVERY] on the MOVING CALENDAR list below (or a delivery named in a note) whose piano is identified by serial, "
+    + "add what is missing without being asked — a tuning for that serial already on the BOOKED 03-In Store Tuning list or in "
+    + "the plan covers the tuning, a QC for that serial already on the BOOKED 20-QC list or in the plan covers the QC: (1) Korban's "
     + "pre-delivery tuning per DELIVERY TUNINGS, on the workday BEFORE the delivery (the same day only when the delivery is that "
     + "afternoon and the day before is impossible), and (2) the QC on the QC technician's lane after it — the tuning must END "
     + "before the QC STARTS on the same day; a QC'd-within-a-month piano gets a short check-up QC (rule 8/10). Say both in "
     + "changes, including which showroom tuning moved where. Exceptions, from the standing rules: storage returns, moved-only "
-    + "pianos, outside-shop trips (no tune or QC), QRS-only pianos (30-min QC only). A delivery event with NO SERIAL → a "
-    + "bottleneck asking for the serial (rule 9/8); never guess. "
+    + "pianos, outside-shop trips (no tune or QC), QRS-only pianos (30-min QC only). A [DELIVERY] event with NO SERIAL → a "
+    + "bottleneck asking for the serial (rule 9/8); never guess. Events marked [not a delivery] — pickups, a customer's piano "
+    + "moved between homes, outside-shop trips, lid installs, notes like 'no moves in morning' — owe nothing and raise no question. "
     + "Queue pianos that don't fit are simply left out — they never carry to next "
     + "week; only card-phase tunings and Store Map request tunings overflow. "
     + "CHIP TUNINGS (Mark 11/12): Korban does NOT do chip tunings. The technician doing a piano's DHRT does its chip tuning "

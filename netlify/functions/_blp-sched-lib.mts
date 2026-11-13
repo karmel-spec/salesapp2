@@ -179,7 +179,7 @@ export function doubleStaffed(plan: any): string[] {
  *  data feed: moving-calendar events from today through the Sunday after the plan week,
  *  each with the serial(s) it names (or NO SERIAL), and the 03-In Store Tuning calendar's
  *  upcoming bookings through the same day. "" when the feed can't be read. */
-export async function deliveryContextText(weekStart: string): Promise<string> {
+export async function deliveryContextText(weekStart: string, bridgeUrl = ""): Promise<string> {
   try {
     type Feed = { pianos?: any[]; events?: { date: string; time?: string; summary?: string; description?: string }[];
       tunings?: { upcoming?: string[][] } };
@@ -203,13 +203,33 @@ export async function deliveryContextText(weekStart: string): Promise<string> {
       }
       return out;
     };
+    // DELIVERY = the event's title says deliver/delivery, or its form says "Purpose : sale" (Mark 11/13: only
+    // those may raise a "which serial?" question — pickups, customer-to-customer moves and outside trips need nothing)
+    const isDelivery = (e: { summary?: string; description?: string }) =>
+      /\bdeliver(y|ies|ed|ing)?\b/i.test(String(e.summary || "")) || /purpose\s*:\s*sale\b/i.test(String(e.description || ""));
     const ev = (d.events || []).filter(e => e.date >= today && e.date <= end)
       .map(e => { const txt = `${e.summary || ""} ${e.description || ""}`; const n = names(txt);
-        return `${e.date} ${e.time || ""} — ${String(e.summary || "").slice(0, 120)}${e.description ? " | " + String(e.description).replace(/\s+/g, " ").slice(0, 160) : ""}\n    pianos named: ${n.length ? n.join("; ") : "NO SERIAL"}`; });
+        return `${e.date} ${e.time || ""} — [${isDelivery(e) ? "DELIVERY" : "not a delivery"}] ${String(e.summary || "").slice(0, 120)}${e.description ? " | " + String(e.description).replace(/\s+/g, " ").slice(0, 160) : ""}\n    pianos named: ${n.length ? n.join("; ") : "NO SERIAL"}`; });
     const tun = ((d.tunings && d.tunings.upcoming) || []).filter(t => t[0] >= today && t[0] <= end)
       .map(t => `${t[0]} ${t[1]} — ${String(t[2] || "").slice(0, 110)}`);
-    return `MOVING CALENDAR (today through ${end}):\n${ev.join("\n") || "(nothing)"}\n\n`
-      + `BOOKED ON THE 03-IN STORE TUNING CALENDAR (today through ${end}):\n${tun.join("\n") || "(nothing)"}\n\n`;
+    // the 20-QC & Showroom Repairs calendar (Mark 11/13: a QC booked by hand was invisible, so the
+    // Planner could add a second pre-delivery QC — Approve only dedupes tunings)
+    let qc: string[] | null = null;
+    if (bridgeUrl) {
+      try {
+        const q = await fetch(`${bridgeUrl}?fn=calevents&key=pianoman&cal=qualitycontrol.blp@gmail.com&from=${today}T00:00:00-07:00&to=${end}T23:59:59-07:00`,
+          { redirect: "follow", signal: AbortSignal.timeout(25000) });
+        const qj = await q.json() as { events?: { title: string; start: string; allDay?: boolean }[] };
+        if (Array.isArray(qj.events)) qc = qj.events.filter(e => !e.allDay).map(e => {
+          const t = new Date(e.start);
+          const day = t.toLocaleDateString("en-CA", { timeZone: "America/Denver" });
+          const hm = t.toLocaleTimeString("en-GB", { timeZone: "America/Denver", hour: "2-digit", minute: "2-digit" });
+          return `${day} ${hm} — ${String(e.title || "").slice(0, 110)}`; });
+      } catch { /* QC calendar unreadable — said below */ }
+    }
+    return `MOVING CALENDAR (today through ${end}) — only events marked [DELIVERY] owe a pre-delivery tune + QC:\n${ev.join("\n") || "(nothing)"}\n\n`
+      + `BOOKED ON THE 03-IN STORE TUNING CALENDAR (today through ${end}):\n${tun.join("\n") || "(nothing)"}\n\n`
+      + `BOOKED ON THE 20-QC & SHOWROOM REPAIRS CALENDAR (today through ${end}):\n${qc ? (qc.join("\n") || "(nothing)") : "(could not be read this run — before adding a pre-delivery QC, say in changes that the QC calendar was not checked)"}\n\n`;
   } catch { return ""; }
 }
 
