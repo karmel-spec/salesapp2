@@ -126,7 +126,14 @@ async function mapPianos(): Promise<any[]> {
 
 // plates the list has shown, so one that leaves Curtis's sheet unmarked stays
 type Remembered = { pianoText: string; serial: string; priority: number | null; requested: string;
-  curtisNote: string; firstSeen: string; lastOnCurtis: string };
+  curtisNote: string; firstSeen: string; lastOnCurtis: string;
+  // added by hand (op 'addplate', Mark 11/13): pinned to the top in this order;
+  // a "Done" mark from before addedAt doesn't count
+  top?: number; addedAt?: string; addedBy?: string };
+// "11/13/2026 10:00 AM · Korban" → a sortable 2026-11-13 (null when unreadable)
+const stampDay = (st: string) => { const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(st || "").trim());
+  return m ? `${m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}` : null; };
+const isoToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Denver" });
 const plateKey = (serial: string, pianoText: string) => serial ? "s:" + norm(serial) : "t:" + norm(pianoText).replace(/\s+/g, " ");
 const memStore = () => { try { return getStore({ name: "buffing-list", consistency: "strong" }); } catch { return getStore("buffing-list"); } };
 async function readMemory(): Promise<Record<string, Remembered> | null> {
@@ -189,7 +196,8 @@ export async function buildLists() {
     else {
       const prev = mem[mk], today = denverDay();
       const next: Remembered = { pianoText, serial, priority: Number(r[1]) || null, requested: String(r[2] || ""),
-        curtisNote: String(r[6] || ""), firstSeen: prev ? prev.firstSeen : today, lastOnCurtis: today };
+        curtisNote: String(r[6] || ""), firstSeen: prev ? prev.firstSeen : today, lastOnCurtis: today,
+        ...(prev && prev.top ? { top: prev.top, addedAt: prev.addedAt, addedBy: prev.addedBy } : {}) };
       if (!prev || JSON.stringify(prev) !== JSON.stringify(next)) { mem[mk] = next; memChanged = true; }
     }
     if (checked && !doneToday) continue;
@@ -204,18 +212,23 @@ export async function buildLists() {
   for (const [mk, m] of Object.entries(mem)) {
     if (onCurtis.has(mk)) continue;
     const st = m.serial ? task(m.serial, SCREW_TASK) : undefined;
-    const marked = !!st && /^done$/i.test(st.step2) && !!st.step2At;
+    const marked = !!st && /^done$/i.test(st.step2) && !!st.step2At
+      && !(m.addedAt && (stampDay(st.step2At) || "") < m.addedAt);   // a mark from before it was added by hand doesn't count
     if (marked && !stampedToday(st!.step2At)) { delete mem[mk]; memChanged = true; continue; }   // marked off before today
     const p = m.serial ? bySerial.get(norm(m.serial)) : null;
     if (m.serial && !p && !marked) { delete mem[mk]; memChanged = true; continue; }   // piano delivered / off the map
     if (forSale(p) || skipPhase(p)) continue;
     plates.push({ curtisRow: null, offSheet: true, key: mk, priority: m.priority, pianoText: m.pianoText, serial: m.serial,
-      requested: m.requested, curtisNote: m.curtisNote, lastOnCurtis: m.lastOnCurtis,
+      requested: m.requested, curtisNote: m.curtisNote, lastOnCurtis: m.lastOnCurtis, top: m.top || null, addedBy: m.addedBy || "",
       mapRow: p ? p.row : null, phase: p ? p.phase || "" : "", plateHw: p ? p.plateHwStatus || "" : "",
       done: marked ? (st!.step2At.split("·")[1] || "").trim() || "done" : "" });
   }
   // off Curtis's sheet first — he has usually finished the plate, so its screws are needed next
-  plates.sort((x, y) => (y.offSheet ? 1 : 0) - (x.offSheet ? 1 : 0) || (x.priority ?? 999) - (y.priority ?? 999));
+  // plates added by hand first, in the order given; then off Curtis's sheet; then Curtis's order.
+  // A plate still on Curtis's sheet keeps a hand-given top spot too.
+  for (const pl of plates) if (!pl.top && pl.serial) { const m = mem[plateKey(pl.serial, pl.pianoText)]; if (m && m.top) pl.top = m.top; }
+  plates.sort((x, y) => (x.top || 999) - (y.top || 999) || (y.offSheet ? 1 : 0) - (x.offSheet ? 1 : 0)
+    || (x.priority ?? 999) - (y.priority ?? 999));
   if (memChanged && memory) {
     try { await memStore().setJSON("plates", mem); }
     catch (e) { console.warn("buffing-list: plate memory not saved:", String((e as Error).message || e).slice(0, 100)); }
@@ -313,6 +326,26 @@ export default async (req: Request) => {
     const serial = String(b.serial || "").trim();
     const by = String(b.by || "").trim().slice(0, 40) || "Team";
 
+    // put a plate on the list by hand, pinned to the top (Mark 11/13: Emerson 67052 and
+    // Steinway 289994 had left Curtis's sheet before the list remembered plates).
+    // {serial, top?} — top 1 = first; omit to put it after the others added by hand
+    if (op === "addplate") {
+      if (!serial) return json({ error: "serial required" }, 400);
+      const pianos = await mapPianos();
+      const p = pianos.find((x: any) => x.active && !x.archived && norm(x.serial) === norm(serial));
+      if (!p) return json({ error: "no active piano card with serial " + serial }, 404);
+      const store = memStore();
+      const mem = ((await store.get("plates", { type: "json" })) as Record<string, Remembered>) || {};
+      const label = [String(p.make || "").trim() || String(p.summary || "").split("/")[0].trim(), String(p.serial)].join(" ");
+      const tops = Object.values(mem).map(m => m.top || 0);
+      const top = Number(b.top) > 0 ? Number(b.top) : Math.max(0, ...tops) + 1;
+      const today = denverDay();
+      const mk = plateKey(String(p.serial), label);
+      mem[mk] = { ...(mem[mk] || { pianoText: label, serial: String(p.serial), priority: null, requested: "", curtisNote: "",
+        firstSeen: today, lastOnCurtis: "" }), top, addedAt: isoToday(), addedBy: by };
+      await store.setJSON("plates", mem);
+      return json({ ok: true, added: label, top });
+    }
     // a plate that is no longer on Curtis's sheet: record Korban's tap and set the
     // card, with no sheet row to tick (Mark 11/13)
     if (op === "screws" && b.offSheet) {
