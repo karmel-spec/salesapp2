@@ -23,11 +23,19 @@
  *   Every tap can be undone with on:false. Taps from today come back in GET
  *   with done set, so the page can offer undo for the rest of the day.
  *
+ * Plates STAY until Korban marks them (Mark 11/13): every plate the list has
+ * shown is remembered (Netlify Blobs "buffing-list" / "plates"). When its row
+ * leaves Curtis's sheet without column N ticked, it stays on the list —
+ * offSheet, "no longer on Curtis's sheet" — until Korban taps Screws done
+ * (op 'screws' with offSheet: the Task Status tap + card, no sheet tick).
+ * Column N ticked on Curtis's sheet still takes a plate off, as before.
+ *
  * Writes go through the existing paths: piano-tasks (Task Status tab of the
  * Piano Log) and the durable relay (plate hardware status), so the card shows
  * exactly what the page did.
  */
 import * as crypto from "node:crypto";
+import { getStore } from "@netlify/blobs";
 
 const CURTIS_ID = "1DxvDQ9WlhxXfiZaKGpdJLOOPNMBfVA9PsHGuLe55pmc";
 const PIANO_LOG_ID = "1ZunbPKygpQlcXfTyPowDHdUE9spJ3uV1XA4iX1eoKRc";
@@ -116,8 +124,21 @@ async function mapPianos(): Promise<any[]> {
   throw new Error("map data unavailable");
 }
 
+// plates the list has shown, so one that leaves Curtis's sheet unmarked stays
+type Remembered = { pianoText: string; serial: string; priority: number | null; requested: string;
+  curtisNote: string; firstSeen: string; lastOnCurtis: string };
+const plateKey = (serial: string, pianoText: string) => serial ? "s:" + norm(serial) : "t:" + norm(pianoText).replace(/\s+/g, " ");
+const memStore = () => { try { return getStore({ name: "buffing-list", consistency: "strong" }); } catch { return getStore("buffing-list"); } };
+async function readMemory(): Promise<Record<string, Remembered> | null> {
+  try { return ((await memStore().get("plates", { type: "json" })) as Record<string, Remembered>) || {}; }
+  catch (e) { console.warn("buffing-list: plate memory unreadable:", String((e as Error).message || e).slice(0, 100)); return null; }
+}
+
 export async function buildLists() {
-  const [curtis, tasks, pianos] = await Promise.all([curtisRows(), taskRows(), mapPianos()]);
+  const [curtis, tasks, pianos, memory] = await Promise.all([curtisRows(), taskRows(), mapPianos(), readMemory()]);
+  const mem: Record<string, Remembered> = memory ? { ...memory } : {};
+  const onCurtis = new Set<string>();
+  let memChanged = false;
   const active = pianos.filter(p => p.active && !p.archived);
   const bySerial = new Map<string, any>();
   active.forEach(p => { if (p.serial) bySerial.set(norm(p.serial), p); });
@@ -162,6 +183,15 @@ export async function buildLists() {
     const serial = serialIn(pianoText);
     const st = serial ? task(serial, SCREW_TASK) : undefined;
     const doneToday = checked && !!st && stampedToday(st.step2At);
+    const mk = plateKey(serial, pianoText);
+    onCurtis.add(mk);
+    if (checked) { if (mem[mk]) { delete mem[mk]; memChanged = true; } }   // ticked on Curtis's sheet — finished
+    else {
+      const prev = mem[mk], today = denverDay();
+      const next: Remembered = { pianoText, serial, priority: Number(r[1]) || null, requested: String(r[2] || ""),
+        curtisNote: String(r[6] || ""), firstSeen: prev ? prev.firstSeen : today, lastOnCurtis: today };
+      if (!prev || JSON.stringify(prev) !== JSON.stringify(next)) { mem[mk] = next; memChanged = true; }
+    }
     if (checked && !doneToday) continue;
     const p = serial ? bySerial.get(norm(serial)) : null;
     if (forSale(p) || skipPhase(p)) continue;
@@ -170,7 +200,26 @@ export async function buildLists() {
       mapRow: p ? p.row : null, phase: p ? p.phase || "" : "", plateHw: p ? p.plateHwStatus || "" : "",
       done: doneToday ? (st!.step2At.split("·")[1] || "").trim() || "done" : "" });
   }
-  plates.sort((x, y) => (x.priority ?? 999) - (y.priority ?? 999));
+  // ---- plates that left Curtis's sheet unmarked: they stay until Korban marks them ----
+  for (const [mk, m] of Object.entries(mem)) {
+    if (onCurtis.has(mk)) continue;
+    const st = m.serial ? task(m.serial, SCREW_TASK) : undefined;
+    const marked = !!st && /^done$/i.test(st.step2) && !!st.step2At;
+    if (marked && !stampedToday(st!.step2At)) { delete mem[mk]; memChanged = true; continue; }   // marked off before today
+    const p = m.serial ? bySerial.get(norm(m.serial)) : null;
+    if (m.serial && !p && !marked) { delete mem[mk]; memChanged = true; continue; }   // piano delivered / off the map
+    if (forSale(p) || skipPhase(p)) continue;
+    plates.push({ curtisRow: null, offSheet: true, key: mk, priority: m.priority, pianoText: m.pianoText, serial: m.serial,
+      requested: m.requested, curtisNote: m.curtisNote, lastOnCurtis: m.lastOnCurtis,
+      mapRow: p ? p.row : null, phase: p ? p.phase || "" : "", plateHw: p ? p.plateHwStatus || "" : "",
+      done: marked ? (st!.step2At.split("·")[1] || "").trim() || "done" : "" });
+  }
+  // off Curtis's sheet first — he has usually finished the plate, so its screws are needed next
+  plates.sort((x, y) => (y.offSheet ? 1 : 0) - (x.offSheet ? 1 : 0) || (x.priority ?? 999) - (y.priority ?? 999));
+  if (memChanged && memory) {
+    try { await memStore().setJSON("plates", mem); }
+    catch (e) { console.warn("buffing-list: plate memory not saved:", String((e as Error).message || e).slice(0, 100)); }
+  }
 
   // ---- visible hardware: pianos past CAP, not yet shipped / buffed / done ----
   const hardware: any[] = [];
@@ -264,6 +313,22 @@ export default async (req: Request) => {
     const serial = String(b.serial || "").trim();
     const by = String(b.by || "").trim().slice(0, 40) || "Team";
 
+    // a plate that is no longer on Curtis's sheet: record Korban's tap and set the
+    // card, with no sheet row to tick (Mark 11/13)
+    if (op === "screws" && b.offSheet) {
+      if (!serial) return json({ error: "this plate has no serial — mark it on Curtis's sheet" }, 400);
+      const notes: string[] = [];
+      await setTask(serial, SCREW_TASK, 2, "Done", on, by);
+      if (b.mapRow && (on || b.prevHw != null)) {
+        const auth = (b.auth && typeof b.auth === "object") ? b.auth : {};
+        const r = await fetch(RELAY_URL, { method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ relayKey: process.env.BLP_APP_ACCESS_KEY || "", pin: "pianoman", action: "setplatehw",
+            serial, row: Number(b.mapRow), plateHwStatus: on ? "Buffed" : String(b.prevHw || ""), ...auth }) });
+        const j = await r.json().catch(() => ({}));
+        notes.push((j as any).ok || (j as any).queued ? "card " + (on ? "set to Buffed" : "restored") : "card not updated");
+      }
+      return json({ ok: true, notes });
+    }
     if (op === "screws") {
       const row = Number(b.curtisRow);
       if (!(row >= 2 && row <= 80)) return json({ error: "bad Curtis row" }, 400);
