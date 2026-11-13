@@ -131,13 +131,34 @@ export default async (req: Request) => {
   const origin = req.headers.get("origin") || "";
   const base = {
     "Access-Control-Allow-Origin": ALLOW.includes(origin) ? origin : ALLOW[0],
-    "Access-Control-Allow-Methods": "POST,OPTIONS",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     "Access-Control-Allow-Headers": "content-type, authorization",
     "Vary": "Origin",
   };
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: base });
   const headers = { ...base, "content-type": "application/json" };
   const reply = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers });
+  // GET ?year=2026 (Melissa 11/12, 111226terry19): the year tab, read-only, for the
+  // Shop App's report history. Its old live read (Google's gviz CSV) only works
+  // in a browser signed in to Google with sheet access, so on most computers the
+  // history stopped at the 7/16 snapshot (55383: Jake, Lupita, Curtis missing).
+  if (req.method === "GET") {
+    const u = new URL(req.url);
+    const appKey = process.env.BLP_APP_ACCESS_KEY || "pianoman";
+    if (!ALLOW.includes(origin) && u.searchParams.get("key") !== appKey) return reply({ ok: false, error: "not allowed" }, 401);
+    const year = String(u.searchParams.get("year") || new Date().getFullYear());
+    if (!/^\d{4}$/.test(year)) return reply({ ok: false, error: "bad year" }, 400);
+    try {
+      const meta = await sheets("?fields=sheets.properties.title");
+      const tab = ((meta.sheets || []) as { properties: { title: string } }[]).map(s => s.properties.title).find(t => t.trim() === year);
+      if (!tab) return reply({ ok: false, error: "no tab for " + year }, 404);
+      const v = await sheets(`/values/${encodeURIComponent(`'${tab}'!A1:ZZ200`)}`);
+      return new Response(JSON.stringify({ ok: true, year: Number(year), tab, values: v.values || [] }),
+        { status: 200, headers: { ...headers, "cache-control": "public, max-age=60" } });
+    } catch (e) {
+      return reply({ ok: false, error: String((e as Error).message || e).slice(0, 160) }, 502);
+    }
+  }
   if (req.method !== "POST") return reply({ ok: false, error: "POST only" }, 405);
 
   try {
