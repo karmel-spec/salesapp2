@@ -356,6 +356,14 @@ export function patchForAction(action: string, payload: Record<string, unknown>,
       p.sm[f] = v.slice(0, 80); p.raw[hdr] = v;
       break;
     }
+    // 🧾 Scope of Work note (Mark 11/13, Emerson 67052): until the next sync every
+    // map kept loading the OLD note, so a card redrawn in that window showed it
+    // again and a save there wrote it back — 10:34 the cleared note returned twice
+    case "setscopenote": {
+      const v = s(payload.value).trim().slice(0, 4000);
+      p.sm.scopeNotes = v; p.raw["SCOPE NOTES"] = v;
+      break;
+    }
     default:
       return null;   // other setters land with the next sync (≤ 3 min)
   }
