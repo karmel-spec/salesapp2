@@ -18,7 +18,7 @@
 import * as crypto from "node:crypto";
 import { getStore } from "@netlify/blobs";
 import { logAdjustment, denverStamp } from "./lib/adjust-log";
-import { normalizeBottlenecks, plateHoldText, plateReadyText, tuningQueueText, deliveryContextText, allowedTechs, doubleStaffed } from "./_blp-sched-lib.mts";
+import { normalizeBottlenecks, plateHoldText, plateReadyText, tuningQueueText, deliveryContextText, fieldCalendarText, allowedTechs, doubleStaffed } from "./_blp-sched-lib.mts";
 
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
 const RULES_TAB = "Scheduling Rules";
@@ -158,6 +158,7 @@ export default async (req: Request) => {
   const plateReady = await plateReadyText();
   const tuneQueue = await tuningQueueText();
   const deliveryCtx = await deliveryContextText(String(plan.weekStart || ""), BRIDGE);
+  const fieldCtx = await fieldCalendarText(plan, BRIDGE);
   // approved time off for the plan week (Mark 10/23) — from the Time Off requests
   const timeOff = await approvedTimeOff(plan).catch(() => ({ text: "", days: {} as Record<string, Set<number>> }));
   const notesTxt = Object.entries(body.notes || {})
@@ -289,6 +290,14 @@ export default async (req: Request) => {
     + "DHRT hold included. DELIVERY TUNINGS (Mark 11/12): a pre-delivery tuning takes Korban's 8:00 (Fri 8:45) on the day it "
     + "is needed and a showroom tuning already there moves to the next free 8:00 (say which in changes); only when that 8:00 "
     + "holds another delivery tuning or a Brigham priority does the delivery take the 9:30 (Fri 10:15), held slots included. "
+    + "FIELD APPOINTMENTS FOLLOW THE TECH'S OWN CALENDAR (Mark 11/13 — standing rule, applies on every run whatever the notes "
+    + "say): the FIELD TECH CALENDARS list below is the live source for every 'Field…' block. A plan field block whose "
+    + "appointment is no longer on that tech's calendar at that time — gone, moved, or turned into a *CANCELLED* title or an "
+    + "all-day CANCELLED note — is REMOVED and its hours go to that tech's own shop work that week (the same piano and phase as "
+    + "their other blocks); a field appointment that moved goes to its new time; a NEW timed field appointment on their calendar "
+    + "that the plan lacks is ADDED as 'Field tuning - <place> (<client>)' with the shop work trimmed around it. All-day events "
+    + "are notes (availability, cancellations), never appointments. Say each change in changes. If a tech's calendar could not "
+    + "be read, leave their field blocks alone. "
     + "DELIVERIES ARE SELF-SERVE (Mark 11/13 — standing rule; never ask whether a delivery needs a tuning): for EVERY event "
     + "marked [DELIVERY] on the MOVING CALENDAR list below (or a delivery named in a note) whose piano is identified by serial, "
     + "add what is missing without being asked — a tuning for that serial already on the BOOKED 03-In Store Tuning list or in "
@@ -330,6 +339,7 @@ export default async (req: Request) => {
     + reportsTxt
     + (tuneQueue ? `TUNING QUEUE (marked Needs tuning on the Showroom Tuning Check, not booked yet, in order):\n${tuneQueue}\n\n` : "")
     + deliveryCtx
+    + fieldCtx
     + (plateReady ? `PLATES BACK FROM CURTIS HARPER (Plate storage — AFTER) — each restring is LUPITA's next assignment, in this order, as soon as her current restring wraps — SCHEDULE IT, no note needed, and another tech on a different phase of that piano (keytops, DHRT, refinishing) is not a conflict; another restringer only if a note says so; phase already past Restringing → flag the stale plate status, don't schedule (Mark 10/30):\n${plateReady}\n\n` : "")
     + (plateHolds ? `PLATES NOT READY (plate out, not yet refinished — do not schedule stringing):\n${plateHolds}\n\n` : "")
     + (timeOff.text ? `APPROVED TIME OFF (from the Time Off requests — schedule NOTHING for that technician on a whole day off; on a partial day leave the stated hours empty):\n${timeOff.text}\n\n` : "")

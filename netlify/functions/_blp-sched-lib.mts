@@ -233,6 +233,40 @@ export async function deliveryContextText(weekStart: string, bridgeUrl = ""): Pr
   } catch { return ""; }
 }
 
+/** Field appointments live on each field tech's OWN calendar (Alex, McKinly). The Friday draft
+ *  copies them into the plan, but a later cancellation never reached the Planner (Mark 11/13: Alex's
+ *  Thursday Woodland Hills tuning was turned into an all-day "*CANCELLED*" note after the draft).
+ *  For every tech with a "Field…" block in the plan: their calendar for the plan week (Mon–Sat),
+ *  timed events with times, all-day ones flagged. "" when there are none or nothing can be read. */
+export async function fieldCalendarText(plan: any, bridgeUrl: string): Promise<string> {
+  try {
+    const ws = String(plan?.weekStart || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ws) || !bridgeUrl) return "";
+    const isField = (t: unknown) => /^\s*field\b|\bfield\s*:/i.test(String(t || ""));
+    const techs = (plan.techs || []).filter((t: any) => (t.days || []).some((d: any[]) => (d || []).some((b: any[]) => isField(b && b[3]))))
+      .map((t: any) => String(t.name || "").trim().split(/\s+/)[0]).filter(Boolean);
+    if (!techs.length) return "";
+    const end = new Date(ws + "T12:00:00Z"); end.setUTCDate(end.getUTCDate() + 5);
+    const endD = end.toISOString().slice(0, 10);
+    const fmt = (iso: string) => new Date(iso).toLocaleString("en-US", { timeZone: "America/Denver", weekday: "short", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" });
+    const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { timeZone: "America/Denver", weekday: "short", month: "numeric", day: "numeric" });
+    const out: string[] = [];
+    for (const name of techs) {
+      try {
+        const r = await fetch(`${bridgeUrl}?fn=calevents&key=pianoman&cal=${encodeURIComponent(name)}&from=${ws}T00:00:00-07:00&to=${endD}T23:59:59-07:00`,
+          { redirect: "follow", signal: AbortSignal.timeout(25000) });
+        const j = await r.json() as { events?: { title: string; start: string; end: string; allDay?: boolean }[]; error?: string };
+        if (!Array.isArray(j.events)) { out.push(`${name}: (calendar could not be read — keep the plan's field blocks as they are)`); continue; }
+        const lines = j.events.filter(e => !/^Applied from the Shop Manager/i.test(String((e as any).description || "")))
+          .map(e => e.allDay ? `  ${day(e.start)} ALL-DAY NOTE: ${String(e.title || "").slice(0, 110)}`
+            : `  ${fmt(e.start)}–${new Date(e.end).toLocaleTimeString("en-US", { timeZone: "America/Denver", hour: "numeric", minute: "2-digit" })}: ${String(e.title || "").slice(0, 110)}`);
+        out.push(`${name}:\n${lines.join("\n") || "  (nothing on the calendar)"}`);
+      } catch { out.push(`${name}: (calendar could not be read — keep the plan's field blocks as they are)`); }
+    }
+    return `FIELD TECH CALENDARS — the live source for every 'Field…' block (plan week ${ws} to ${endD}):\n${out.join("\n")}\n\n`;
+  } catch { return ""; }
+}
+
 export async function tuningQueueText(): Promise<string> {
   try {
     type TQ = { tuningQueue?: { rank: number; serial: string; piano: string; spot: string; asap: boolean; note: string }[]; tuningQueuePending?: string };
