@@ -452,6 +452,39 @@ export default async (req: Request) => {
         if (t.days[5].length < before) changes.push(`${t.name}: Saturday — left out Friday Shop Organization (a Friday-only block).`);
       }
     }
+    // a field block must match an appointment on that tech's own calendar THAT DAY (Mark 11/13: Alex's
+    // Saturday came back with Friday's Spanish Fork tuning copied in — his Saturday calendar was empty).
+    // The client / place in the block is looked for in that day's lines of FIELD TECH CALENDARS; no match
+    // → the block becomes the tech's main shop work for those hours. A calendar that couldn't be read is
+    // left alone.
+    const fieldDays: Record<string, Record<number, string>> = {};
+    {
+      let who = "";
+      const DOW: Record<string, number> = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5 };
+      for (const line of fieldCtx.split("\n")) {
+        const h = /^([A-Za-z][A-Za-z .'-]*):\s*(\(calendar could not be read.*)?$/.exec(line);
+        if (h) { who = h[2] ? "" : h[1].trim().toLowerCase(); if (who) fieldDays[who] = fieldDays[who] || {}; continue; }
+        const m = /^\s+(Mon|Tue|Wed|Thu|Fri|Sat),/.exec(line);
+        if (who && m && !/ALL-DAY NOTE/.test(line)) fieldDays[who][DOW[m[1]]] = (fieldDays[who][DOW[m[1]]] || "") + " " + line.toLowerCase();
+      }
+    }
+    for (const t of merged.techs) {
+      const cal = fieldDays[first(t.name)];
+      if (!cal || !Array.isArray(t.days)) continue;
+      const tally: Record<string, any[]> = {};
+      t.days.flat().forEach((b: any[]) => { if (Array.isArray(b) && !isFieldB(b) && b[2] !== "misc" && b[2] !== "tune") (tally[b[3]] = tally[b[3]] || []).push(b); });
+      const main = Object.values(tally).sort((x, y) => y.length - x.length)[0];
+      t.days = t.days.map((d: any[], di: number) => !Array.isArray(d) ? d : d.flatMap((b: any[]) => {
+        if (!isFieldB(b)) return [b];
+        // place + client words ("Spanish Fork (Tom Lee)" → spanish, fork); 4+ letters so "lee" / "tom" can't match by accident
+        const words = String(b[3]).replace(/^\s*field[^-:]*[-:]\s*/i, "")
+          .toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 4);
+        const dayTxt = cal[di] || "";
+        if (!words.length || words.some(w => dayTxt.includes(w))) return [b];
+        changes.push(`${t.name}: ${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][di]} ${b[0]}-${b[1]} "${b[3]}" isn't on their calendar that day — ${main ? "gave the time to " + main[0][3] : "removed"}.`);
+        return main ? [[b[0], b[1], main[0][2], main[0][3], ""]] : [];
+      }));
+    }
     // shop work never sits on top of a field appointment (Mark 11/13: Alex's Thursday DHRT came back
     // 8:00-4:00 over his 2:00-4:00 Orem tuning, and Approve would have put it on his calendar)
     const mins = (h: unknown) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(h || "")); return m ? +m[1] * 60 + +m[2] : NaN; };
