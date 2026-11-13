@@ -15,6 +15,7 @@
  */
 import parser from "./pianolog-parse.cjs";
 import { googleToken } from "../_blp-sched-lib.mts";
+import { getStore } from "@netlify/blobs";
 
 export const PIANO_LOG_ID = "1ZunbPKygpQlcXfTyPowDHdUE9spJ3uV1XA4iX1eoKRc";
 export const SITE = "https://blpsalesapp.netlify.app";
@@ -124,27 +125,94 @@ function applyQueued(rec: Record<string, unknown>, ops: Array<{ action: string; 
 export interface SyncResult {
   ok: boolean; run?: number | null; rows?: number; changed?: number; removed?: number; skipped?: number;
   sheetMs?: number; totalMs?: number; error?: string; skippedRun?: boolean;
+  mode?: "delta" | "full"; why?: string; sent?: number;
 }
 
-export async function runSync(source: string): Promise<SyncResult> {
+/* ---------- LIGHTER SYNC (Mark 11/13) ----------
+ * Every run used to upload the WHOLE Piano Log to Supabase — ~3,170 rows,
+ * 14.8 MB of JSON in 13 calls, every 3 minutes and after every write (~7 GB a
+ * day) — only for the database to find that nothing, or one row, had changed.
+ * The 11/6–11/11 midday outages were the plan's daily allowance running out
+ * (Karmel 11/13).
+ *
+ * Now the sync remembers each row's content hash from the last successful
+ * run in Netlify Blobs (store "pianolog-sync") and sends only the rows whose
+ * hash differs — the same test pianolog_sync_upsert applies (`where p.hash is
+ * distinct from excluded.hash`), made before the upload instead of after it.
+ * Row removals are unchanged: pianolog_sync_finish still gets every key seen.
+ *
+ * The remembered hashes are trusted only when they provably describe the
+ * database: the "state" blob names the run that wrote them, and that must be
+ * the database's latest successful run (pianolog_sync_runs). Anything else —
+ * no blob, a run that finished without saving its blobs, another writer, an
+ * outage — sends everything, as before. A full run also happens once a day,
+ * and on demand with {full:true} (pianolog-sync-status ?now=1&full=1).
+ * Optimistic patches (pianolog_patch) never touch `hash`, in the table or
+ * here, so they are confirmed or corrected by the sheet exactly as before. */
+interface SyncState { run: number; hashesV: number; fullAt: number }
+interface HashBlob { v: number; hashes: Record<string, string> }
+interface RunRow { id: number; ok: boolean | null; started: string; finished: string | null }
+// strong consistency: a sync often starts seconds after the last one finished,
+// and a stale "state" would only ever force a needless full run — but needless
+// full runs are exactly what this is here to stop
+const syncStore = () => { try { return getStore({ name: "pianolog-sync", consistency: "strong" }); } catch { return getStore("pianolog-sync"); } };
+// the daily full run lands in the small hours: due when the last one was before
+// the most recent 10:00 UTC (3 AM Mountain standard / 4 AM daylight time)
+function fullRunDue(fullAt: number, now = Date.now()): boolean {
+  const d = new Date(now);
+  let boundary = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 10, 0, 0);
+  if (boundary > now) boundary -= 24 * 3600 * 1000;
+  return (fullAt || 0) < boundary;
+}
+
+async function priorHashes(run: number, wantFull: boolean): Promise<{ hashes: Record<string, string> | null; state: SyncState | null; why: string }> {
+  if (wantFull) return { hashes: null, state: null, why: "full run requested" };
+  try {
+    const store = syncStore();
+    const state = (await store.get("state", { type: "json" })) as SyncState | null;
+    if (!state || !state.run) return { hashes: null, state: null, why: "no remembered hashes yet" };
+    if (fullRunDue(state.fullAt)) return { hashes: null, state, why: "daily full run" };
+    // the database's latest SUCCESSFUL run must be the one that wrote the blobs
+    const runs = await rpc<RunRow[]>("pianolog_sync_runs", { p_limit: 8 }, 15000);
+    const lastOk = (runs || []).find((r) => r.id !== run && r.ok === true && r.finished);
+    if (!lastOk) return { hashes: null, state, why: "no recent successful run" };
+    if (lastOk.id !== state.run) return { hashes: null, state, why: `hashes are from run ${state.run}, database is at run ${lastOk.id}` };
+    const blob = (await store.get("hashes", { type: "json" })) as HashBlob | null;
+    if (!blob || blob.v !== state.hashesV || !blob.hashes) return { hashes: null, state, why: "hash list missing or out of step" };
+    return { hashes: blob.hashes, state, why: "" };
+  } catch (e) {
+    return { hashes: null, state: null, why: "hash store unreadable: " + String((e as Error).message || e).slice(0, 80) };
+  }
+}
+
+export async function runSync(source: string, opts: { full?: boolean } = {}): Promise<SyncResult> {
   const t0 = Date.now();
   if (!mirrorConfigured()) return { ok: false, error: "SUPABASE_SERVICE_KEY not set" };
   const run = await rpc<number | null>("pianolog_sync_begin", { p_source: source });
   if (run == null) return { ok: true, skippedRun: true, run: null, totalMs: Date.now() - t0 };
-  let rows = 0, changed = 0, skipped = 0;
+  let rows = 0, changed = 0, skipped = 0, sent = 0;
   try {
-    const [{ values, roster, ms }, queued] = await Promise.all([readSheet(), openQueueOps()]);
+    const [{ values, roster, ms }, queued, prior] = await Promise.all([readSheet(), openQueueOps(), priorHashes(run, !!opts.full)]);
     if (values.length < 10) throw new Error("sheet read returned " + values.length + " rows — not syncing");
     const parsed = parser.parseAll(values);
     rows = parsed.rows.length;
+    const mode: "delta" | "full" = prior.hashes ? "delta" : "full";
     const seen: string[] = [];
     const upserts: unknown[] = [];
+    const hashes: Record<string, string> = {};
+    let same = !!prior.hashes;   // does the new hash list equal the remembered one?
     for (const rec of parsed.rows) {
       seen.push(rec.key);
       const ops = rec.serial ? queued.get(rec.serial.toLowerCase()) : undefined;
       if (ops && applyQueued(rec as unknown as Record<string, unknown>, ops)) skipped++;   // "skipped" = synced with a queued write re-applied
+      const h = String((rec as unknown as { hash?: string }).hash || "");
+      hashes[rec.key] = h;
+      if (prior.hashes && prior.hashes[rec.key] === h) continue;   // unchanged since the last successful run
+      same = false;
       upserts.push(deepClean(rec));
     }
+    if (same && prior.hashes && Object.keys(prior.hashes).length !== seen.length) same = false;   // a row vanished
+    sent = upserts.length;
     for (let i = 0; i < upserts.length; i += CHUNK) {
       changed += Number(await rpc<number>("pianolog_sync_upsert", { p_run: run, p_rows: upserts.slice(i, i + CHUNK) }, 120000)) || 0;
     }
@@ -159,7 +227,37 @@ export async function runSync(source: string): Promise<SyncResult> {
     const fin = await rpc<{ removed: number }>("pianolog_sync_finish", {
       p_run: run, p_seen: seen, p_ok: true, p_error: null, p_rows: rows, p_changed: changed, p_skipped: skipped, p_meta: meta,
     });
-    const res: SyncResult = { ok: true, run, rows, changed, removed: fin?.removed || 0, skipped, sheetMs: ms, totalMs: Date.now() - t0 };
+    // remember what the database now holds. Hash list first, then the state
+    // that vouches for it — if either write fails, the next run finds them
+    // out of step with the database and sends everything.
+    // NOT when another run overlapped this one (a run that outlives the
+    // 150-second lock): two runs writing at once can leave an older row on top
+    // of a newer one, and a remembered hash would hide it until tomorrow's
+    // full run. Saving nothing makes the next run send everything.
+    try {
+      const runs = await rpc<RunRow[]>("pianolog_sync_runs", { p_limit: 8 }, 15000);
+      const mine = (runs || []).find((r) => r.id === run);
+      // a run with no finish time that started over 15 minutes ago crashed (15 min is
+      // the background function's limit) — it is not writing any more
+      const alive = (r: RunRow) => !!r.finished || Date.now() - Date.parse(r.started) < 15 * 60000;
+      const overlap = !mine || (runs || []).some((r) => r.id !== run && alive(r)
+        && Date.parse(r.started) <= Date.parse(mine.finished || new Date().toISOString())
+        && (!r.finished || Date.parse(r.finished) >= Date.parse(mine.started)));
+      if (overlap) {
+        console.warn("pianolog-sync: another run overlapped run", run, "— hash list not saved, next run sends everything");
+      } else {
+        const store = syncStore();
+        const keep = same && !!prior.state;          // hash list identical to the remembered one
+        const hashesV = keep ? prior.state!.hashesV : run;
+        if (!keep) await store.setJSON("hashes", { v: run, hashes } as HashBlob);
+        const fullAt = mode === "full" ? Date.now() : prior.state!.fullAt;
+        await store.setJSON("state", { run, hashesV, fullAt } as SyncState);
+      }
+    } catch (e) {
+      console.warn("pianolog-sync: could not save the hash list (next run sends everything):", String((e as Error).message || e).slice(0, 120));
+    }
+    const res: SyncResult = { ok: true, run, rows, changed, removed: fin?.removed || 0, skipped, sheetMs: ms, totalMs: Date.now() - t0,
+      mode, why: prior.why || undefined, sent };
     console.log("pianolog-sync:", source, JSON.stringify(res));
     return res;
   } catch (e) {

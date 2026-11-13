@@ -2,6 +2,7 @@
  * Piano Log read mirror — status (key-gated).
  *   GET ?key=…            → last sync runs + last_sync meta
  *   GET ?key=…&now=1      → run a sync INLINE first (verification; ~5–15 s), then report
+ *   GET ?key=…&now=1&full=1 → same, but send every row (not only the changed ones)
  */
 import { rpc, runSync, mirrorConfigured } from "./lib/pianolog-mirror.mts";
 
@@ -13,7 +14,7 @@ export default async (req: Request) => {
   }
   if (!mirrorConfigured()) return new Response(JSON.stringify({ error: "SUPABASE_SERVICE_KEY not set" }), { status: 503, headers });
   let last: unknown = null;
-  if (url.searchParams.get("now") === "1") last = await runSync("manual");
+  if (url.searchParams.get("now") === "1") last = await runSync("manual", { full: url.searchParams.get("full") === "1" });
   const [runs, meta] = await Promise.all([
     rpc("pianolog_sync_runs", { p_limit: Number(url.searchParams.get("n") || 10) }),
     rpc<Record<string, unknown>>("pianolog_read", { p_shape: "meta" }),
