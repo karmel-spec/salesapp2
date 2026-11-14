@@ -34,11 +34,22 @@ async function withClient<T>(user: string, fn: (c: ImapFlow) => Promise<T>): Pro
     auth: { user, pass },
     logger: false,
   });
-  await client.connect();
+  // ImapFlow reports a dead connection (socket timeout, reset, Gmail closing
+  // it) as an "error" EVENT. With no listener Node turns that into an uncaught
+  // exception and the whole server instance dies — taking every request it was
+  // serving with it (11/14: customer texts errored mid-send). Mail trouble must
+  // stay mail trouble.
+  client.on("error", (err: unknown) => {
+    console.warn(`[imap] ${user} connection error: ${String((err as Error)?.message || err).slice(0, 120)}`);
+  });
   try {
+    await client.connect();
     return await fn(client);
   } finally {
-    await client.logout().catch(() => {});
+    // Polite logout, but never wait on a dead socket; then make sure the
+    // connection is really gone so no timer outlives this request.
+    await Promise.race([client.logout().catch(() => {}), new Promise((r) => setTimeout(r, 3000))]);
+    try { client.close(); } catch { /* already closed */ }
   }
 }
 

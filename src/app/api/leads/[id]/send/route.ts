@@ -117,23 +117,45 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       return NextResponse.json({ error: `Unknown channel "${input.channel}"` }, { status: 400 });
     }
 
+    // The message has LEFT at this point. A failed log write must never look
+    // like a failed send — the rep would send it again (11/14: a customer got
+    // the same text twice). Retry once on a fresh copy of the lead; if the log
+    // still can't be written, say "sent, not logged" instead of an error.
     const now = new Date().toISOString();
-    await appendTimeline(
-      lead,
-      shape,
-      {
-        at: now,
-        who,
-        kind: input.channel === "sms" ? "sms_out" : "email_out",
-        ...(trackId ? { trackId } : {}),
-        text:
-          (input.channel === "email"
-            ? `${deliveryNote} — written by ${who}. Full message:\nSubject: ${subject}\n\n${body}`
-            : `${deliveryNote} — written by ${who}. Full message:\n${body}`) +
-          (photoUrl ? (isImage ? `\n📷 Photo: ${photoUrl}` : `\n📎 File: ${photoUrl} (${photoName})`) : ""),
-      },
-      { touchLastContact: true }
-    );
+    const logSend = (l: typeof lead, sh: typeof shape) =>
+      appendTimeline(
+        l,
+        sh,
+        {
+          at: now,
+          who,
+          kind: input.channel === "sms" ? "sms_out" : "email_out",
+          ...(trackId ? { trackId } : {}),
+          text:
+            (input.channel === "email"
+              ? `${deliveryNote} — written by ${who}. Full message:\nSubject: ${subject}\n\n${body}`
+              : `${deliveryNote} — written by ${who}. Full message:\n${body}`) +
+            (photoUrl ? (isImage ? `\n📷 Photo: ${photoUrl}` : `\n📎 File: ${photoUrl} (${photoName})`) : ""),
+        },
+        { touchLastContact: true }
+      );
+    try {
+      await logSend(lead, shape);
+    } catch (first) {
+      try {
+        const again = await getLead(id);
+        if (!again) throw first;
+        await logSend(again.lead, again.shape);
+      } catch (err) {
+        const why = err instanceof Error ? err.message : String(err);
+        console.error(`send: delivered but NOT logged for ${id} — ${deliveryNote} — ${why}`);
+        return NextResponse.json({
+          ok: true,
+          logged: false,
+          detail: `${deliveryNote} — SENT, but it could not be logged on this lead (${why.slice(0, 140)}). Do not send it again.`,
+        });
+      }
+    }
     return NextResponse.json({ ok: true, detail: deliveryNote });
   } catch (err) {
     return jsonError(err);
