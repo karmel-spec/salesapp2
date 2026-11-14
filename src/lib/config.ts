@@ -82,6 +82,15 @@ export const config = {
     .filter(Boolean)
     .pop() || "",
 
+  // Shared "Phone Call Recordings" Drive folder (the phone-line bots file
+  // there too). Bare ID or a pasted folder URL. Needs the service account
+  // as Editor on the folder.
+  callRecordingsFolderId: (process.env.CALL_RECORDINGS_FOLDER_ID || "1_qqWbux9v1EGUphefV70ewW-o0YxwS88")
+    .split("?")[0]
+    .split("/")
+    .filter(Boolean)
+    .pop() || "",
+
   // Google sign-in for reps (domain-restricted OAuth)
   googleOauthClientId: process.env.GOOGLE_OAUTH_CLIENT_ID || "",
   googleOauthClientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET || "",

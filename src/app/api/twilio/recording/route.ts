@@ -7,6 +7,7 @@ import { whisperTranscribe, summarizeCall, transcriptionConfigured } from "@/lib
 import { autoFolder } from "@/lib/folders";
 import { notifyTelegram } from "@/lib/arnold";
 import { config } from "@/lib/config";
+import { fileCallToDrive, callDriveConfigured } from "@/lib/call-drive";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -128,12 +129,40 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // 4. Mirror into the shared "Phone Call Recordings" Drive folder next
+      //    to the phone-line bots' calls (best-effort; the lead entry never
+      //    waits on Drive).
+      let driveDoc = "";
+      if (callDriveConfigured()) {
+        try {
+          const filed = await fileCallToDrive({
+            at: new Date(),
+            callSid,
+            leadName: lead?.name || "Unknown caller",
+            callType: "Sales",
+            direction,
+            durationSec,
+            otherParty,
+            callerId: config.twilioCallerId,
+            audio,
+            transcript,
+            summary,
+            leadUrl: lead ? `${config.publicBaseUrl}/leads/${encodeURIComponent(lead.id)}` : undefined,
+            audioUrl,
+          });
+          driveDoc = filed.docLink;
+        } catch (e) {
+          console.error("drive filing:", e);
+        }
+      }
+
       const title = `${direction === "inbound" ? "Incoming" : "Outbound"} recorded call${mins ? ` (${mins} min)` : ""}`;
       const bodyText =
         (summary ? `${summary}\n` : "") +
         (transcript ? `\nTranscript excerpt: ${transcript.slice(0, 400)}${transcript.length > 400 ? "…" : ""}\n` : "") +
         `(Twilio recording ${recordingSid}${transcript ? "" : transcriptionConfigured() ? " — transcript failed" : " — add OPENAI_API_KEY for transcripts"})` +
-        (audioUrl ? `\n🎧 Audio: ${audioUrl}` : "");
+        (audioUrl ? `\n🎧 Audio: ${audioUrl}` : "") +
+        (driveDoc ? `\n📁 Drive transcript: ${driveDoc}` : "");
 
       if (lead) {
         const found = await getLead(lead.id, true);
@@ -163,7 +192,7 @@ export async function POST(req: NextRequest) {
         startedAt: new Date().toISOString(),
         title: `${title}${otherParty ? ` — ${otherParty}` : ""}`,
         durationSec,
-        summary: summary || transcript.slice(0, 1200) || "No transcript available — listen to the audio.",
+        summary: (summary || transcript.slice(0, 1200) || "No transcript available — listen to the audio.") + (driveDoc ? `\n📁 Drive transcript: ${driveDoc}` : ""),
         transcriptExcerpt: transcript.slice(0, 6000),
         audioUrl,
       });

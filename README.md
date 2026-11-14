@@ -78,6 +78,7 @@ X-BLP-Signature: <hex HMAC-SHA256 of raw body>
 | `GET /api/twilio/token` | Browser dialer: Voice access token for the signed-in rep |
 | `POST /api/twilio/outbound` | TwiML App voice URL: dials the typed number from a browser call, recorded |
 | `POST /api/twilio/hangup` | End a call we started (browser Hang up, or the cell-bridge End call button) |
+| (recording pipeline) | Every recorded call is also filed in the shared **Phone Call Recordings** Drive folder (year / month / day): `<Name> Sales <date> <time> MT <CallSid> audio.mp3` + a `… transcript` Google Doc with summary + transcript. Folder via `CALL_RECORDINGS_FOLDER_ID`. |
 | `POST /api/leads/[id]/call` | Bridge call (rep's cell rings first); `to` overrides the lead's number |
 | `POST /api/leads/[id]/phones` | Save a labeled extra number onto a lead |
 | `POST /api/twilio/recording` | Recording finished → archive, transcript, summary, filed to the lead |
