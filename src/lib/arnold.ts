@@ -6,17 +6,21 @@ import type { Lead, DraftMessage } from "./leads";
 /**
  * Arnold — Chief Sales Agent for Brigham Larson Pianos.
  *
- * Three integration paths, used in this order:
- *  1. Event webhook (ARNOLD_WEBHOOK_URL + HMAC secret): the app posts the
- *     event to the BLP Agent Console (https://blpagents.netlify.app/api/agents/arnold/events),
- *     which wakes Arnold's Grok Bot (since 2026-10-08; it was his Hermes
- *     gateway on the Mac). Arnold works the lead and POSTs drafts back to
- *     /api/arnold/draft using his draft-only key.
- *  2. Telegram: humans chat with Arnold directly at t.me/arnoldlarsonbot;
- *     the app can post team notifications via the bot API.
- *  3. Claude API fallback (ANTHROPIC_API_KEY): the app generates drafts in
- *     Arnold's voice directly, so the approval queue works even when the
- *     console is unreachable.
+ * Arnold is a Grok Bot (Brigham, 2026-11-18): his mind and memory live in the
+ * BLP Knowledge Vault (Agents/arnold/), not in Telegram, Hermes or the Agent
+ * Console. Integration paths, used in this order:
+ *  1. Event webhook (ARNOLD_WEBHOOK_URL + ARNOLD_WEBHOOK_SECRET): the app
+ *     posts the event straight to the webhook trigger of Arnold's Grok Bot
+ *     routine ("Sales App events"). The secret goes both as a GitHub-style
+ *     HMAC signature and as `Authorization: Bearer`, because a Grok routine
+ *     webhook checks a bearer key — set ARNOLD_WEBHOOK_SECRET to that key.
+ *     Arnold works the lead and POSTs drafts back to /api/arnold/draft with
+ *     his draft-only key (BLP_ARNOLD_ACCESS_KEY).
+ *  2. Team notifications (notifyTelegram) still use TELEGRAM_BOT_TOKEN if set;
+ *     Telegram is being retired, so these become no-ops once it is unset.
+ *  3. Claude API fallback (ANTHROPIC_API_KEY): when the webhook is unset or
+ *     fails, "Ask Arnold" drafts in Arnold's voice directly, so the approval
+ *     queue works even when the Bot is unreachable.
  */
 
 export const ARNOLD_TELEGRAM_URL = "https://t.me/arnoldlarsonbot";
@@ -50,16 +54,23 @@ export async function notifyArnoldWebhook(payload: {
     source: "blp-sales-app",
     at: new Date().toISOString(),
   });
-  const res = await fetch(config.arnoldWebhookUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      // The console (and the old Hermes gateway) validate GitHub-style HMAC signatures.
-      "X-Hub-Signature-256": `sha256=${hmacSign(body, config.arnoldWebhookSecret)}`,
-    },
-    body,
-  });
-  return { ok: res.ok, detail: res.ok ? "Arnold pinged" : `Arnold webhook ${res.status}` };
+  try {
+    const res = await fetch(config.arnoldWebhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        // Older receivers (Agent Console, Hermes gateway) check a GitHub-style HMAC signature;
+        // a Grok Bot routine webhook checks a bearer key. Send both from the same secret.
+        "X-Hub-Signature-256": `sha256=${hmacSign(body, config.arnoldWebhookSecret)}`,
+        ...(config.arnoldWebhookSecret ? { Authorization: `Bearer ${config.arnoldWebhookSecret}` } : {}),
+      },
+      body,
+      signal: AbortSignal.timeout(10_000),
+    });
+    return { ok: res.ok, detail: res.ok ? "Arnold pinged" : `Arnold webhook ${res.status}` };
+  } catch (e) {
+    return { ok: false, detail: `Arnold webhook unreachable (${e instanceof Error ? e.message : String(e)})` };
+  }
 }
 
 /** Team notification via Arnold's Telegram bot. */

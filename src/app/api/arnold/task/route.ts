@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     });
     if (!ping.ok) {
       return NextResponse.json(
-        { error: `Arnold's brain is unreachable right now (${ping.detail}). The Agent Console may be down or ARNOLD_WEBHOOK_URL unset — you can also message @arnoldlarsonbot on Telegram.` },
+        { error: `Arnold's brain is unreachable right now (${ping.detail}). His Grok Bot routine may be off or ARNOLD_WEBHOOK_URL unset — message Arnold in the Grok app instead.` },
         { status: 502 }
       );
     }

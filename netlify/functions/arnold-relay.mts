@@ -1,6 +1,6 @@
 /** Diagnostic relay: re-send (or test) a signed webhook from Netlify to Arnold's
- *  event endpoint (the Agent Console's /api/agents/arnold/events since
- *  2026-10-08; his Hermes gateway before), exactly the way the app does it.
+ *  event endpoint (his Grok Bot routine webhook since 2026-11-18; the Agent
+ *  Console and the Hermes gateway before), exactly the way the app does it.
  *  Returns what the endpoint answered, so a failing path is visible instead of silent.
  *  POST /.netlify/functions/arnold-relay?key=<BLP app key>  body = the JSON event to send */
 import * as crypto from "node:crypto";
@@ -20,7 +20,7 @@ export default async (req: Request) => {
   const sig = `sha256=${crypto.createHmac("sha256", secret).update(body).digest("hex")}`;
   const t0 = Date.now();
   try {
-    const r = await fetch(target, { method: "POST", headers: { "content-type": "application/json", "X-Hub-Signature-256": sig }, body, signal: AbortSignal.timeout(20_000) });
+    const r = await fetch(target, { method: "POST", headers: { "content-type": "application/json", "X-Hub-Signature-256": sig, Authorization: `Bearer ${secret}` }, body, signal: AbortSignal.timeout(20_000) });
     const text = await r.text();
     return json({ ok: r.ok, status: r.status, ms: Date.now() - t0, server: r.headers.get("server"), cfRay: r.headers.get("cf-ray"), body: text.slice(0, 600) });
   } catch (e) {
