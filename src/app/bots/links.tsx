@@ -50,7 +50,7 @@ export default function BotLinks({ bots, base }: { bots: Bot[]; base: string }) 
       <div className="card" style={{ marginTop: 18 }}>
         <h3 style={{ marginTop: 0 }}>Revoking</h3>
         <p className="sub" style={{ margin: 0 }}>
-          Remove a bot&apos;s name from <code>BLP_BOTS</code> in Netlify to cut off that one bot; change <code>BLP_BOT_SECRET</code> to sign every bot out at once and issue new links.
+          Remove a bot&apos;s name from <code>BLP_BOTS</code> in Netlify to cut off that one bot; set <code>BLP_BOT_VERSION</code> to a new number to sign every bot out at once and issue new links.
         </p>
       </div>
     </div>

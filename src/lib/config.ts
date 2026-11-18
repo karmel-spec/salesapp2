@@ -28,9 +28,13 @@ export const config = {
 
   // Grok Bot admin team (Brigham 10/29): each bot gets its own sign-in link
   // (/api/auth/bot?token=…) and the same token works as an x-blp-key on every
-  // API. Tokens derive from BLP_BOT_SECRET + the bot's name, so rotating the
-  // secret signs every bot out; removing a name from BLP_BOTS revokes one bot.
-  botSecret: process.env.BLP_BOT_SECRET || "",
+  // API. Tokens derive from an existing server-only secret (the Supabase
+  // service key) + the bot's name — no new env var, because this site's
+  // function env is at AWS Lambda's 4KB cap (a BLP_BOT_SECRET var broke the
+  // 11/18 deploy). Bump BLP_BOT_VERSION (e.g. "2") to sign every bot out and
+  // reissue links; removing a name from BLP_BOTS revokes one bot.
+  botSecret: process.env.BLP_BOT_SECRET || process.env.SUPABASE_SERVICE_KEY || "",
+  botVersion: process.env.BLP_BOT_VERSION || "1",
   bots: (process.env.BLP_BOTS || "ila,liv,callie,melody,ivory,moe,arnold,marcus,clarence,lindsay")
     .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
   telegramChatId: process.env.TELEGRAM_CHAT_ID || "", // sales team chat/group id

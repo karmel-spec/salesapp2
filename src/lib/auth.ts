@@ -82,7 +82,7 @@ export function botToken(slug: string): string {
   if (!config.botSecret) return "";
   const s = slug.trim().toLowerCase();
   if (!config.bots.includes(s)) return "";
-  return `${s}.${crypto.createHmac("sha256", config.botSecret).update(`bot:${s}`).digest("hex").slice(0, 40)}`;
+  return `${s}.${crypto.createHmac("sha256", config.botSecret).update(`bot:v${config.botVersion}:${s}`).digest("hex").slice(0, 40)}`;
 }
 
 /** Which bot (slug) a token belongs to, or null. Constant-time compare. */

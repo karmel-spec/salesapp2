@@ -28,7 +28,7 @@ export default async function BotsPage() {
     return (
       <div className="card" style={{ maxWidth: 640, margin: "40px auto" }}>
         <h2>Bot access</h2>
-        <p>Bot sign-in isn&apos;t switched on yet: set <code>BLP_BOT_SECRET</code> in Netlify and redeploy.</p>
+        <p>Bot sign-in isn&apos;t switched on: the site has no Supabase service key to derive bot tokens from.</p>
       </div>
     );
   }
