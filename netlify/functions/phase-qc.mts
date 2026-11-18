@@ -299,6 +299,30 @@ export default async (req: Request) => {
         await hwSet({ plateHwStatus: "In buffing queue", unless: ["In buffing queue", "Buffed"] });
         await hwSet({ visibleHwStatus: "In hardware queue", unless: ["In hardware queue", "Out for plating", "Done"] });
       }
+      // REFURB mini-QC passed (Mark 11/18): on a refurb-only piano the technician has
+      // already done the hardware by this point — plate screws polished in place,
+      // pedals and pedal rods taken off and buffed — so the card's two hardware rows
+      // are marked done ("Buffed" / "Done"; the card shows them as done by the refurb
+      // tech). Refurb-only = Refurbish on the track and nothing but Refurbish /
+      // Player Rebuild; Refurbish + Refinish is Korban's and is left alone. The
+      // track is read from the map feed; if it can't be read nothing is changed.
+      if (String(q.phase || "").trim() === "Action Problems and Hammer Prep") {
+        try {
+          const dr = await fetch("https://blpstoremap.netlify.app/api/data?nc=" + Date.now(), { signal: AbortSignal.timeout(15000) });
+          const dj = await dr.json() as { pianos?: Array<{ serial?: string; track?: string; active?: boolean }> };
+          const pn = (dj.pianos || []).find(x => x.active && String(x.serial || "").trim().toLowerCase() === String(q.serial || "").trim().toLowerCase());
+          const tr = String((pn && pn.track) || "").split(",").map(t => t.trim()).filter(Boolean)
+            .map(t => /^(old\s*)?player(\s*rebuild)?$/i.test(t) ? "Player Rebuild" : t);
+          if (tr.some(t => /^refurbish$/i.test(t)) && tr.every(t => /^(refurbish|player rebuild)$/i.test(t))) {
+            const hwDone = (extra: Record<string, unknown>) => fetch("https://blpsalesapp.netlify.app/.netlify/functions/pianolog-write", {
+              method: "POST", headers: { "content-type": "application/json" },
+              body: JSON.stringify({ relayKey: APP_KEY, pin: String(p.pin || "pianoman"), action: "setplatehw", serial: q.serial,
+                user: { name: (p.manager || "Manager") + " (refurb mini-QC pass)", email: "" }, ...extra }) }).catch(() => {});
+            await hwDone({ plateHwStatus: "Buffed", unless: ["Buffed"] });
+            await hwDone({ visibleHwStatus: "Done", unless: ["Done"] });
+          }
+        } catch { /* feed unreadable — leave the card as it is */ }
+      }
       await textByName(q.requested_by,
         `✅ Mini-QC PASSED — ${q.phase} on ${label(q.piano, q.serial)} (${String(p.manager || "manager").split(" ")[0]}). Phase advanced to ${q.next_phase}. Nice work.${smsNote("(full note in the app)")}`);
     } else {
