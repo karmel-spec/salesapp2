@@ -7,6 +7,8 @@
  * the quiet-hours hold (it's an exempt keyword).
  */
 import { REPORT_SHEET, sheetGet, notify, denver } from "./_blp-sched-lib.mts";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("report-early-reminder-cron");
 
 const EARLY: { name: string; hour: number; minute: number }[] = [
   { name: "Korban", hour: 16, minute: 30 },

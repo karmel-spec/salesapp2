@@ -1,3 +1,5 @@
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("piano-nudge-cron");
 /** ⏰ Piano clock reminder (Mark 10/21, app request 102126hales57): every 15
  *  minutes in shop hours, ask the bridge who clocked in for the day an hour
  *  ago but isn't on the Work Clock yet. The bridge texts them once — only

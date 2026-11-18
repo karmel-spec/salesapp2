@@ -20,6 +20,8 @@
  */
 import * as crypto from "node:crypto";
 import { createTransport } from "nodemailer";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("training");
 
 const SHEET_ID = process.env.TRAINING_SHEET_ID || "17E2TMyIp5X1Ex9IkOHgODiN0qPeTVsP5R8zPJKrgSCc";
 const ALLOW = [

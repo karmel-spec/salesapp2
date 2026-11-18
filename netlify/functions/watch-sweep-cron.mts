@@ -1,3 +1,5 @@
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("watch-sweep-cron");
 /** Once a day (9:00 AM Mountain): wake leads whose "snooze until a piano is
  *  available" watch now matches the Piano Log, then run the Non-Responsive rule. */
 export const config = { schedule: "0 15 * * *" };

@@ -2,6 +2,8 @@
 // Denver wall-clock gate inside runCleaningReport picks the right one).
 import type { Config } from "@netlify/functions";
 import { runCleaningReport } from "./lib/report-reminders";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("cleaning-report-b");
 
 export default async () => {
   const out = await runCleaningReport();

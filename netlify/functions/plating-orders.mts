@@ -16,6 +16,8 @@
  * CORS-restricted to the shop app origins.
  */
 import * as crypto from "node:crypto";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("plating-orders");
 
 const SHEET_ID = "1lIGUxeI-Em3CxhBTSHTrlVM7VFTgjwFCzNxFZNwPTWE";
 const TABS = ["In-house polishing: cat 2 & 3a", "Category 3b", "Completed Pianos"];

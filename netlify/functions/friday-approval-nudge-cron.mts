@@ -7,6 +7,8 @@
  * guard below lets exactly one of the two fire each Friday.
  */
 import { REPORT_SHEET, bridgeGet, sheetGet, sheetAppend, notify, denver, denverStamp } from "./_blp-sched-lib.mts";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("friday-approval-nudge-cron");
 
 const TENTATIVE = /tentative|tbd|placeholder|check with|\?/i;
 const ASK_RE = /^(?:ask|questions? (?:for|4)|q'?s (?:for|4))\s+/i;

@@ -6,6 +6,8 @@
  * the Denver guard lets exactly one fire.
  */
 import { REPORT_SHEET, SITE, KEY, sheetGet, sheetAppend, notify, denver } from "./_blp-sched-lib.mts";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("thursday-report-sweep-cron");
 
 const REMINDER = "⏰ BLP reminder: your weekly report was due today (Thursday) at 6 PM and has not been received. Brigham and Mark build next week's schedule from these reports FRIDAY MORNING — please open the shop app → My Weekly Report and submit it tonight. Thanks!";
 

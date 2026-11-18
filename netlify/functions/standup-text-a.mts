@@ -4,6 +4,8 @@
 // get this function killed and RETRIED by Netlify — 10/1 and 10/15 sent twice.
 import type { Config } from "@netlify/functions";
 import { kick } from "./lib/kick";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("standup-text-a");
 
 export default async (req: Request) => new Response(await kick(req, "standup-text-background"));
 

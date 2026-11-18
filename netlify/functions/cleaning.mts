@@ -13,6 +13,8 @@
  * technician *.blp@gmail.com accounts — or `key` === BLP_APP_ACCESS_KEY.
  */
 import * as crypto from "node:crypto";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("cleaning");
 
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";  // report sheet
 const CARDS_TAB = "Cleaning Cards";

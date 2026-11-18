@@ -1,5 +1,7 @@
 import { getGoogleToken } from "./sheets";
 import type { LeadWatch } from "./leads";
+import { installSheetsMeter } from "../../netlify/functions/lib/sheets-meter";
+installSheetsMeter("sales-app (Next)");
 
 /**
  * Read-only view of the Piano Log & Inventory sheet (the shop's inventory

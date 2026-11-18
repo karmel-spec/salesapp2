@@ -11,6 +11,8 @@
  */
 import { forwardToBridge } from "./pianolog-write.mts";
 import { patchMirror, triggerSync } from "./lib/pianolog-mirror.mts";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("bridge-queue-worker");
 
 const MAX_ATTEMPTS = 40;
 

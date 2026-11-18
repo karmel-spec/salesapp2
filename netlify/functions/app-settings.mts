@@ -4,6 +4,8 @@
  * sibling functions. Cached 3 minutes. GET ?key=pianoman
  */
 import * as crypto from "node:crypto";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("app-settings");
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
 const ALLOW = ["https://blpstoremap.netlify.app", "http://localhost:8641"];
 

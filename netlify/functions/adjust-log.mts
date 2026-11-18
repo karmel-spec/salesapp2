@@ -11,6 +11,8 @@
  * preflight — same pattern as the cleaning endpoints.
  */
 import { readAdjustLog } from "./lib/adjust-log";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("adjust-log");
 
 const APP_KEY = process.env.BLP_APP_ACCESS_KEY || "pianoman";
 

@@ -12,6 +12,8 @@
  * as team-roster. Only light lead fields are projected (no notes/timeline).
  */
 import * as crypto from "node:crypto";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("storemap-leads");
 
 const SHEET_ID = "1sdOeaChihEjAQBCi8U0_lTTlYP4H38eiC6zgmRLoWC0";
 const TAB = "Shop/Sales LEADS-30 Days";

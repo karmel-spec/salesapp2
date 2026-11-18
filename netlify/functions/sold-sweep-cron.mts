@@ -6,6 +6,8 @@
  */
 import { denver } from "./_blp-sched-lib.mts";
 import { kick } from "./lib/kick";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("sold-sweep-cron");
 
 export default async (req: Request) => {
   const h = denver().h;

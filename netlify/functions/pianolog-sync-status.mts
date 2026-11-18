@@ -5,6 +5,8 @@
  *   GET ?key=…&now=1&full=1 → same, but send every row (not only the changed ones)
  */
 import { rpc, runSync, mirrorConfigured } from "./lib/pianolog-mirror.mts";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("pianolog-sync-status");
 
 export default async (req: Request) => {
   const url = new URL(req.url);

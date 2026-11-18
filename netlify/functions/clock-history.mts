@@ -5,6 +5,8 @@
  * GET ?key&days=16 → {ok, pay:[{tech,start,end,minutes}], tl:[{tech,serial,piano,phase,start,end,minutes}]}
  */
 import * as crypto from "node:crypto";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("clock-history");
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
 const ALLOW = ["https://blpstoremap.netlify.app", "http://localhost:8641"];
 let tok: { t: string; e: number } | null = null;

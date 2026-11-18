@@ -18,6 +18,8 @@
  * reads work if it is at least link-readable.
  */
 import * as crypto from "node:crypto";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("team-roster");
 
 const SHEET_ID = "1j1FP78rRj1jrl2z-_vIg95kN3GuG8TI4dpOheSnIoPc";
 // projected columns per tab: [header shown in the app, real 0-based column]

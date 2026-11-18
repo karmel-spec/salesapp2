@@ -1,5 +1,7 @@
 import crypto from "crypto";
 import { config } from "./config";
+import { installSheetsMeter } from "../../netlify/functions/lib/sheets-meter";
+installSheetsMeter("sales-app (Next)");
 
 /**
  * Google Sheets access layer.

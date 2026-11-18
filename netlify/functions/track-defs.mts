@@ -10,6 +10,8 @@
  * next cache miss, no script run or deploy needed.
  */
 import * as crypto from "node:crypto";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("track-defs");
 
 const SEQ_ID = "1k9ToAeueEg5WOtaY91xXzL-a0l_AJsSZWw23tcAWECU";
 const ALLOW = [

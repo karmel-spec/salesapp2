@@ -1,3 +1,5 @@
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("won-nudge-cron");
 /** Business mornings at ~9:30 Mountain (16:30 UTC; 15:30 UTC in MDT would be 9:30 — 16:30 keeps it inside the morning year-round):
  *  remind whoever still hasn't pressed "Got it" on a WON handoff — one reminder per role per 24h, weekdays only, never on holidays. */
 export const config = { schedule: "30 16 * * 1-5" };

@@ -1,3 +1,5 @@
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("won-deposits");
 /**
  * Queue-deposit answers from the WON shop handoffs, for the Shop Manager
  * brief's Delivery Forecasting (Walter 10/15): a piano arriving in the next 14

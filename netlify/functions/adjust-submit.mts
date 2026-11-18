@@ -1,3 +1,5 @@
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("adjust-submit");
 /**
  * CORS-safe front door for the Planner's background AI jobs. Browsers can't
  * POST directly to Netlify BACKGROUND functions cross-origin (the platform

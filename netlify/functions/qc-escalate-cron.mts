@@ -1,3 +1,5 @@
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("qc-escalate-cron");
 /**
  * Every 10 minutes: any mini-QC request pending >30 min without a manager
  * verdict escalates by text to Mark AND Karmel (once).

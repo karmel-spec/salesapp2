@@ -12,6 +12,8 @@
  * Runs on demand and from taskboard-reconcile-cron every 10 minutes.
  */
 import * as crypto from "node:crypto";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("taskboard-reconcile");
 
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
 

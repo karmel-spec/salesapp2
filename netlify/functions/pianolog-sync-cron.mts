@@ -1,3 +1,5 @@
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("pianolog-sync-cron");
 /**
  * Every 3 minutes: refresh the Piano Log read mirror in Supabase so a sheet
  * edit by staff shows in the Store Map and the Piano Log app within ~3 min

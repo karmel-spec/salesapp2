@@ -2,6 +2,8 @@
  *  GET /.netlify/functions/salescaptain-poll-now?key=<BLP app key>[&since=<ISO>]
  *  `since` replays from that instant (dedupe makes it safe) without moving the cursor. */
 import { runSalesCaptainPoll } from "./lib/salescaptain-poll-run";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("salescaptain-poll-now");
 
 const APP_KEY = process.env.BLP_APP_ACCESS_KEY || "pianoman";
 const json = (o: unknown, status = 200) => new Response(JSON.stringify(o, null, 1), { status, headers: { "content-type": "application/json" } });

@@ -13,6 +13,8 @@
  * Nothing here touches the bridge, the payroll tabs or Supabase.
  */
 import { googleToken, REPORT_SHEET } from "./_blp-sched-lib.mts";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("punch-timing");
 
 const TAB = "Punch Timing";
 const HEADER = ["Logged (server)", "Punch at", "Who", "Clock", "Action", "Seconds total", "Google seconds",

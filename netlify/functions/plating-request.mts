@@ -20,6 +20,8 @@
  */
 import * as crypto from "node:crypto";
 import { createTransport } from "nodemailer";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("plating-request");
 
 const SHEET_ID = "1lIGUxeI-Em3CxhBTSHTrlVM7VFTgjwFCzNxFZNwPTWE";
 const TAB = "Category 3b";

@@ -13,6 +13,8 @@
  * Overlapping calls skip (sync_begin lock) instead of racing.
  */
 import { runSync } from "./lib/pianolog-mirror.mts";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("pianolog-sync-background");
 
 export default async (req: Request) => {
   const url = new URL(req.url);

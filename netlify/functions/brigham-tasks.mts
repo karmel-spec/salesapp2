@@ -14,6 +14,8 @@
  * requesting from the Store Map use the team passcode.
  */
 import * as crypto from "node:crypto";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("brigham-tasks");
 
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
 const TAB = "Brigham Tasks";

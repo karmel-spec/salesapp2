@@ -1,3 +1,5 @@
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("bridge-queue-worker-cron");
 /**
  * Every 5 minutes: drain queued piano-log writes so any op that Google's
  * bridge glitched on lands within minutes — no change is ever lost.

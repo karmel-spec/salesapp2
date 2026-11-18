@@ -1,3 +1,5 @@
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("taskboard-mirror-background");
 /**
  * Store Map task board — BACKGROUND MIRROR (Brigham 9/11).
  *

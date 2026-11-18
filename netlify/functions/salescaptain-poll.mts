@@ -2,6 +2,8 @@
  *  does not serve scheduled functions over HTTP — use salescaptain-poll-now
  *  for a manual run. Logic lives in lib/salescaptain-poll-run.ts. */
 import { runSalesCaptainPoll } from "./lib/salescaptain-poll-run";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("salescaptain-poll");
 
 export const config = { schedule: "*/5 * * * *" };
 

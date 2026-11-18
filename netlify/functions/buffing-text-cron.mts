@@ -15,6 +15,8 @@
  */
 import { buffingText } from "./buffing-list.mts";
 import { loadSettings } from "./app-settings.mts";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("buffing-text-cron");
 
 export default async () => {
   const now = new Date();

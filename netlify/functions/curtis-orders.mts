@@ -18,6 +18,8 @@
  * CORS-restricted to the shop app origins.
  */
 import * as crypto from "node:crypto";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("curtis-orders");
 
 const SHEET_ID = "1DxvDQ9WlhxXfiZaKGpdJLOOPNMBfVA9PsHGuLe55pmc";
 const TABS = ["Requested", "Completed, paid, received"];

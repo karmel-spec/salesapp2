@@ -6,6 +6,8 @@
  */
 import { denver } from "./_blp-sched-lib.mts";
 import { sendAbsenceReminders } from "./lib/absence-reminders.mts";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("report-absence-cron");
 
 export default async () => {
   const n = denver();

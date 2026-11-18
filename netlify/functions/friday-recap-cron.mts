@@ -1,3 +1,5 @@
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("friday-recap-cron");
 /** Friday 5:00 PM Mountain: text Karmel the week in sales streaks (Brigham 10/21: not Brigham). */
 export const config = { schedule: "0 23 * * 5" };
 const SITE = process.env.URL || "https://blpsalesapp.netlify.app";

@@ -7,6 +7,8 @@
  * (Avery 10/9, request 100926moore07). Same body, same key.
  */
 import handler from "./request-notify.mts";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("request-notify-background");
 
 export default async (req: Request) => {
   try { await handler(req); } catch (e) { console.error("request-notify-background", (e as Error).message); }

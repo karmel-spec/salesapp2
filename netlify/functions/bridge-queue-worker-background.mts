@@ -6,6 +6,8 @@
  * re-sent every 5 minutes. Called by bridge-queue-worker-cron.
  */
 import { drainQueue } from "./bridge-queue-worker.mts";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("bridge-queue-worker-background");
 
 export default async (req: Request) => {
   const url = new URL(req.url);

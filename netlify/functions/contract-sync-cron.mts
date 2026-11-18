@@ -6,5 +6,7 @@
  * function only hands it off, so Netlify never kills and retries it.
  */
 import { kick } from "./lib/kick";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("contract-sync-cron");
 export default async (req: Request) => new Response(await kick(req, "contract-sync-background"));
 export const config = { schedule: "20,50 * * * *" };

@@ -4,6 +4,8 @@
  *  Returns what the endpoint answered, so a failing path is visible instead of silent.
  *  POST /.netlify/functions/arnold-relay?key=<BLP app key>  body = the JSON event to send */
 import * as crypto from "node:crypto";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("arnold-relay");
 
 const APP_KEY = process.env.BLP_APP_ACCESS_KEY || "pianoman";
 const json = (o: unknown, status = 200) => new Response(JSON.stringify(o, null, 1), { status, headers: { "content-type": "application/json" } });

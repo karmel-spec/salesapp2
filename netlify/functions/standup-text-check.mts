@@ -9,6 +9,8 @@
  * Secrets are reported as present/absent only — never echoed.
  */
 import { checkStandupText } from "./lib/standup-text";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("standup-text-check");
 
 const APP_KEY = process.env.BLP_APP_ACCESS_KEY || "pianoman";
 const json = (o: unknown, status = 200) =>

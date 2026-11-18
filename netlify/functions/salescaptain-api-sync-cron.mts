@@ -1,3 +1,5 @@
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("salescaptain-api-sync-cron");
 /** Every 5 minutes: kick the background SalesCaptain API sync. */
 export const config = { schedule: "*/5 * * * *" };
 const SITE = process.env.URL || "https://blpsalesapp.netlify.app";

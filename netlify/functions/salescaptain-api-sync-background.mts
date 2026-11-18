@@ -1,6 +1,8 @@
 /** Background worker (up to 15 min): one SalesCaptain API sync pass.
  *  POST /.netlify/functions/salescaptain-api-sync-background?key=…[&since=ISO][&noCreate=1][&dry=1][&cap=N] */
 import { runSalesCaptainApiSync } from "./lib/salescaptain-api-sync-run";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("salescaptain-api-sync-background");
 
 const APP_KEY = process.env.BLP_APP_ACCESS_KEY || "pianoman";
 

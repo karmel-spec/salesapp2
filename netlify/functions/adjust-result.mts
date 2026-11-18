@@ -5,6 +5,8 @@
  * this returns it — {pending:true} with 202 until the job lands.
  */
 import { getStore } from "@netlify/blobs";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("adjust-result");
 
 const CORS = { "access-control-allow-origin": "*", "access-control-allow-headers": "content-type",
   "access-control-allow-methods": "GET, OPTIONS" };

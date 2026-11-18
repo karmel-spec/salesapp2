@@ -20,6 +20,8 @@
  */
 import { patchMirror, triggerSync } from "./lib/pianolog-mirror.mts";
 import { directWrite } from "./lib/pianolog-direct.mts";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("pianolog-write");
 
 const BRIDGE_URL =
   "https://script.google.com/macros/s/AKfycbxY4BKnr_Tr0iCTc9itCWhNYLvgszmkI1IoYSkbBWpyAqRtWI-yaUkJQjcVdgG58KXt/exec";

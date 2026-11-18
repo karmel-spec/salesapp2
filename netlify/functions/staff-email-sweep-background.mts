@@ -1,3 +1,5 @@
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("staff-email-sweep-background");
 /** Background worker (15-min budget): walk every mailbox in chunks so each
  *  console call stays short. POST ?key=…[&days=3] */
 const SITE = process.env.URL || "https://blpsalesapp.netlify.app";

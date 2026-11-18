@@ -13,6 +13,8 @@
  * board canonicalizes names. Simple GET with query key — no CORS preflight.
  */
 import * as crypto from "node:crypto";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("pay-rates");
 
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";
 const TAB = "Pay Rates";

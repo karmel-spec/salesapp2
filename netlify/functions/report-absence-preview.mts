@@ -4,6 +4,8 @@
  */
 import { KEY, notify } from "./_blp-sched-lib.mts";
 import { absencePlan } from "./lib/absence-reminders.mts";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("report-absence-preview");
 
 export default async (req: Request) => {
   const u = new URL(req.url);

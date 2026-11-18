@@ -1,3 +1,5 @@
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("taskboard-write");
 /**
  * Store Map task board — FAST WRITE proxy (speed step 5, Brigham 8/29).
  *

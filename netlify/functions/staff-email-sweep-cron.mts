@@ -1,3 +1,5 @@
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("staff-email-sweep-cron");
 /** Daily 6:30 AM Mountain: kick the background staff-email sweep (3-day look-back). */
 export const config = { schedule: "30 12 * * *" };
 const SITE = process.env.URL || "https://blpsalesapp.netlify.app";

@@ -10,6 +10,8 @@
  */
 import * as crypto from "node:crypto";
 import { getStore } from "@netlify/blobs";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("request-shot");
 
 const APP_KEY = process.env.BLP_APP_ACCESS_KEY || "pianoman";
 const CORS = { "access-control-allow-origin": "*", "access-control-allow-headers": "content-type",

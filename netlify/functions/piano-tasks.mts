@@ -17,6 +17,8 @@
  * Auth: Google ID token (company account) or `key` = BLP_APP_ACCESS_KEY.
  */
 import * as crypto from "node:crypto";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("piano-tasks");
 
 const SHEET_ID = "1ZunbPKygpQlcXfTyPowDHdUE9spJ3uV1XA4iX1eoKRc";  // Piano Log
 const TAB = "Task Status";

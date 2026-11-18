@@ -36,6 +36,8 @@
  */
 import * as crypto from "node:crypto";
 import { getStore } from "@netlify/blobs";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("buffing-list");
 
 const CURTIS_ID = "1DxvDQ9WlhxXfiZaKGpdJLOOPNMBfVA9PsHGuLe55pmc";
 const PIANO_LOG_ID = "1ZunbPKygpQlcXfTyPowDHdUE9spJ3uV1XA4iX1eoKRc";

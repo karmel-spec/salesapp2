@@ -2,6 +2,8 @@
  * runStandupText has the Denver 7:40–7:59 gate, weekday/holiday skips and the
  * claim-the-day duplicate check. */
 import { runStandupText } from "./lib/standup-text";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("standup-text-background");
 export default async () => {
   try { console.log("[standup-text] " + await runStandupText()); }
   catch (e) { console.error("[standup-text]", String(e)); }

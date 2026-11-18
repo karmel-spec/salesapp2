@@ -2,6 +2,8 @@
  *  GET ?key=…&status=1                → cursor, health, last run, last replay
  *  GET ?key=…[&since=ISO][&noCreate=1][&dry=1][&cap=N] → kicks a background pass (202), read results with status=1 */
 import { getStore } from "@netlify/blobs";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("salescaptain-api-sync-now");
 
 const APP_KEY = process.env.BLP_APP_ACCESS_KEY || "pianoman";
 const SITE = process.env.URL || "https://blpsalesapp.netlify.app";

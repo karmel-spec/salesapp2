@@ -1,3 +1,5 @@
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("taskboard-reconcile-cron");
 /**
  * Every 10 minutes: run the sheet → Supabase task-board reconciler, so
  * any write that fell back to the Apps Script bridge (stale cached app,

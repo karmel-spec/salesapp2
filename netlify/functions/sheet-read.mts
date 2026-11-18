@@ -6,6 +6,8 @@
  * Restoration Contracts tab are never served.
  */
 import { sheetGet, KEY } from "./_blp-sched-lib.mts";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("sheet-read");
 const ALLOW = new Set([
   "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I",   // Friday-report / scheduling sheet
   "1ZunbPKygpQlcXfTyPowDHdUE9spJ3uV1XA4iX1eoKRc",   // Piano Log

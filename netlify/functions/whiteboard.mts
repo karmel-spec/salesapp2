@@ -22,6 +22,8 @@
  * technician *.blp@gmail accounts) or BLP_APP_ACCESS_KEY.
  */
 import * as crypto from "node:crypto";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("whiteboard");
 
 const SHEET_ID = "11RoeVRETag5rZYX6_tEH-rf6x8JL0JeZU0P5AT0WI-I";  // report sheet
 const TAB = "Whiteboard";

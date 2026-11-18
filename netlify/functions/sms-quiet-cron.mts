@@ -1,3 +1,5 @@
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("sms-quiet-cron");
 /**
  * Quiet-hours SMS drain (Brigham 9/3): texts to team members composed
  * outside 10am-4pm Denver wait in bridge_queue (status "sms-queued",

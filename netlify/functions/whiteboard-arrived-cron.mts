@@ -14,6 +14,8 @@
  * request-notify applies quiet hours (held until 10 AM).
  */
 import { REPORT_SHEET, KEY, SITE, googleToken, sheetGet } from "./_blp-sched-lib.mts";
+import { installSheetsMeter } from "./lib/sheets-meter";
+installSheetsMeter("whiteboard-arrived-cron");
 
 const TAB = "Whiteboard";
 const WAIT_MS = 15 * 60000;
