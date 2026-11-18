@@ -263,11 +263,13 @@ export async function buildLists() {
   for (const p of active) {
     const ph = RETIRED[p.phase] || p.phase || "";
     const idx = PHASES.indexOf(ph);
-    const refurb = refurbOnly(p);
-    // a refurb piano is listed while it is in its refurb phases (one phase for
-    // grands, four for uprights) and on through QC & Assembly
-    const inRange = refurb ? (REFURB_PHASES.has(ph) || (idx >= FIRST && idx <= LAST)) : (idx >= FIRST && idx <= LAST);
-    if (!inRange || !p.serial || forSale(p) || (refurb ? skipHw(p) : skipPhase(p))) continue;
+    // Refurb-only pianos are OFF this list (Mark 11/18): the refurbish technician
+    // buffs that piano's hardware as part of the refurb phases — it is not Korban's.
+    // (They were listed as "Refurb · buff only" from 11/10 to 11/18, request 111026hales80.)
+    if (refurbOnly(p)) continue;
+    const refurb = false;
+    const inRange = idx >= FIRST && idx <= LAST;
+    if (!inRange || !p.serial || forSale(p) || skipPhase(p)) continue;
     const plating = task(p.serial, PLATING_TASK);
     const own = task(p.serial, HW_TASK);
     const sent = plating && (plating.step1At || plating.step2At);
