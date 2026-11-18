@@ -80,6 +80,7 @@ const SM_HEADERS = {
   phaseNotesIdx: 'PHASE NOTES', payPlanIdx: 'PAYMENT PLAN', payMsIdx: 'PAY MILESTONE', payTrackIdx: 'PAY TRACK',
   adminStIdx: 'ADMIN STEPS', keySvcIdx: 'KEY SERVICE', benchLocIdx: 'BENCH LOCATION',
   plateHwIdx: 'PLATE HW LOCATION', plateTempIdx: 'PLATE TEMP SPOT', plateHwStatusIdx: 'PLATE HARDWARE STATUS',
+  visHwStatusIdx: 'VISIBLE HARDWARE STATUS',
   // AL / AM are the one admin source (Mark 11/6) — were the card-only PLATE HARDWARE FINISH / KEYTOP MATERIAL
   plateFinishIdx: 'REQUESTED TRIM COLOR', keytopMatIdx: 'REQUESTED WHITE KEYTOP PLAN', crmIdIdx: 'CRM CLIENT ID',
   scopeNotesIdx: 'SCOPE NOTES', keytopIdx: 'KEYTOP STATUS', impNoteIdx: 'IMPORTANT NOTES',
@@ -114,7 +115,7 @@ function parseStoreMap(rows, today) {
   const I = smColumns(hdr);
   const { phaseIdx, priceIdx, trackIdx, doneIdx, waitIdx, crIdx, cbIdx, cabIdx, typeOvIdx, plateIdx,
     colorPickIdx, colorFinalIdx, phaseNotesIdx, payPlanIdx, payMsIdx, payTrackIdx, adminStIdx, keySvcIdx, benchLocIdx,
-    plateHwIdx, plateTempIdx, plateHwStatusIdx, plateFinishIdx, keytopMatIdx, crmIdIdx, scopeNotesIdx,
+    plateHwIdx, plateTempIdx, plateHwStatusIdx, visHwStatusIdx, plateFinishIdx, keytopMatIdx, crmIdIdx, scopeNotesIdx,
     keytopIdx, impNoteIdx, pianoNotesIdx, benchNoteIdx, tempEntryIdx, tagSnapIdx, pvideoIdx, paperworkIdx,
     bassIdx, decalsIdx, partsIdx, pedalsIdx, pedalTrimIdx, lockIdx, strikeIdx, escIdx, decorIdx, hingeIdx,
     screwsIdx, otherHwIdx, replateIdx, keyworkIdx, mainFolderIdx } = I;
@@ -182,6 +183,7 @@ function parseStoreMap(rows, today) {
       plateHw: plateHwIdx >= 0 ? col(plateHwIdx).slice(0, 80) : '',
       plateTemp: plateTempIdx >= 0 ? col(plateTempIdx).slice(0, 90) : '',
       plateHwStatus: plateHwStatusIdx >= 0 ? col(plateHwStatusIdx).slice(0, 40) : '',
+      visibleHwStatus: visHwStatusIdx >= 0 ? col(visHwStatusIdx).slice(0, 40) : '',
       plateFinish: plateFinishIdx >= 0 ? col(plateFinishIdx).slice(0, 80) : '',   // 80: AL holds free text like 'Brass (requested to match original)'
       keytopMaterial: keytopMatIdx >= 0 ? col(keytopMatIdx).slice(0, 80) : '',
       scopeNotes: scopeNotesIdx >= 0 ? col(scopeNotesIdx).slice(0, 4000) : '',   // 4000 (10/21): contract blocks ran past 500 and a save wrote the cut text back

@@ -69,7 +69,12 @@ const CARD_FIELDS: Record<string, { header: string; values: string[]; label: str
   keytopMaterial: { header: "REQUESTED WHITE KEYTOP PLAN", values: ["", "White Acrylic", "Off-white Acrylic", "Ivory - clean & leave as is", "Ivory - replace damaged keys", "Ivory", "No key service"], label: "Keytop material" },
 };
 // mirrors the bridge's PLATE_HW_STATUSES ('' = not tracked)
-const PLATE_HW_STATUSES = ["", "Needs buffing", "In buffing queue", "Buffing", "Buffed", "Installed"];
+// Plate screws + Visible hardware (Mark 11/18) — same lists and folding as the bridge's
+// PLATE_HW_STATUSES / PLATE_HW_MIGRATE / VISIBLE_HW_STATUSES / VISIBLE_HW_MIGRATE
+const PLATE_HW_STATUSES = ["", "In piano", "In buffing queue", "Buffed"];
+const PLATE_HW_MIGRATE: Record<string, string> = { "Needs buffing": "In buffing queue", "Buffing": "In buffing queue", "Installed": "Buffed", "In hardware queue": "In buffing queue" };
+const VISIBLE_HW_STATUSES = ["", "In piano", "In hardware queue", "Out for plating", "Done"];
+const VISIBLE_HW_MIGRATE: Record<string, string> = { "In buffing queue": "In hardware queue", "Buffed": "Done" };
 const PLATE_STATUSES = ["", "In piano", "Plate storage — BEFORE", "At Curtis Harper", "Plate storage — AFTER", "Back in piano"];
 const KEYTOP_STATES = ["Evaluate", "In Key Queue", "In Progress", "Done"];
 const TRACK_VALUES = ["Rebuild", "Hybrid", "Refurbish", "Refinish", "Technology", "Player Rebuild", "Storage", "Misc"];   // Player Rebuild was Old Player (Mark 10/22)
@@ -273,12 +278,20 @@ function plan(action: string, p: Payload, sh: Sheet, rowNum: number, row: string
       // STATUS dropdown sends plateHwStatus, the hardware LOCATION box sends
       // value. Treating every setplatehw as a location wiped the location and
       // dropped the status (Wick 29908 / Steinway 160095 "Buffed", 10/16).
-      if (p.plateHwStatus != null) {
-        const val = s(p.plateHwStatus).trim();
-        if (!PLATE_HW_STATUSES.includes(val)) return { writes: [], logs: [], result: { error: "bad plate hardware status: " + val } };
-        const c = need("PLATE HARDWARE STATUS"); if (!c) return null;
-        return { writes: [{ col: c, value: val }], logs: [[who, "Plate hardware", piano, val || "(cleared)"]], result: { ...base, plateHwStatus: val } };
-      }
+      // `unless` (optional list): leave the cell alone when it already holds one of
+      // those values — the CAP mini-QC pass sets "in queue" but never pulls a piano
+      // back from Buffed / Out for plating / Done (Mark 11/18)
+      const hw = (header: string, allowed: string[], migrate: Record<string, string>, raw: unknown, label: string, key: string): Plan | null => {
+        let val = s(raw).trim(); if (migrate[val]) val = migrate[val];
+        if (!allowed.includes(val)) return { writes: [], logs: [], result: { error: "bad " + header.toLowerCase() + ": " + val } };
+        const c = need(header); if (!c) return null;
+        let cur = s(row[c - 1]).trim(); if (migrate[cur]) cur = migrate[cur];
+        const unless = Array.isArray(p.unless) ? (p.unless as unknown[]).map(s) : [];
+        if (unless.includes(cur)) return { writes: [], logs: [], result: { ...base, [key]: cur, skipped: true } };
+        return { writes: [{ col: c, value: val }], logs: [[who, label, piano, val || "(cleared)"]], result: { ...base, [key]: val } };
+      };
+      if (p.visibleHwStatus != null) return hw("VISIBLE HARDWARE STATUS", VISIBLE_HW_STATUSES, VISIBLE_HW_MIGRATE, p.visibleHwStatus, "Visible hardware", "visibleHwStatus");
+      if (p.plateHwStatus != null) return hw("PLATE HARDWARE STATUS", PLATE_HW_STATUSES, PLATE_HW_MIGRATE, p.plateHwStatus, "Plate screws", "plateHwStatus");
       const c = need("PLATE HW LOCATION"); if (!c) return null;
       const val = s(p.value).trim().slice(0, 80);
       return { writes: [{ col: c, value: val }], logs: [[who, "Plate hardware location", piano, val || "(cleared)"]], result: { ...base, plateHw: val } };
@@ -471,6 +484,7 @@ export async function directWrite(action: string, p: Payload): Promise<DirectRes
   }
   if (!pl) return null;
   if (pl.result.error) return pl.result;
+  if (!pl.writes.length && !bumps.length) return { ...pl.result, direct: true };   // nothing to write (an `unless` skip)
 
   // write: this piano's cells, plus (for a move) the bumped pianos' location
   const data = pl.writes.map(w => ({ range: cell(rowNum, w.col), values: [[w.value]] }));

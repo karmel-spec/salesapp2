@@ -332,7 +332,9 @@ export function patchForAction(action: string, payload: Record<string, unknown>,
     case "setkeystatus": { const v = s(payload.value); p.sm.keytopStatus = v.slice(0, 40); p.raw["KEYTOP STATUS"] = v; break; }
     case "setplatestatus": { const v = s(payload.plateStatus); p.sm.plateStatus = v; p.raw["PLATE STATUS"] = v; break; }
     case "setplatehw": {   // status dropdown (plateHwStatus) or hardware location box (value)
-      if (payload.plateHwStatus != null) { const v = s(payload.plateHwStatus); p.sm.plateHwStatus = v; p.raw["PLATE HARDWARE STATUS"] = v; }
+      // the write's own result wins (an `unless` skip keeps what was there; old choices are folded)
+      if (payload.visibleHwStatus != null) { const v = s(result && typeof result.visibleHwStatus === "string" ? result.visibleHwStatus : payload.visibleHwStatus); p.sm.visibleHwStatus = v; p.raw["VISIBLE HARDWARE STATUS"] = v; }
+      else if (payload.plateHwStatus != null) { const v = s(result && typeof result.plateHwStatus === "string" ? result.plateHwStatus : payload.plateHwStatus); p.sm.plateHwStatus = v; p.raw["PLATE HARDWARE STATUS"] = v; }
       else { const v = s(payload.value); p.sm.plateHw = v.slice(0, 80); p.raw["PLATE HW LOCATION"] = v; }
       break;
     }

@@ -223,12 +223,36 @@ export async function buildLists() {
       mapRow: p ? p.row : null, phase: p ? p.phase || "" : "", plateHw: p ? p.plateHwStatus || "" : "",
       done: marked ? (st!.step2At.split("·")[1] || "").trim() || "done" : "" });
   }
+  // ---- plates the CARD says are in the hardware queue (Mark 11/18) ----
+  // A CAP mini-QC pass sets the card's Plate screws to "In hardware queue" (stored
+  // "In buffing queue"); a plate Curtis hasn't listed yet used to be invisible
+  // here. They are listed BELOW everything from Curtis's sheet ("the priority
+  // will always be pianos that are in CH's queue"), furthest along first, and
+  // work like an off-sheet plate: "Screws done" records the tap and sets the
+  // card to Buffed. Refurb-only / player-only pianos stay off (skipPhase).
+  const inQueue = (v: unknown) => /^(in buffing queue|in hardware queue|needs buffing|buffing)$/i.test(String(v || "").trim());
+  const listed = new Set(plates.map(pl => norm(pl.serial || "")).filter(Boolean));
+  for (const p of active) {
+    if (!p.serial || listed.has(norm(p.serial))) continue;
+    const st = task(p.serial, SCREW_TASK);
+    const markedToday = !!st && /^done$/i.test(st.step2) && !!st.step2At && stampedToday(st.step2At);
+    if (!inQueue(p.plateHwStatus) && !(markedToday && /^buffed$/i.test(String(p.plateHwStatus || "").trim()))) continue;
+    if (forSale(p) || skipPhase(p)) continue;
+    const ph = RETIRED[p.phase] || p.phase || "";
+    plates.push({ curtisRow: null, offSheet: true, fromCard: true, key: "c:" + norm(p.serial), priority: null,
+      pianoText: [String(p.make || "").trim() || String(p.summary || "").split("/")[0].trim(), String(p.serial)].join(" "), serial: String(p.serial),
+      requested: "", curtisNote: "", lastOnCurtis: "", top: null, addedBy: "", phaseIdx: PHASES.indexOf(ph),
+      mapRow: p.row, phase: p.phase || "", plateHw: p.plateHwStatus || "",
+      done: markedToday ? (st!.step2At.split("·")[1] || "").trim() || "done" : "" });
+  }
   // off Curtis's sheet first — he has usually finished the plate, so its screws are needed next
-  // plates added by hand first, in the order given; then off Curtis's sheet; then Curtis's order.
+  // plates added by hand first, in the order given; then off Curtis's sheet; then Curtis's order;
+  // then the card-only ones, furthest along first.
   // A plate still on Curtis's sheet keeps a hand-given top spot too.
   for (const pl of plates) if (!pl.top && pl.serial) { const m = mem[plateKey(pl.serial, pl.pianoText)]; if (m && m.top) pl.top = m.top; }
-  plates.sort((x, y) => (x.top || 999) - (y.top || 999) || (y.offSheet ? 1 : 0) - (x.offSheet ? 1 : 0)
-    || (x.priority ?? 999) - (y.priority ?? 999));
+  plates.sort((x, y) => (x.top || 999) - (y.top || 999) || (x.fromCard ? 1 : 0) - (y.fromCard ? 1 : 0)
+    || (y.offSheet ? 1 : 0) - (x.offSheet ? 1 : 0)
+    || (x.fromCard ? (y.phaseIdx ?? -1) - (x.phaseIdx ?? -1) : (x.priority ?? 999) - (y.priority ?? 999)));
   if (memChanged && memory) {
     try { await memStore().setJSON("plates", mem); }
     catch (e) { console.warn("buffing-list: plate memory not saved:", String((e as Error).message || e).slice(0, 100)); }
@@ -390,9 +414,21 @@ export default async (req: Request) => {
       return json({ ok: true, notes });
     }
     if (!serial) return json({ error: "serial required" }, 400);
-    if (op === "prepped" || op === "shipped") { await setTask(serial, PLATING_TASK, 1, "Submitted", on, by); return json({ ok: true }); }
-    if (op === "buffed") { await setTask(serial, HW_TASK, 2, "Buffed", on, by); return json({ ok: true }); }
-    if (op === "done") { await setTask(serial, HW_TASK, 2, "Already done", on, by); return json({ ok: true }); }
+    // the card's Visible hardware status follows Korban's taps (Mark 11/18): prepped
+    // for shipping → Out for plating, buffed / already done → Done, undo → back in
+    // the hardware queue. Through the durable relay, like the plate screws.
+    const cardVisible = async (status: string) => {
+      if (!b.mapRow) return "card not updated (no card row)";
+      const auth = (b.auth && typeof b.auth === "object") ? b.auth : {};
+      const r = await fetch(RELAY_URL, { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ relayKey: process.env.BLP_APP_ACCESS_KEY || "", pin: "pianoman", action: "setplatehw",
+          serial, row: Number(b.mapRow), visibleHwStatus: status, ...auth }) }).catch(() => null);
+      const j = r ? await r.json().catch(() => ({})) : {};
+      return (j as any).ok || (j as any).queued ? "card set to " + status : "card not updated";
+    };
+    if (op === "prepped" || op === "shipped") { await setTask(serial, PLATING_TASK, 1, "Submitted", on, by); return json({ ok: true, notes: [await cardVisible(on ? "Out for plating" : "In hardware queue")] }); }
+    if (op === "buffed") { await setTask(serial, HW_TASK, 2, "Buffed", on, by); return json({ ok: true, notes: [await cardVisible(on ? "Done" : "In hardware queue")] }); }
+    if (op === "done") { await setTask(serial, HW_TASK, 2, "Already done", on, by); return json({ ok: true, notes: [await cardVisible(on ? "Done" : "In hardware queue")] }); }
     return json({ error: "unknown op" }, 400);
   } catch (e) {
     return json({ error: String((e as Error).message || e).slice(0, 200) }, 500);

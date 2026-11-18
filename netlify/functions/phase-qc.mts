@@ -287,6 +287,18 @@ export default async (req: Request) => {
           miniQcPassed: true, qcManager: String(p.manager || ""), qcNote: genNote,
           user: { name: (p.manager || "Manager") + " (mini-QC pass)", email: "" } }),
       }).catch(() => {});
+      // CAP passed (Mark 11/18): the plate screws and the visible hardware are off
+      // the piano and Korban's — both card statuses go to "in the hardware queue",
+      // unless they are already further along. CAP is a rebuild phase; refurbish
+      // pianos (techs buff their own hardware) never come through here.
+      if (String(q.phase || "").trim() === "CAP") {
+        const hwSet = (extra: Record<string, unknown>) => fetch("https://blpsalesapp.netlify.app/.netlify/functions/pianolog-write", {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ relayKey: APP_KEY, pin: String(p.pin || "pianoman"), action: "setplatehw", serial: q.serial,
+            user: { name: (p.manager || "Manager") + " (CAP mini-QC pass)", email: "" }, ...extra }) }).catch(() => {});
+        await hwSet({ plateHwStatus: "In buffing queue", unless: ["In buffing queue", "Buffed"] });
+        await hwSet({ visibleHwStatus: "In hardware queue", unless: ["In hardware queue", "Out for plating", "Done"] });
+      }
       await textByName(q.requested_by,
         `✅ Mini-QC PASSED — ${q.phase} on ${label(q.piano, q.serial)} (${String(p.manager || "manager").split(" ")[0]}). Phase advanced to ${q.next_phase}. Nice work.${smsNote("(full note in the app)")}`);
     } else {
