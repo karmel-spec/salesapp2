@@ -51,14 +51,14 @@ const INTEGRATIONS: { key: string; name: string; desc: string; env: string }[] =
   },
   {
     key: "arnoldWebhook",
-    name: "Arnold — event webhook (Agent Console → Grok Bot)",
-    desc: "Posts lead events to the Agent Console, which wakes Arnold's Grok Bot; he answers on /api/arnold/draft with his draft-only key.",
-    env: "ARNOLD_WEBHOOK_URL, ARNOLD_WEBHOOK_SECRET, BLP_ARNOLD_ACCESS_KEY, BLP_AGENTS_KEY",
+    name: "Arnold — event webhook (Grok Bot)",
+    desc: "Posts lead events straight to the webhook of Arnold's Grok Bot routine \"Sales App events\"; he answers on /api/arnold/draft with his draft-only key.",
+    env: "ARNOLD_WEBHOOK_URL (routine webhook URL), ARNOLD_WEBHOOK_SECRET (routine key), BLP_ARNOLD_ACCESS_KEY",
   },
   {
     key: "telegram",
-    name: "Telegram notifications (@arnoldlarsonbot)",
-    desc: "Team pings for new leads and stale-sweep handoffs.",
+    name: "Telegram notifications (retired 11/18/2026)",
+    desc: "Turned off by Brigham — the app no longer posts team pings to Telegram. Leave these unset.",
     env: "TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID",
   },
   {

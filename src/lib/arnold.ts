@@ -16,8 +16,8 @@ import type { Lead, DraftMessage } from "./leads";
  *     webhook checks a bearer key — set ARNOLD_WEBHOOK_SECRET to that key.
  *     Arnold works the lead and POSTs drafts back to /api/arnold/draft with
  *     his draft-only key (BLP_ARNOLD_ACCESS_KEY).
- *  2. Team notifications (notifyTelegram) still use TELEGRAM_BOT_TOKEN if set;
- *     Telegram is being retired, so these become no-ops once it is unset.
+ *  2. Team notifications (notifyTelegram): Telegram was retired 2026-11-18 and
+ *     TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID were removed, so these are no-ops.
  *  3. Claude API fallback (ANTHROPIC_API_KEY): when the webhook is unset or
  *     fails, "Ask Arnold" drafts in Arnold's voice directly, so the approval
  *     queue works even when the Bot is unreachable.
