@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { config } from "./config";
-import { readRows, writeCells, insertRowTop, canWrite, expandColumns, readCell, moveRow } from "./sheets";
+import { readRows, writeCells, insertRowTop, canWrite, expandColumns, readCell, moveRow, SheetsRateLimitError } from "./sheets";
 import { crmUpsertLead, crmNote, crmCorrectContact, crmFullAddress, type CrmCard } from "./crm";
 import { getStore } from "@netlify/blobs";
 import { gzipSync, gunzipSync } from "node:zlib";
@@ -518,8 +518,14 @@ export async function getLeads(force = false): Promise<{ leads: Lead[]; shape: S
 const ROWS_KEY = "rows";
 function rowsStore() { try { return getStore({ name: "leads-cache", consistency: "strong" }); } catch { return null; } }
 let lastForce = false;
+// Last rows this instance read from Sheets. Never cleared by writes: it is
+// only used when Google rate-limits us (429) on a NON-force read, where a
+// page showing data a minute old beats a page showing an error. Force reads
+// (inbound handlers, writes) never fall back — they need the live rows.
+let lastGoodRows: string[][] | null = null;
 async function readLeadsNow(): Promise<{ leads: Lead[]; shape: SheetShape }> {
   let rows: string[][] | null = null;
+  let staleRows: string[][] | null = null;
   const store = rowsStore();
   if (store) {
     try {
@@ -528,11 +534,22 @@ async function readLeadsNow(): Promise<{ leads: Lead[]; shape: SheetShape }> {
       if (buf) {
         const c = JSON.parse(gunzipSync(Buffer.from(buf)).toString("utf8")) as { at: number; rows: string[][] };
         if (c && Date.now() - c.at < (lastForce ? FORCE_REUSE_MS : CACHE_MS)) rows = c.rows;
+        else if (c?.rows?.length) staleRows = c.rows;
       }
     } catch { /* cache miss */ }
   }
   if (!rows) {
-    rows = await readRows();
+    try {
+      rows = await readRows();
+      lastGoodRows = rows;
+    } catch (err) {
+      const fallback = staleRows || lastGoodRows;
+      if (!(err instanceof SheetsRateLimitError) || lastForce || !fallback) throw err;
+      console.warn("[leads] Sheets rate-limited — serving the last cached Leads Log copy");
+      // Don't write the old copy back to Blobs, and keep it out of the
+      // fresh-cache window so the next request tries Sheets again.
+      return buildLeads(fallback, false);
+    }
     if (store) {
       try {
         const gz = gzipSync(Buffer.from(JSON.stringify({ at: Date.now(), rows })));
@@ -541,6 +558,10 @@ async function readLeadsNow(): Promise<{ leads: Lead[]; shape: SheetShape }> {
       } catch { /* ignore */ }
     }
   }
+  return buildLeads(rows, true);
+}
+
+function buildLeads(rows: string[][], fresh: boolean): { leads: Lead[]; shape: SheetShape } {
   if (!rows.length) throw new Error("Leads Log sheet is empty");
   const shape = shapeFromHeader(rows[0]);
   const now = new Date();
@@ -560,6 +581,7 @@ async function readLeadsNow(): Promise<{ leads: Lead[]; shape: SheetShape }> {
     }
     leads.push(lead);
   }
+  if (!fresh) return { leads, shape };
   cache = { leads, shape, at: Date.now() };
   return cache;
 }

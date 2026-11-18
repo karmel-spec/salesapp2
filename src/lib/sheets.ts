@@ -64,19 +64,43 @@ export async function getGoogleToken(): Promise<string> {
   return getAccessToken();
 }
 
+/**
+ * Google's per-minute quota for the service account (60 reads/min) was hit.
+ * Callers that can live with slightly old data catch this and fall back to
+ * their last good copy; everyone else gets a readable message instead of
+ * Google's raw JSON.
+ */
+export class SheetsRateLimitError extends Error {
+  constructor(path: string) {
+    super(`Google Sheets is busy (too many reads this minute) — try again in a minute. [${path.split("?")[0]}]`);
+    this.name = "SheetsRateLimitError";
+  }
+}
+
+const RATE_LIMIT_RETRY_MS = 2000;
+
 async function api(path: string, init?: RequestInit): Promise<any> {
   const token = await getAccessToken();
-  const res = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${config.sheetId}${path}`,
-    {
+  const call = () =>
+    fetch(`https://sheets.googleapis.com/v4/spreadsheets/${config.sheetId}${path}`, {
       ...init,
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
         ...(init?.headers || {}),
       },
+    });
+  let res = await call();
+  if (res.status === 429) {
+    // A 429 means the request was not applied, so one retry is safe for
+    // reads and writes alike.
+    await new Promise((r) => setTimeout(r, RATE_LIMIT_RETRY_MS));
+    res = await call();
+    if (res.status === 429) {
+      console.warn(`[sheets] 429 rate limit on ${path.split("?")[0]} after retry`);
+      throw new SheetsRateLimitError(path);
     }
-  );
+  }
   if (res.status === 403) {
     throw new Error(
       `Google says the service account lacks permission (403). Share the Leads Log with ${config.googleClientEmail} as Editor, then retry.`
