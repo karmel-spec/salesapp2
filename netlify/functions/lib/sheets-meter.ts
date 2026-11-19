@@ -94,7 +94,10 @@ export function installSheetsMeter(fn: string, site = "blpsalesapp"): void {
     try {
       const method = String(init?.method || (typeof input === "object" && "method" in input ? input.method : "GET")).toUpperCase();
       info = describe(url, method);
-      route = routeOf(new Error().stack);
+      // Default stack depth (10) cuts off the route frame on deep call chains.
+      const lim = Error.stackTraceLimit;
+      Error.stackTraceLimit = 60;
+      try { route = routeOf(new Error().stack); } finally { Error.stackTraceLimit = lim; }
     } catch { /* never block the real call */ }
     const logged = info ? record(info, null, route) : Promise.resolve();
     const res = await orig(input, init);
