@@ -97,7 +97,8 @@ export async function plateHoldText(): Promise<string> {
 }
 
 /** Plates back from Curtis Harper (Mark 10/30): card PLATE STATUS "Plate storage —
- * AFTER" — each one's restringing is Lupita's next assignment, in shop-queue order.
+ * AFTER" — each one is ready to restring, in shop-queue order (Lupita's through
+ * Thanksgiving; from the week of 11/30 any technician — no dedicated restringer).
  * One line per piano with its phase and queue #. "" if unreadable or none. */
 export async function plateReadyText(): Promise<string> {
   try {

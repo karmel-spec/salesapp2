@@ -27,6 +27,9 @@ const RULES_TAB = "Scheduling Rules";
 const BRIDGE = "https://script.google.com/macros/s/AKfycbxY4BKnr_Tr0iCTc9itCWhNYLvgszmkI1IoYSkbBWpyAqRtWI-yaUkJQjcVdgG58KXt/exec";
 const MODEL = process.env.ADJUST_MODEL || "claude-sonnet-5";
 const APP_KEY = process.env.BLP_APP_ACCESS_KEY || "pianoman";
+// Lupita is the dedicated restringer through Thanksgiving; plan weeks starting
+// on or after this date schedule restringing like any other phase (Mark 11/19)
+const RESTRINGER_UNTIL = "2026-11-30";
 
 let tokenCache: { token: string; exp: number } | null = null;
 async function googleToken(scope = "https://www.googleapis.com/auth/spreadsheets"): Promise<string> {
@@ -263,7 +266,7 @@ export default async (req: Request) => {
     + "PLATE STATUS AND THE WAITING ON CURTIS HARPER PHASE ARE ONE FACT (Mark 11/9): the card links them — plate At Curtis "
     + "Harper ⇔ phase Waiting on Curtis Harper, and a plate back from Curtis puts the phase at Restringing. Treat Waiting on "
     + "Curtis Harper as 'plate is out, hold restringing'; treat Restringing with Plate storage — AFTER as 'just back from Curtis' "
-    + "(Lupita's next restring). A mismatch between the two can only be a hand edit — flag it as a stale status, don't schedule on it. "
+    + "(ready to restring — who takes it is in the PLATES BACK FROM CURTIS HARPER section). A mismatch between the two can only be a hand edit — flag it as a stale status, don't schedule on it. "
     + "OUTSIDE-SHOP TRIPS ARE NOT DELIVERIES (Mark 10/29 — standing rule): a moving-calendar trip that takes a piano TO an "
     + "outside shop or specialist — Barrus Pianos, David Hyde, Curtis Harper (plating), a QRS or player installer — is not a "
     + "delivery, even when the piano is sold: it gets NO pre-delivery tuning or QC before that trip. Outside work (QRS / "
@@ -372,7 +375,9 @@ export default async (req: Request) => {
     + (tuneQueue ? `TUNING QUEUE (marked Needs tuning on the Showroom Tuning Check, not booked yet, in order):\n${tuneQueue}\n\n` : "")
     + deliveryCtx
     + fieldCtx
-    + (plateReady ? `PLATES BACK FROM CURTIS HARPER (Plate storage — AFTER) — each restring is LUPITA's next assignment, in this order, as soon as her current restring wraps — SCHEDULE IT, no note needed, and another tech on a different phase of that piano (keytops, DHRT, refinishing) is not a conflict; another restringer only if a note says so; phase already past Restringing → flag the stale plate status, don't schedule (Mark 10/30):\n${plateReady}\n\n` : "")
+    + (plateReady ? (String(plan.weekStart || "") < RESTRINGER_UNTIL
+      ? `PLATES BACK FROM CURTIS HARPER (Plate storage — AFTER) — each restring is LUPITA's next assignment, in this order, as soon as her current restring wraps — SCHEDULE IT, no note needed, and another tech on a different phase of that piano (keytops, DHRT, refinishing) is not a conflict; another restringer only if a note says so; phase already past Restringing → flag the stale plate status, don't schedule (Mark 10/30):\n${plateReady}\n\n`
+      : `PLATES BACK FROM CURTIS HARPER (Plate storage — AFTER) — each piano is ready for RESTRINGING. There is no dedicated restringer (Mark 11/19, from the week of 11/30): schedule restringing like any other phase, with a technician who is free, in this order — SCHEDULE IT, no note needed, and another tech on a different phase of that piano (keytops, DHRT, refinishing) is not a conflict; phase already past Restringing → flag the stale plate status, don't schedule:\n${plateReady}\n\n`) : "")
     + (plateHolds ? `PLATES NOT READY (plate out, not yet refinished — do not schedule stringing):\n${plateHolds}\n\n` : "")
     + (timeOff.text ? `APPROVED TIME OFF (from the Time Off requests — schedule NOTHING for that technician on a whole day off; on a partial day leave the stated hours empty):\n${timeOff.text}\n\n` : "");
   const userMsg = `MANAGER NOTES THIS WEEK — written by ${String(body.by || "Brigham").replace(/\s*\(.*$/, "")} (credit them to that person in changes, not to anyone else):\n${globalTxt ? "GLOBAL: " + globalTxt + "\n" : ""}${notesTxt}\n\n`
