@@ -363,25 +363,36 @@ export default async (req: Request) => {
   const reportsTxt = reports
     ? `TECH WEEKLY REPORTS (filed under ${reports.label}):\n` + Object.entries(reports.byTech).map(([n, t]) => `${n}: ${t}`).join("\n") + "\n\n"
     : "TECH WEEKLY REPORTS: (none found on the year tab)\n\n";
-  const userMsg = `STANDING RULES:\n${rules.map(r => "- " + r).join("\n") || "(none yet)"}\n\n`
+  // Prompt caching (Mark 11/19): runs come in bursts (185 of 214 within an
+  // hour of the previous one), so the instructions and the steady context are
+  // marked for a 1-hour cache and only the notes + plan are new each time.
+  // Same text, same order as before; it is just sent as two blocks.
+  const ctxMsg = `STANDING RULES:\n${rules.map(r => "- " + r).join("\n") || "(none yet)"}\n\n`
     + reportsTxt
     + (tuneQueue ? `TUNING QUEUE (marked Needs tuning on the Showroom Tuning Check, not booked yet, in order):\n${tuneQueue}\n\n` : "")
     + deliveryCtx
     + fieldCtx
     + (plateReady ? `PLATES BACK FROM CURTIS HARPER (Plate storage — AFTER) — each restring is LUPITA's next assignment, in this order, as soon as her current restring wraps — SCHEDULE IT, no note needed, and another tech on a different phase of that piano (keytops, DHRT, refinishing) is not a conflict; another restringer only if a note says so; phase already past Restringing → flag the stale plate status, don't schedule (Mark 10/30):\n${plateReady}\n\n` : "")
     + (plateHolds ? `PLATES NOT READY (plate out, not yet refinished — do not schedule stringing):\n${plateHolds}\n\n` : "")
-    + (timeOff.text ? `APPROVED TIME OFF (from the Time Off requests — schedule NOTHING for that technician on a whole day off; on a partial day leave the stated hours empty):\n${timeOff.text}\n\n` : "")
-    + `MANAGER NOTES THIS WEEK — written by ${String(body.by || "Brigham").replace(/\s*\(.*$/, "")} (credit them to that person in changes, not to anyone else):\n${globalTxt ? "GLOBAL: " + globalTxt + "\n" : ""}${notesTxt}\n\n`
+    + (timeOff.text ? `APPROVED TIME OFF (from the Time Off requests — schedule NOTHING for that technician on a whole day off; on a partial day leave the stated hours empty):\n${timeOff.text}\n\n` : "");
+  const userMsg = `MANAGER NOTES THIS WEEK — written by ${String(body.by || "Brigham").replace(/\s*\(.*$/, "")} (credit them to that person in changes, not to anyone else):\n${globalTxt ? "GLOBAL: " + globalTxt + "\n" : ""}${notesTxt}\n\n`
     + `CURRENT PLAN JSON:\n${JSON.stringify(plan)}`;
 
   const ai = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": process.env.ANTHROPIC_API_KEY!, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: MODEL, max_tokens: 32000, system: sys, tools,
+    body: JSON.stringify({ model: MODEL, max_tokens: 32000,
+      system: [{ type: "text", text: sys, cache_control: { type: "ephemeral", ttl: "1h" } }], tools,
       tool_choice: { type: "tool", name: "revised_schedule" },
-      messages: [{ role: "user", content: userMsg }] }),
+      messages: [{ role: "user", content: [
+        { type: "text", text: ctxMsg, cache_control: { type: "ephemeral", ttl: "1h" } },
+        { type: "text", text: userMsg }] }] }),
   });
   const aj = await ai.json();
+  // token counts for this run (cache reads vs writes vs fresh) — Netlify log + result blob
+  const usage = aj.usage ? { input: aj.usage.input_tokens, cacheRead: aj.usage.cache_read_input_tokens || 0,
+    cacheWrite: aj.usage.cache_creation_input_tokens || 0, output: aj.usage.output_tokens } : null;
+  console.log("schedule-adjust usage", JSON.stringify(usage));
   const tu = (aj.content || []).find((c: any) => c.type === "tool_use");
   if (!tu) return finish({ error: "AI revision failed: " + (aj.error?.message || "no output") }, 502);
   const out = tu.input;
@@ -618,7 +629,7 @@ export default async (req: Request) => {
 
   return finish({ ok: true, saved, saveErr, week: out.plan.week,
     changes: out.changes || [], rules_saved: out.rules_extracted || [],
-    questions: out.questions || [], plan: out.plan });
+    questions: out.questions || [], plan: out.plan, usage });
 };
 const CORS = { "access-control-allow-origin": "*", "access-control-allow-headers": "content-type",
   "access-control-allow-methods": "POST, OPTIONS" };
