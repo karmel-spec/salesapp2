@@ -10,7 +10,7 @@
  * run seeds to now; history is a deliberate replay (?since=…&noCreate=1).
  */
 import { getStore } from "@netlify/blobs";
-import { scConfigured, scAccounts, scConversationsSince, scMessagesSince, type ScMessage } from "./salescaptain-api";
+import { scConfigured, scAccounts, scConversationsSince, scMessagesSince, type ScMessage, type ScConversation } from "./salescaptain-api";
 
 const APP_URL = process.env.URL || process.env.PUBLIC_BASE_URL || "https://blpsalesapp.netlify.app";
 const INTAKE_KEY = process.env.BLP_ARNOLD_ACCESS_KEY || "";
@@ -32,6 +32,51 @@ export interface SyncReport {
 }
 
 const channelOf = (t: string) => t === "web_chat_message" ? "webchat" : t === "fb_message" ? "facebook" : t === "ig_message" ? "instagram" : t === "email_message" ? "email" : t === "call" ? "call" : "text";
+
+// The message payload does not name the sender. Best available signals:
+// the auto-reply's fixed wording, "this is <Name>" in the text, then the
+// conversation's assigned account, then a generic "BLP team".
+// Only an EXPLICIT personal sign-on counts as a named rep ("this is Melissa at
+// the piano shop", "- Brigham"). "This is Brigham Larson Pianos…" is the
+// company, not Brigham — those reminders/campaigns are "BLP team", which keeps
+// BL Client Responses limited to replies to Brigham's own outreach.
+const REPS = "Brigham|Melissa|Lisa|Alisa|Karmel|Susie|Ezzy";
+export const whoOf = (text: string, _assignedTo: string | null): string => {
+  if (/our staff will be with you shortly|thank you for (texting|contacting) (us|brigham larson pianos)|outside of our (working|business) hours/i.test(text)) return "SalesCaptain auto-reply";
+  const t = text.replace(/Brigham Larson Pianos/gi, "BLP");
+  const m =
+    new RegExp(`\\b(?:this is|it'?s|hey,? it'?s)\\s+(${REPS})\\b(?!\\s+Larson\\s+Pianos)`, "i").exec(t) ||
+    new RegExp(`\\b(${REPS})\\s+(?:here|at the (piano )?shop|from (the )?(piano )?shop|with BLP)\\b`, "i").exec(t) ||
+    new RegExp(`(?:^|\\n|[—–-]\\s*)(${REPS})\\s*$`, "i").exec(t.trim());
+  if (m) return m[1][0].toUpperCase() + m[1].slice(1).toLowerCase();
+  return "BLP team";
+};
+
+/** The /api/salescaptain/inbound body for one SalesCaptain message. */
+export function messagePayload(c: ScConversation, m: ScMessage, o: { backfill?: boolean; noCreate?: boolean }) {
+  const isCall = m.type_of_message === "call";
+  const dur = m.call_duration ? Number(m.call_duration) : 0;
+  const text = isCall
+    ? `📞 ${m.direction === "inbound" ? "Incoming" : "Outgoing"} call${m.call_status ? ` · ${m.call_status}` : ""}${dur ? ` · ${Math.round(dur / 60)}m ${dur % 60}s` : ""}${m.recording_url ? `\n🎧 ${m.recording_url}` : ""}`
+    : (m.message || "").trim();
+  const payload = {
+    senderName: (c.contact_name || "").trim(),
+    senderPhone: c.contact_number || "",
+    senderEmail: c.contact_email || "",
+    messageText: text,
+    at: m.created_at,
+    channel: channelOf(m.type_of_message),
+    direction: m.direction,
+    who: m.direction === "outbound" ? whoOf(text, c.assigned_to) : undefined,
+    media: (m.media || []).filter((u) => typeof u === "string"),
+    salesCaptainMessageId: m.message_id,
+    salesCaptainContactId: c.contact_id,
+    salesCaptainConversationId: c.conversation_id,
+    backfill: o.backfill || undefined,
+    noCreate: o.noCreate || undefined,
+  };
+  return { text, payload };
+}
 
 export async function runSalesCaptainApiSync(opts: SyncOptions = {}): Promise<SyncReport> {
   const t0 = Date.now();
@@ -80,24 +125,6 @@ async function syncPass(store: ReturnType<typeof getStore>, base: SyncReport, op
   const since = replay ? opts.since! : cursor.since! - OVERLAP_MS;
   const to = Date.now();
   const accounts = await scAccounts(); base.apiCalls++;
-  // The message payload does not name the sender. Best available signals:
-  // the auto-reply's fixed wording, "this is <Name>" in the text, then the
-  // conversation's assigned account, then a generic "BLP team".
-  // Only an EXPLICIT personal sign-on counts as a named rep ("this is Melissa at
-  // the piano shop", "- Brigham"). "This is Brigham Larson Pianos…" is the
-  // company, not Brigham — those reminders/campaigns are "BLP team", which keeps
-  // BL Client Responses limited to replies to Brigham's own outreach.
-  const REPS = "Brigham|Melissa|Lisa|Alisa|Karmel|Susie|Ezzy";
-  const whoOf = (text: string, _assignedTo: string | null) => {
-    if (/our staff will be with you shortly|thank you for (texting|contacting) (us|brigham larson pianos)|outside of our (working|business) hours/i.test(text)) return "SalesCaptain auto-reply";
-    const t = text.replace(/Brigham Larson Pianos/gi, "BLP");
-    const m =
-      new RegExp(`\\b(?:this is|it'?s|hey,? it'?s)\\s+(${REPS})\\b(?!\\s+Larson\\s+Pianos)`, "i").exec(t) ||
-      new RegExp(`\\b(${REPS})\\s+(?:here|at the (piano )?shop|from (the )?(piano )?shop|with BLP)\\b`, "i").exec(t) ||
-      new RegExp(`(?:^|\\n|[—–-]\\s*)(${REPS})\\s*$`, "i").exec(t.trim());
-    if (m) return m[1][0].toUpperCase() + m[1].slice(1).toLowerCase();
-    return "BLP team";
-  };
   void accounts;
   const { list, calls, boundaryPage } = await scConversationsSince(since, opts.cap || 400, cursor.boundaryPage); base.apiCalls += calls;
   if (!opts.dryRun) { cursor.boundaryPage = boundaryPage; if (!replay) await store.setJSON("cursor", cursor); }
@@ -116,27 +143,7 @@ async function syncPass(store: ReturnType<typeof getStore>, base: SyncReport, op
       const at = Date.parse(m.created_at);
       if (!replay && at > to) continue;
       base.messages++;
-      const isCall = m.type_of_message === "call";
-      const dur = m.call_duration ? Number(m.call_duration) : 0;
-      const text = isCall
-        ? `📞 ${m.direction === "inbound" ? "Incoming" : "Outgoing"} call${m.call_status ? ` · ${m.call_status}` : ""}${dur ? ` · ${Math.round(dur / 60)}m ${dur % 60}s` : ""}${m.recording_url ? `\n🎧 ${m.recording_url}` : ""}`
-        : (m.message || "").trim();
-      const payload = {
-        senderName: (c.contact_name || "").trim(),
-        senderPhone: c.contact_number || "",
-        senderEmail: c.contact_email || "",
-        messageText: text,
-        at: m.created_at,
-        channel: channelOf(m.type_of_message),
-        direction: m.direction,
-        who: m.direction === "outbound" ? whoOf(text, c.assigned_to) : undefined,
-        media: (m.media || []).filter((u) => typeof u === "string"),
-        salesCaptainMessageId: m.message_id,
-        salesCaptainContactId: c.contact_id,
-        salesCaptainConversationId: c.conversation_id,
-        backfill: replay || undefined,
-        noCreate: opts.noCreate || undefined,
-      };
+      const { text, payload } = messagePayload(c, m, { backfill: replay, noCreate: opts.noCreate });
       if (opts.dryRun) {
         base.samples.length < 60 && base.samples.push(`${m.created_at.slice(0, 16)} ${m.direction.padEnd(8)} ${(c.contact_name || c.contact_number || "?").slice(0, 22).padEnd(22)} ${payload.channel.padEnd(8)} ${text.replace(/\s+/g, " ").slice(0, 70)}${payload.media.length ? ` 📎${payload.media.length}` : ""}`);
         newest = Math.max(newest, at);
