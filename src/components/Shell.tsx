@@ -15,11 +15,7 @@ const NAV: { href: string; label: string; sub?: boolean; boardKey?: string; grou
   // the lead map was only a BLP Apps tile and nobody found it (Melissa 10/22, 102326melissa18)
   { href: "/map", label: "US Sales Map" },
   { href: "/inbox", label: "Sales Responses" },
-  // New Inquiries splits into three sub-inboxes whose counts add up to it.
-  { href: "/new-inquiries", label: "SalesCaptain", group: "inquiries" },
-  { href: "/new-inquiries/tuning", label: "Tuning", sub: true, in: "inquiries" },
-  { href: "/new-inquiries/moving", label: "Moving", sub: true, in: "inquiries" },
-  { href: "/customer-service", label: "Customer Service", sub: true, in: "inquiries" },
+  // SalesCaptain section (SalesCaptain + Tuning / Moving / Customer Service) removed from the sidebar (Brigham 11/18).
   { href: "/board", label: "Inbox Board", group: "board" },
   // Per-person rows: unread/total email on the left, open task cards on the right.
   { href: "/board/brigham", label: "Brigham", sub: true, boardKey: "brigham", in: "board" },
@@ -322,15 +318,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const badgeFor = (href: string): { n: number; alert: boolean; awaiting?: number } => {
     switch (href) {
       case "/bl-inbox": return { n: unread.brigham, alert: true, awaiting: rc.brigham ?? 0 };
-      case "/new-inquiries": return { n: unread.fresh, alert: true, awaiting: rc.new ?? 0 };
-      case "/new-inquiries/tuning": return { n: unread.newFolders.tuning || 0, alert: true, awaiting: rc["new:tuning"] ?? 0 };
-      case "/new-inquiries/moving": return { n: unread.newFolders.moving || 0, alert: true, awaiting: rc["new:moving"] ?? 0 };
       case "/inbox": return { n: unread.others, alert: true, awaiting: rc.others ?? 0 };
       case "/bl-leads": return { n: leadCounts.brigham, alert: false };
       case "/leads": return { n: leadCounts.others, alert: false };
-      // Everything in New Inquiries that isn't Tuning or Moving — the sorting queue.
-      case "/customer-service":
-        return { n: Math.max(0, unread.fresh - (unread.newFolders.tuning || 0) - (unread.newFolders.moving || 0)), alert: true, awaiting: rc["new:other"] ?? 0 };
       case "/": return { n: unfiledCalls, alert: true }; // unfiled call recordings
       case "/board": return { n: boardEmail, alert: false, awaiting: boardTotals.emailTotal }; // unread / in inbox, all mailboxes
       default: return { n: 0, alert: false };
