@@ -27,10 +27,11 @@ export default async (req: Request) => {
   };
   try {
     const meta = await api(`?fields=sheets(properties(sheetId,title))`);
-    const sh = (meta.sheets || []).find((s: any) => s.properties.title === TAB);
-    if (!sh) return json({ error: "tab not found" }, 404);
-    const sheetId = sh.properties.sheetId;
-    const got = await api(`/values/${encodeURIComponent(`'${TAB}'!A1:AA60`)}?valueRenderOption=FORMULA`);
+    // matched like track-defs does (trimmed, any case) — the real title differs from "Tech Specialties"
+    const sh = (meta.sheets || []).find((s: any) => String(s.properties.title).trim().toLowerCase() === TAB.toLowerCase());
+    if (!sh) return json({ error: "tab not found", tabs: (meta.sheets || []).map((s: any) => s.properties.title) }, 404);
+    const sheetId = sh.properties.sheetId, title = sh.properties.title;
+    const got = await api(`/values/${encodeURIComponent(`'${title}'!A1:AA60`)}?valueRenderOption=FORMULA`);
     const rows: string[][] = got.values || [];
     const a = (i: number) => String((rows[i] || [])[0] || "").trim();
     const low = (i: number) => a(i).toLowerCase();
@@ -47,7 +48,7 @@ export default async (req: Request) => {
     for (let i = iTeam + 1; i < iSub; i++) if (a(i)) iLast = i;
     const nameRow = rows[iName] || [];
     const plan = {
-      tab: TAB,
+      tab: title,
       found: { teamMembersRow: iTeam + 1, lastTeamMemberRow: iLast + 1, lastTeamMember: a(iLast), subcontractorsRow: iSub + 1, internsRow: iInt + 1, nameRow: iName + 1, nameRowValues: nameRow },
       lastTeamRowFormulas: (rows[iLast] || []).filter((v) => String(v).startsWith("=")),
       will: [`insert a blank row after row ${iLast + 1} (same formatting)`, `write "${NAME}" plus her existing cells into the new row ${iLast + 2}`, `delete her old row (row ${iName + 2} after the insert)`],
@@ -63,7 +64,7 @@ export default async (req: Request) => {
       { updateCells: { start: { sheetId, rowIndex: iLast + 1, columnIndex: 0 }, rows: [{ values }], fields: "userEnteredValue" } },
       { deleteDimension: { range: { sheetId, dimension: "ROWS", startIndex: iName + 1, endIndex: iName + 2 } } },
     ] }) });
-    const after = await api(`/values/${encodeURIComponent(`'${TAB}'!A1:A60`)}`);
+    const after = await api(`/values/${encodeURIComponent(`'${title}'!A1:A60`)}`);
     return json({ ok: true, done: true, replies: (out.replies || []).length, columnA: (after.values || []).map((r: string[], i: number) => `${i + 1}: ${r[0] || ""}`) });
   } catch (e) {
     return json({ error: String((e as Error).message || e) }, 500);
