@@ -50,29 +50,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "senderName or senderPhone required" }, { status: 400 });
     }
 
-    const { leads, shape } = await getLeads(true);
-    let lead: Lead | undefined;
-    let how = "";
-
-    if (phone.length === 10) {
-      lead = leads.find((l) => l.phoneDialable.endsWith(phone));
-      if (lead) how = "phone match";
-    }
-    if (!lead && name) {
-      const n = name.toLowerCase();
-      // Name matching only when the phone can't decide: two different
-      // "Carlos"es with two different numbers were merged into one lead this
-      // way. A candidate must have no phone on file, or the same phone.
-      const phoneOk = (l: Lead) => !phone || !l.phoneDialable || l.phoneDialable.endsWith(phone);
-      const candidates = leads.filter(phoneOk);
-      lead =
-        candidates.find((l) => l.name.toLowerCase() === n) ||
-        candidates.find((l) => l.name && l.name.includes(" ") && n.includes(l.name.toLowerCase())) ||
-        candidates.find((l) => l.firstName && l.lastName && n === `${l.firstName} ${l.lastName}`.toLowerCase());
-      if (lead) how = "name match";
-    }
-
     const body = (input.messageText || "").trim();
+    const findLead = (leads: Lead[]): { lead: Lead | undefined; how: string } => {
+      let lead: Lead | undefined;
+      let how = "";
+
+      if (phone.length === 10) {
+        lead = leads.find((l) => l.phoneDialable.endsWith(phone));
+        if (lead) how = "phone match";
+      }
+      if (!lead && name) {
+        const n = name.toLowerCase();
+        // Name matching only when the phone can't decide: two different
+        // "Carlos"es with two different numbers were merged into one lead this
+        // way. A candidate must have no phone on file, or the same phone.
+        const phoneOk = (l: Lead) => !phone || !l.phoneDialable || l.phoneDialable.endsWith(phone);
+        const candidates = leads.filter(phoneOk);
+        lead =
+          candidates.find((l) => l.name.toLowerCase() === n) ||
+          candidates.find((l) => l.name && l.name.includes(" ") && n.includes(l.name.toLowerCase())) ||
+          candidates.find((l) => l.firstName && l.lastName && n === `${l.firstName} ${l.lastName}`.toLowerCase());
+        if (lead) how = "name match";
+      }
+      return { lead, how };
+    };
     // One alert can land in karmel@, brigham@, melissa@ and info@ at once, and the
     // Mac watcher may see it too. The RFC Message-ID is identical in every copy,
     // so it's the dedupe key; without one, hash the content.
@@ -81,6 +82,29 @@ export async function POST(req: NextRequest) {
       : input.sourceMessageId
         ? `salescaptain:${input.sourceMessageId.trim()}`
         : `salescaptain:${crypto.createHash("sha1").update(`${input.at || ""}|${name}|${phone}|${body}`).digest("hex")}`;
+
+    // Most calls are repeats (the 5-minute API sync re-sends a 15-minute
+    // overlap; one alert reaches several mailboxes). Check the shared cached
+    // copy first: an already-logged message costs no Sheets read. Only a
+    // message we may write gets the live (force) read below.
+    {
+      const cached = findLead((await getLeads(false)).leads);
+      if (cached.lead && cached.lead.timeline.some((e) => e.fingerprint === fingerprint)) {
+        return NextResponse.json({ matched: true, duplicate: true, cached: true, leadId: cached.lead.id, leadName: cached.lead.name, how: cached.how });
+      }
+      // Same inbound words already logged within 3 minutes by the other path
+      // (no photo to upgrade) — the same content check as below, minus the read.
+      if (cached.lead && input.direction !== "outbound" && !(Array.isArray(input.media) && input.media.length)) {
+        const atMs0 = Date.parse(input.at || "") || Date.now();
+        const key0 = body.replace(/\s+/g, " ").trim().toLowerCase().slice(0, 60);
+        const twin0 = key0.length >= 3 && cached.lead.timeline.some((e) => e.kind === "inbound" && Math.abs(Date.parse(e.at) - atMs0) <= 3 * 60_000 && (e.text || "").replace(/\s+/g, " ").trim().toLowerCase().includes(key0));
+        if (twin0) return NextResponse.json({ matched: true, duplicate: true, contentMatch: true, cached: true, leadId: cached.lead.id, leadName: cached.lead.name, how: cached.how });
+      }
+    }
+    const { leads, shape } = await getLeads(true);
+    const found = findLead(leads);
+    const lead = found.lead;
+    let how = found.how;
     if (lead && lead.timeline.some((e) => e.fingerprint === fingerprint)) {
       return NextResponse.json({ matched: true, duplicate: true, leadId: lead.id, leadName: lead.name, how });
     }

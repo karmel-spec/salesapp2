@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { getStore } from "@netlify/blobs";
 import { config } from "./config";
 import { installSheetsMeter } from "../../netlify/functions/lib/sheets-meter";
 installSheetsMeter("sales-app (Next)");
@@ -114,13 +115,50 @@ async function api(path: string, init?: RequestInit): Promise<any> {
 
 let tabCache: string | null = null;
 
+/**
+ * Shared cache (Netlify Blobs) for small tabs that every open Sales Console
+ * polls — Inbox Folders, Streak Days Off, Top Ten, Plaud Unfiled. Blobs reads
+ * don't count against the service account's 60 Sheets reads/min (shared by
+ * every BLP app). No per-instance memory layer: writeTab() deletes the entry,
+ * so any server copy sees a save on its next read.
+ */
+const TAB_CACHE_MS = 60_000;
+const TAB_NAME_KEY = "__first-tab-name__";
+function tabStore() {
+  try { return getStore({ name: "tab-cache", consistency: "strong" }); } catch { return null; }
+}
+const tabKey = (title: string) => encodeURIComponent(title);
+
 /** First tab title, or the configured SHEET_TAB. */
 export async function getTabName(): Promise<string> {
   if (config.sheetTab) return config.sheetTab;
   if (tabCache) return tabCache;
+  // Every new server copy used to spend a Sheets read on this lookup.
+  const store = tabStore();
+  if (store) {
+    try {
+      const c = (await store.get(TAB_NAME_KEY, { type: "json" })) as { at: number; title: string } | null;
+      if (c?.title && Date.now() - c.at < 24 * 3600_000) return (tabCache = c.title);
+    } catch { /* cache miss */ }
+  }
   const meta = await api("?fields=sheets.properties.title");
   tabCache = meta.sheets?.[0]?.properties?.title || "Sheet1";
+  if (store) store.setJSON(TAB_NAME_KEY, { at: Date.now(), title: tabCache }).catch(() => {});
   return tabCache!;
+}
+
+/** readTab() through the shared 60-second cache. For display/polling reads only — read-modify-write paths use readTab(). */
+export async function readTabCached(title: string): Promise<string[][]> {
+  const store = tabStore();
+  if (store) {
+    try {
+      const c = (await store.get(tabKey(title), { type: "json" })) as { at: number; rows: string[][] } | null;
+      if (c && Date.now() - c.at < TAB_CACHE_MS) return c.rows;
+    } catch { /* cache miss */ }
+  }
+  const rows = await readTab(title);
+  if (store) await store.setJSON(tabKey(title), { at: Date.now(), rows }).catch(() => {});
+  return rows;
 }
 
 export function canWrite(): boolean {
@@ -296,6 +334,8 @@ export async function writeTab(title: string, rows: string[][]): Promise<void> {
     method: "PUT",
     body: JSON.stringify({ values: rows }),
   });
+  const store = tabStore();
+  if (store) await store.delete(tabKey(title)).catch(() => {});
 }
 
 /** Read a single cell's value (used to verify a row before writing to it). */

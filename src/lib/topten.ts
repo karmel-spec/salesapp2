@@ -1,4 +1,4 @@
-import { ensureTab, readTab, writeTab } from "./sheets";
+import { ensureTab, readTab, writeTab, readTabCached } from "./sheets";
 
 /**
  * Arnold's daily Top Ten — the ten most promising revenue leads, picked for
@@ -29,8 +29,8 @@ export interface TopTenList {
 /** scope column: "brigham" | "arnold" for list rows; "<scope>:seen" marks leads already offered today. */
 interface Row { rank: number; leadId: string; leadName: string; reason: string; savedAt: string; savedBy: string; scope: string }
 
-async function readRows(): Promise<Row[]> {
-  const rows = await readTab(TAB);
+async function readRows(fresh = false): Promise<Row[]> {
+  const rows = await (fresh ? readTab(TAB) : readTabCached(TAB));
   return rows
     .slice(1)
     .map((r) => ({
@@ -74,7 +74,7 @@ export async function saveTopTen(
   const cutoff = Date.now() - 24 * 3600_000;
   // Keep the other scope's rows untouched; drop this scope's list, and its
   // "seen" markers when the day starts over (the morning brief) or when stale.
-  const keep = (await readRows().catch(() => [] as Row[])).filter(
+  const keep = (await readRows(true).catch(() => [] as Row[])).filter(
     (x) => x.scope !== scope && !(x.scope === `${scope}:seen` && (opts.clearSeen || Date.parse(x.savedAt) < cutoff))
   );
   const seen = (opts.addSeen || []).map((id) => ["0", id, "", "", now, who, `${scope}:seen`]);

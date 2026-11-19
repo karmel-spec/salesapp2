@@ -1,4 +1,4 @@
-import { ensureTab, readTab, writeTab } from "./sheets";
+import { ensureTab, readTab, readTabCached, writeTab } from "./sheets";
 
 /**
  * Inbox folders — buckets the team files client responses into. Each folder
@@ -22,7 +22,7 @@ export const DEFAULT_FOLDERS: Folder[] = [
 ];
 
 export async function listFolders(): Promise<Folder[]> {
-  const rows = await readTab(TAB);
+  const rows = await readTabCached(TAB);
   const header = rows[0] || [];
   const tabCol = header.indexOf("tab");
   const custom: Folder[] = rows

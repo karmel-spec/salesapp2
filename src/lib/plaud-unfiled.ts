@@ -1,4 +1,4 @@
-import { ensureTab, readTab, writeTab } from "./sheets";
+import { ensureTab, readTab, writeTab, readTabCached } from "./sheets";
 
 /**
  * Unfiled Plaud calls — recordings the matcher couldn't attach to a lead.
@@ -59,7 +59,7 @@ function serialize(items: UnfiledCall[]): string[][] {
 }
 
 export async function listUnfiled(): Promise<UnfiledCall[]> {
-  return parse(await readTab(TAB));
+  return parse(await readTabCached(TAB));
 }
 
 /** Add a recording to the queue (no-op if it's already there). */
