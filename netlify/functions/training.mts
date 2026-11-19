@@ -41,7 +41,8 @@ const TABS = {
   Progress: "A:E", Opened: "A:C", Reps: "A:F", Signoffs: "A:F", Questions: "A:I", Notes: "A:D", Trainees: "A:E", Overrides: "A:D",
 };
 const NOTIFY_EMAILS = ["brigham@brighamlarsonpianos.com", "karmel@brighamlarsonpianos.com", "melissa@brighamlarsonpianos.com"];
-const NOTIFY_TEXT_NAMES = ["Brigham", "Karmel", "Melissa"];   // resolved to numbers by request-notify (Tech Phones tab)
+// Brigham gets no automated texts (his 10/21 rule; applied here Mark 11/19) — he still gets the email
+const NOTIFY_TEXT_NAMES = ["Karmel", "Melissa"];   // resolved to numbers by request-notify (Tech Phones tab)
 const APP_URL = "https://blpadmintraining.netlify.app";
 // A trainee's question shouldn't sit unseen on the Scorecard: email the owners + Melissa
 // from info@ and text them via the shared notifier. Failures never fail the question itself.
