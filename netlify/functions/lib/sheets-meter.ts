@@ -71,12 +71,18 @@ export function installSheetsMeter(fn: string, site = "blpsalesapp"): void {
   if (!sbUrl || !sbKey) return;
   const orig = globalThis.fetch.bind(globalThis);
 
-  const record = (info: Info, status: number | null): Promise<void> =>
+  const record = (info: Info, status: number | null, route: string | null): Promise<void> =>
     orig(`${sbUrl}/rest/v1/sheets_meter`, {
       method: "POST",
       headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}`, "Content-Type": "application/json", Prefer: "return=minimal" },
-      body: JSON.stringify({ site, fn, kind: info.kind, sheet: info.sheet, target: info.target, status }),
+      body: JSON.stringify({ site, fn, kind: info.kind, sheet: info.sheet, target: info.target, status, route }),
     }).then(() => undefined, () => undefined);
+  // Next.js route that made the call, from the async stack
+  // (".next/server/app/api/track/[token]/route.js" → "api/track/[token]").
+  const routeOf = (stack: string | undefined): string | null => {
+    const m = (stack || "").match(/server\/app\/(.+?)\/(route|page)\.js/);
+    return m ? m[1].slice(0, 120) : null;
+  };
   const settle = (p: Promise<void>) =>
     Promise.race([p, new Promise<void>((r) => setTimeout(r, 1500))]);
 
@@ -84,13 +90,15 @@ export function installSheetsMeter(fn: string, site = "blpsalesapp"): void {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     if (!url.startsWith("https://sheets.googleapis.com/") || Date.now() > METER_UNTIL) return orig(input, init);
     let info: Info | null = null;
+    let route: string | null = null;
     try {
       const method = String(init?.method || (typeof input === "object" && "method" in input ? input.method : "GET")).toUpperCase();
       info = describe(url, method);
+      route = routeOf(new Error().stack);
     } catch { /* never block the real call */ }
-    const logged = info ? record(info, null) : Promise.resolve();
+    const logged = info ? record(info, null, route) : Promise.resolve();
     const res = await orig(input, init);
-    const extra = info && res.status === 429 ? record(info, 429) : Promise.resolve();
+    const extra = info && res.status === 429 ? record(info, 429, route) : Promise.resolve();
     await settle(Promise.all([logged, extra]).then(() => undefined));
     return res;
   }) as typeof fetch;
