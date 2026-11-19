@@ -54,7 +54,14 @@ export default async (req: Request) => {
       will: [`insert a blank row after row ${iLast + 1} (same formatting)`, `write "${NAME}" plus her existing cells into the new row ${iLast + 2}`, `delete her old row (row ${iName + 2} after the insert)`],
     };
     if (!go) return json({ ok: true, dryRun: true, ...plan });
-    const values = [NAME, ...nameRow.slice(1)].map((v) => {
+    // the team-member rows carry a versatility total (=SUM(C:X) of that row) — give hers the same, on her new row
+    const cells: string[] = [NAME, ...nameRow.slice(1)];
+    const lastRow = rows[iLast] || [];
+    lastRow.forEach((v, c) => {
+      const f = String(v || "");
+      if (f.startsWith("=") && !String(cells[c] || "")) cells[c] = f.replace(new RegExp(String(iLast + 1) + "\\b", "g"), String(iLast + 2));
+    });
+    const values = Array.from(cells, (v) => v ?? "").map((v) => {
       const s = String(v ?? "");
       return s === "" ? { userEnteredValue: {} } : s.startsWith("=") ? { userEnteredValue: { formulaValue: s } }
         : /^-?\d+(\.\d+)?$/.test(s) ? { userEnteredValue: { numberValue: Number(s) } } : { userEnteredValue: { stringValue: s } };
