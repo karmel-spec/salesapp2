@@ -298,8 +298,8 @@ export default async (req: Request) => {
           method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({ relayKey: APP_KEY, pin: String(p.pin || "pianoman"), action: "setplatehw", serial: q.serial,
             user: { name: (p.manager || "Manager") + " (CAP mini-QC pass)", email: "" }, ...extra }) }).catch(() => {});
-        await hwSet({ plateHwStatus: "In buffing queue", unless: ["In buffing queue", "Buffed"] });
-        await hwSet({ visibleHwStatus: "In hardware queue", unless: ["In hardware queue", "Out for plating", "Done"] });
+        await hwSet({ plateHwStatus: "In buffing queue", unless: ["In buffing queue", "Buffed", "Not needed"] });
+        await hwSet({ visibleHwStatus: "In hardware queue", unless: ["In hardware queue", "Out for plating", "Done", "Not needed"] });
       }
       // REFURB mini-QC passed (Mark 11/18): on a refurb-only piano the technician has
       // already done the hardware by this point — plate screws polished in place,
@@ -320,8 +320,8 @@ export default async (req: Request) => {
               method: "POST", headers: { "content-type": "application/json" },
               body: JSON.stringify({ relayKey: APP_KEY, pin: String(p.pin || "pianoman"), action: "setplatehw", serial: q.serial,
                 user: { name: (p.manager || "Manager") + " (refurb mini-QC pass)", email: "" }, ...extra }) }).catch(() => {});
-            await hwDone({ plateHwStatus: "Buffed", unless: ["Buffed"] });
-            await hwDone({ visibleHwStatus: "Done", unless: ["Done"] });
+            await hwDone({ plateHwStatus: "Buffed", unless: ["Buffed", "Not needed"] });
+            await hwDone({ visibleHwStatus: "Done", unless: ["Done", "Not needed"] });
           }
         } catch { /* feed unreadable — leave the card as it is */ }
       }

@@ -269,6 +269,8 @@ export async function buildLists() {
     // buffs that piano's hardware as part of the refurb phases — it is not Korban's.
     // (They were listed as "Refurb · buff only" from 11/10 to 11/18, request 111026hales80.)
     if (refurbOnly(p)) continue;
+    // "Not needed" on the card's Visible hardware row (Mark 11/20) keeps it off
+    if (/^not needed$/i.test(String(p.visibleHwStatus || "").trim())) continue;
     const refurb = false;
     const inRange = idx >= FIRST && idx <= LAST;
     if (!inRange || !p.serial || forSale(p) || skipPhase(p)) continue;
