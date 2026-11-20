@@ -270,7 +270,9 @@ export async function buildLists() {
     // (They were listed as "Refurb · buff only" from 11/10 to 11/18, request 111026hales80.)
     if (refurbOnly(p)) continue;
     // "Not needed" on the card's Visible hardware row (Mark 11/20) keeps it off
-    if (/^not needed$/i.test(String(p.visibleHwStatus || "").trim())) continue;
+    // ... and so does "Done" (Mark 11/20: 28524's lyre and pedals were back on the piano
+    // while it still sat on this list — the card is the record once someone marks it)
+    if (/^(not needed|done)$/i.test(String(p.visibleHwStatus || "").trim())) continue;
     const refurb = false;
     const inRange = idx >= FIRST && idx <= LAST;
     if (!inRange || !p.serial || forSale(p) || skipPhase(p)) continue;
