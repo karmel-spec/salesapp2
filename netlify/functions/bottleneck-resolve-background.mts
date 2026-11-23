@@ -96,6 +96,25 @@ const ALLOWED = new Set(["move", "setphase", "setdone", "settrack", "setcabinetr
  * prompt says so too — this is the guard that does not depend on the model. */
 const HUMAN_ONLY_PHASES = new Set(["delivered", "sold"]);
 
+/* No phase advances from this flow (Mark 11/23). P.S. Wick 29908 was moved
+ * Refinishing → QC & Assembly on an answer that only said its hardware was back,
+ * and its owner got a "refinishing is done" email draft. A piano moves FORWARD
+ * only when the person doing the work (or a manager) moves it on its card —
+ * usually through a mini-QC. Moving forward = into a work phase later than the
+ * current one, or out of a parking state (Waiting on …, Paused, In Queue,
+ * Player Piano Work…) into any work phase; marking phases done (setdone) is an
+ * advance too. Those become a followup for a human. Moving BACK, or into a
+ * waiting / parking state, still runs. */
+const WORK_PHASES = ["New Arrival - Admin", "Assessment", "CAP", "PRSB - Downbearing", "PRSB - Notching and Pins",
+  "Lacquer Soundboard", "Restringing", "Chip Tuning", "DHRT", "1st Tuning", "Refinishing", "QC & Assembly",
+  "2nd Tuning", "Exit Prep - Admin", "Delivered"];
+const isAdvance = (from: string, to: string) => {
+  const ti = WORK_PHASES.indexOf(String(to || "").trim());
+  if (ti < 0) return false;                       // into a waiting / parking state
+  const fi = WORK_PHASES.indexOf(String(from || "").trim());
+  return fi < 0 || ti > fi;                       // out of parking, or later in the sequence
+};
+
 export default async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("", { headers: CORS });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
@@ -172,6 +191,12 @@ export default async (req: Request) => {
     + "Post Sale QC, Waiting on Brigham, Waiting on Curtis Harper, Waiting on Customer, Waiting on OTHER. "
     + "NEVER set a phase of \"Delivered\" or \"Sold\" — those take a piano off the map and a human must do "
     + "them. If an answer says a piano was delivered or sold, put it in followups instead. "
+    + "NEVER MOVE A PIANO FORWARD (Mark 11/23): do not set a later work phase, do not move a piano out of a waiting / "
+    + "parking state into a work phase, and do not mark phases done (setdone). The technician or a manager advances a "
+    + "piano on its card when the work is finished. 'The hardware is back', 'parts arrived', 'the plate is done' do NOT "
+    + "mean the current phase is finished. When an answer suggests a piano is ready to move on, add a followup worded "
+    + "\"Advance <serial> to <phase> on its card once the current work is done\" and use a note for the fact itself. "
+    + "Moving a piano BACK or into a Waiting / Paused state is allowed when the answer says so. "
     + "Use action \"note\" with a `note` field to add a dated line to a piano's notes — only for a fact about the PIANO "
     + "(a part arrived, a problem found, a client decision); never schedule information (who is assigned, which days, "
     + "lanes, bumps) — that belongs in the plan, not on the card. "
@@ -216,6 +241,14 @@ export default async (req: Request) => {
     }
     const p = pianos.find(x => x.serial === a.serial);
     if (!p) { executed.push(`✗ ${a.serial}: unknown serial`); continue; }
+    // the guard that does not depend on the model (Mark 11/23): no advances
+    if ((a.action === "setphase" && isAdvance(p.phase, a.phase)) || a.action === "setdone") {
+      const what = a.action === "setdone" ? `mark ${(a.phases || []).join(", ") || "phases"} done` : `move it to "${a.phase}"`;
+      (out.followups = out.followups || []).push(
+        `${a.serial}: ${what} on its card if the work is really finished — ${a.why || "from a bottleneck answer"} (the answers run never advances a piano)`);
+      executed.push(`⏸ ${a.action} ${a.serial}${a.phase ? " → " + a.phase : ""}: left for a person (no advances from answers)`);
+      continue;
+    }
     const { action, serial, why, ...rest } = a;
     // "note" (the AI's most common ask — Mark 9/11 saw "note: not allowed")
     // → APPENDS a dated line to the card's 📝 Piano Notes. Never the Scope of
