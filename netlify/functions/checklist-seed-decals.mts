@@ -12,8 +12,9 @@ import { googleToken, REPORT_SHEET, KEY } from "./_blp-sched-lib.mts";
 
 const TAB = "Phase Checklists";
 const STEP = "Measure and take pictures of any decals";
-const CAUTION = "Soundboard, fallboard or anywhere else: photograph each decal with a ruler showing its height and width, so a new one can be ordered.";
-const QC = "Decals measured and photographed (with a ruler) — in the piano's Drive folder";
+const CAUTION = "Three pictures of every decal: one with a ruler showing the width, one with a ruler showing the height, and one with no ruler.";
+const HANDBOOK = "<p>Before the soundboard is blown out or cleaned, find every decal on the piano (soundboard, fallboard or anywhere else) and measure it. Take three pictures of each decal: one with a ruler showing the width, one with a ruler showing the height, and one with no ruler. Upload them to the tech folder in the piano\u2019s Google Drive folder so a new decal can be ordered.</p>";
+const QC = "Every decal has 3 pictures in the piano's Drive folder: ruler on the width, ruler on the height, and one with no ruler";
 
 export default async (req: Request) => {
   const headers = { "content-type": "application/json", "cache-control": "no-store" };
@@ -40,8 +41,8 @@ export default async (req: Request) => {
     if (last !== 300) problems.push("tab ends at row " + last + ", expected 300");
     const first = last + 1;
     const rows = [
-      ["CAP", "work", "upright", "Decals", STEP, CAUTION, "", "", "", "15"],
-      ["CAP", "work", "grand", "Decals", STEP, CAUTION, "", "", "", "29"],
+      ["CAP", "work", "upright", "Decals", STEP, CAUTION, HANDBOOK, "", "", "15"],
+      ["CAP", "work", "grand", "Decals", STEP, CAUTION, HANDBOOK, "", "", "29"],
       ["CAP", "qc", "all", "Decals", QC, "", "", "", "", "37"],
     ];
     if (problems.length || b.dry) return out({ ok: !problems.length, dry: true, problems, lastRow: last, wouldWriteRows: [first, first + 2], rows });
