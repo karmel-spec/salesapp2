@@ -4,7 +4,8 @@ installSheetsMeter("staff-email-sweep-background");
  *  console call stays short. POST ?key=…[&days=3] */
 const SITE = process.env.URL || "https://blpsalesapp.netlify.app";
 const KEY = process.env.BLP_APP_ACCESS_KEY || "";
-const MAILBOXES = ["info@brighamlarsonpianos.com", "brigham@brighamlarsonpianos.com", "melissa@brighamlarsonpianos.com", "alisa@brighamlarsonpianos.com", "lisa@brighamlarsonpianos.com", "brighamlarson@gmail.com"];
+// Lisa left BLP (Mark 11/24): her mailbox is no longer swept — same list as SWEEP_MAILBOXES
+const MAILBOXES = ["info@brighamlarsonpianos.com", "brigham@brighamlarsonpianos.com", "melissa@brighamlarsonpianos.com", "alisa@brighamlarsonpianos.com", "brighamlarson@gmail.com"];
 
 export default async (req: Request) => {
   const url = new URL(req.url);

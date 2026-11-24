@@ -40,7 +40,8 @@ const channelOf = (t: string) => t === "web_chat_message" ? "webchat" : t === "f
 // the piano shop", "- Brigham"). "This is Brigham Larson Pianos…" is the
 // company, not Brigham — those reminders/campaigns are "BLP team", which keeps
 // BL Client Responses limited to replies to Brigham's own outreach.
-const REPS = "Brigham|Melissa|Lisa|Alisa|Karmel|Susie|Ezzy";
+// Lisa left BLP (Mark 11/24): no longer a named rep — same list as email-sweep REPS
+const REPS = "Brigham|Melissa|Alisa|Karmel|Susie|Ezzy";
 export const whoOf = (text: string, _assignedTo: string | null): string => {
   if (/our staff will be with you shortly|thank you for (texting|contacting) (us|brigham larson pianos)|outside of our (working|business) hours/i.test(text)) return "SalesCaptain auto-reply";
   const t = text.replace(/Brigham Larson Pianos/gi, "BLP");
