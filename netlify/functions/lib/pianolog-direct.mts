@@ -390,6 +390,17 @@ function plan(action: string, p: Payload, sh: Sheet, rowNum: number, row: string
         if (/^plate storage\s*\W*\s*before/i.test(pl) || /^at curtis/i.test(pl)) return null;
       }
       const writes = [{ col: pc, value: phase }];
+      // LAST WORK PHASE (Melissa 11/21, 112126terry20): track phase → waiting / parking
+      // state remembers the phase it left, so the progress % holds while it waits.
+      // Same rule as the bridge's lastWorkFor_; no column yet → the bridge creates it
+      const PARK = /^(waiting on |paused$|player piano work$|in queue$)/i;
+      const NONWORK = /^(waiting on |paused$|player piano work$|in queue$|for sale$|sale pending$|sold$|delivered$|post sale qc$|out on rental$|rental check-in$)/i;
+      const lastWork = PARK.test(phase) && prev.trim() && !NONWORK.test(prev.trim()) ? prev.trim() : "";
+      if (lastWork) {
+        const lwc = col(sh, "LAST WORK PHASE");
+        if (!lwc) return null;
+        writes.push({ col: lwc, value: lastWork });
+      }
       const waiting = phase.indexOf("Waiting") === 0;
       // WAITING NOTE: written with Waiting phases, cleared when the piano moves on
       const nc = col(sh, "WAITING NOTE");
@@ -420,7 +431,7 @@ function plan(action: string, p: Payload, sh: Sheet, rowNum: number, row: string
         }
         if (autoDone) logs.push([who, "Phases auto-completed", piano, "For Sale — all shop phases marked done"]);
       }
-      return { writes, logs, result: { ...base, previous: prev, phase, note, checkBack: cb, movedToSold: false, done: autoDone, autoCompleted: !!autoDone } };
+      return { writes, logs, result: { ...base, previous: prev, phase, note, checkBack: cb, movedToSold: false, done: autoDone, autoCompleted: !!autoDone, lastWorkPhase: lastWork } };
     }
     default:
       return null;

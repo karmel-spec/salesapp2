@@ -303,6 +303,8 @@ export function patchForAction(action: string, payload: Record<string, unknown>,
       p.sm.archived = /delivered/i.test(phase);
       if (payload.note != null) { p.sm.waitNote = s(payload.note); p.raw["WAITING NOTE"] = s(payload.note); }
       if (payload.checkBack != null && s(payload.checkBack)) { p.sm.checkBack = s(payload.checkBack); p.raw["CHECK BACK"] = s(payload.checkBack); }
+      // the phase it was parked from (112126terry20) — the next sync folds it into logExtras
+      if (result && typeof result.lastWorkPhase === "string" && result.lastWorkPhase) p.raw["LAST WORK PHASE"] = result.lastWorkPhase;
       break;
     }
     case "move": {
