@@ -262,8 +262,20 @@ export async function buildLists() {
 
   // ---- visible hardware: pianos past CAP, not yet shipped / buffed / done ----
   const hardware: any[] = [];
+  // A PARKED piano (Waiting on … / In Queue) counts as the phase it was parked
+  // FROM — its LAST WORK PHASE (Mark 11/25: Schiller 20772 sat Waiting on Curtis
+  // Harper with its hardware marked In hardware queue and never showed). Only
+  // when the card says In hardware queue: "Out for plating" means it's gone.
+  // Paused stays off (skipPhase).
+  const PARK_RE = /^(waiting on |in queue$)/i;
   for (const p of active) {
-    const ph = RETIRED[p.phase] || p.phase || "";
+    let ph = RETIRED[p.phase] || p.phase || "";
+    let parked = "";
+    if (PARK_RE.test(ph.trim())) {
+      const lw = String(p.lastWorkPhase || (p.logExtras || {})["LAST WORK PHASE"] || "").trim();
+      if (!lw || !/^in hardware queue$/i.test(String(p.visibleHwStatus || "").trim())) continue;
+      parked = ph; ph = RETIRED[lw] || lw;
+    }
     const idx = PHASES.indexOf(ph);
     // Refurb-only pianos are OFF this list (Mark 11/18): the refurbish technician
     // buffs that piano's hardware as part of the refurb phases — it is not Korban's.
@@ -286,7 +298,7 @@ export async function buildLists() {
     // Buffed stays visible for the day with its undo
     else if (ownDone) { if (stampedToday(own!.step2At) && !/^already done$/i.test(own!.step2)) done = own!.step2 || "Done"; else continue; }
     const finish = String(p.plateFinish || "").trim();
-    hardware.push({ serial: p.serial, mapRow: p.row, phase: ph, phaseIdx: idx >= 0 ? idx : FIRST - 1, refurb,
+    hardware.push({ serial: p.serial, mapRow: p.row, phase: parked ? parked + " (was " + ph + ")" : ph, phaseIdx: idx >= 0 ? idx : FIRST - 1, refurb,
       // manufacturer and serial are all Korban needs (Walter 10/7)
       label: [String(p.make || "").trim() || String(p.summary || "").split("/")[0].trim(), "#" + p.serial].filter(Boolean).join(" "),
       summary: String(p.summary || "").slice(0, 80), finish,
